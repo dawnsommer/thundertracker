@@ -1,4 +1,4 @@
-# Thunder Tracker
+# Thunder tracker
 
 A study tracker for USMLE Step 2 CK that runs in your browser. Everything you log is saved on your device first, so it works offline and installs as an app. You can also sign in with Google to keep your progress in your Google account and use it on every device.
 
