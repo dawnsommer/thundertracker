@@ -1,0 +1,16 @@
+{
+  "name": "Step 2 CK Tracker",
+  "short_name": "CK Tracker",
+  "description": "Track NBME, UWSA, Free 120 and CMS practice exams, systems review and qbank progress for USMLE Step 2 CK.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f3f5f8",
+  "theme_color": "#1d3f73",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
