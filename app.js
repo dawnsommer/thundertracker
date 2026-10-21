@@ -48,7 +48,7 @@
   const SYS_ST = ['Not started', 'Learning', 'Qbank done', 'Revised'];
   const TABS = ['overview', 'nbme', 'cms', 'systems', 'qbank', 'articles'];
   const PASS = 218;
-  const APP_VERSION = 6; // matches VERSION in sw.js and ?v= in index.html
+  const APP_VERSION = 7; // matches VERSION in sw.js and ?v= in index.html
   const KEY = 'ck-tracker';
 
   // ---------- small helpers ----------
@@ -133,9 +133,11 @@
     const name = str(x.name, 40).trim();
     if (typeof x.id !== 'string' || !ID_RE.test(x.id) || !name) return null;
     const unit = x.unit === 'pct' ? 'pct' : 'q';
-    return { id: x.id, name, bank: inRange(x.bank, 1, 50000), done: inRange(x.done, 0, unit === 'pct' ? 100 : 50000), unit, acc: inRange(x.acc, 0, 100), t: stampOf(x.t) };
+    return { id: x.id, name, bank: inRange(x.bank, 1, 50000), done: inRange(x.done, 0, unit === 'pct' ? 100 : 50000), unit, acc: inRange(x.acc, 0, 100),
+      finished: isDate(x.finished), weak: [...new Set(arr(x.weak).filter((w) => typeof w === 'string' && ID_RE.test(w)))].slice(0, 60), t: stampOf(x.t) };
   }
-  const blankQbank = (d) => ({ id: d.id, name: d.name, bank: '', done: '', unit: 'q', acc: '', t: 0 });
+  // `finished` is the date you marked it done (you can stop before 100%); `weak` are its weak systems
+  const blankQbank = (d) => ({ id: d.id, name: d.name, bank: '', done: '', unit: 'q', acc: '', finished: '', weak: [], t: 0 });
   function normArt(x) {
     x = obj(x);
     return { reads: int(x.reads, 0, PASSES), date: isDate(x.date), notes: str(x.notes), t: stampOf(x.t) };
@@ -454,15 +456,43 @@
   // "Renal, Urology & Electrolytes" -> "Renal"
   const shortSys = (name) => name.split(/,| &|:/)[0].trim();
   const weakNames = (ids) => ids.map((id) => allSystems().find((x) => x.id === id)).filter(Boolean).map((x) => shortSys(x.name)).join(', ');
-  // Which systems you marked weak across self-assessments, most often first.
-  function weakPattern() {
-    const flagged = allTests().filter((f) => item(f.id).weak.length);
-    const by = new Map();
-    flagged.forEach((f) => item(f.id).weak.forEach((id) => { if (!by.has(id)) by.set(id, []); by.get(id).push(f); }));
+  // Column label: UWorld -> UW, AMBOSS -> AMB, Kaplan -> KAP
+  const qbAbbr = (name) => { const caps = name.match(/[A-Z]/g) || []; return caps.length >= 2 && caps.length <= 3 && caps.length < name.replace(/\W/g, '').length ? caps.join('') : name.replace(/\W/g, '').slice(0, 3).toUpperCase(); };
+  // Everything you marked weak systems on: self-assessments in the order you took them, then finished qbanks.
+  function weakSources() {
     const order = (f) => item(f.id).date || '9999';
-    const rows = [...by].map(([id, fs]) => ({ sy: allSystems().find((x) => x.id === id), fs: fs.sort((a, b) => order(a).localeCompare(order(b))) }))
-      .filter((r) => r.sy).sort((a, b) => b.fs.length - a.fs.length || a.sy.name.localeCompare(b.sy.name));
-    return { rows, flagged: flagged.length };
+    const tests = allTests().filter((f) => item(f.id).weak.length)
+      .sort((a, b) => order(a).localeCompare(order(b)) || ORDER(a) - ORDER(b))
+      .map((f) => ({ key: f.id, kind: 'test', tag: f.tag, full: f.full, date: item(f.id).date, weak: item(f.id).weak, open: () => openForm(f), g: f.g.key }));
+    const banks = state.qbanks.filter((q) => q.finished && q.weak.length)
+      .map((q) => ({ key: 'qb-' + q.id, kind: 'qbank', tag: qbAbbr(q.name), full: q.name + ' (qbank)', date: q.finished, weak: q.weak, open: () => openQbank(q) }));
+    return tests.concat(banks);
+  }
+  // Per system: where it came up weak. "Recent" = weak in one of your last two marked assessments.
+  function weakPattern() {
+    const sources = weakSources();
+    const tests = sources.filter((x) => x.kind === 'test');
+    const latest = new Set(tests.slice(-2).map((x) => x.key));
+    const by = new Map();
+    sources.forEach((src) => src.weak.forEach((id) => { if (!by.has(id)) by.set(id, []); by.get(id).push(src); }));
+    const rows = [...by].map(([id, hits]) => ({ sy: allSystems().find((x) => x.id === id), hits,
+      tests: hits.filter((x) => x.kind === 'test').length, banks: hits.filter((x) => x.kind === 'qbank').length, recent: hits.some((x) => latest.has(x.key)) }))
+      .filter((r) => r.sy).sort((a, b) => b.hits.length - a.hits.length || b.recent - a.recent || a.sy.name.localeCompare(b.sy.name));
+    return { rows, sources, nTests: tests.length, nBanks: sources.length - tests.length };
+  }
+  // Tap-to-toggle system chips, shared by assessments and qbanks.
+  function weakPicker(get, set) {
+    const box = h('div', { class: 'tags weak-pick', role: 'group', 'aria-label': 'Weak systems' });
+    const draw = () => box.replaceChildren(...allSystems().map((sy) => {
+      const on = get().includes(sy.id);
+      return h('button', { class: 'tag' + (on ? ' on weak-on' : ''), 'aria-pressed': on ? 'true' : 'false', title: sy.name, onclick: () => {
+        const w = get().filter((x) => x !== sy.id);
+        set(on ? w : w.concat(sy.id));
+        draw();
+      } }, (on ? '✓ ' : '') + shortSys(sy.name));
+    }));
+    draw();
+    return { box, draw };
   }
   const artItem = (id) => state.articles[id] || { reads: 0, date: '', notes: '', t: 0 };
   // Checklist sections first (with any articles you added to them), then your own sections.
@@ -568,7 +598,7 @@
     if (baseQ == null && da != null) acc = da;
     const pctDone = bank && done != null ? Math.min(100, done / bank * 100) : qb.unit === 'pct' && dv != null ? dv : null;
     return { qb, logs, loggedQ, baseQ, done, bank, pctDone, acc, left: bank && done != null ? Math.max(0, bank - done) : null,
-      started: dv != null || da != null || logs.length > 0 };
+      started: dv != null || da != null || logs.length > 0, finished: !!qb.finished };
   }
   function qbStats() {
     const log = state.log, t = dayNum(today());
@@ -741,24 +771,49 @@
     renderArtSummary($('art-mini'), true);
   }
 
-  // Bars of how many reviewed forms flagged each system; 2+ forms is a pattern.
+  // Weakness matrix: a row per system, a column per marked assessment (oldest → newest) and finished qbank.
+  // A filled square = weak there. Rows sort by how often a system came up; 2+ is a recurring pattern.
   function renderWeak(box) {
-    const { rows, flagged } = weakPattern();
+    const { rows, sources, nTests, nBanks } = weakPattern();
     if (!rows.length) {
-      box.replaceChildren(h('p', { class: 'sub', text: 'When you review an NBME, UWSA or Free 120, open it and tap the systems you were weak in. The ones that keep coming back show up here.' }),
-        h('button', { class: 'btn', style: 'margin-top:12px', onclick: () => showTab('nbme', true) }, 'Go to assessments'));
+      box.replaceChildren(h('p', { class: 'sub', text: 'After reviewing an NBME, UWSA or Free 120 — or finishing a qbank — tap the systems you were weak in. The ones that keep coming back show up here.' }),
+        h('div', { class: 'btnrow', style: 'margin-top:12px' },
+          h('button', { class: 'btn', onclick: () => showTab('nbme', true) }, 'Go to assessments'),
+          h('button', { class: 'btn ghost', onclick: () => showTab('qbank', true) }, 'Go to qbanks')));
       return;
     }
-    const shown = ui.weakAll ? rows : rows.slice(0, 8);
-    box.replaceChildren(...[h('div', { class: 'sbars' }, shown.map((r) => {
-      const n = r.fs.length, rec = n >= 2;
-      return h('button', { class: 'sbar weakbar' + (rec ? ' rec' : ''), 'data-open': r.sy.id, onclick: () => openSystem(r.sy), title: r.sy.name + ': ' + r.fs.map((f) => f.full).join(', '),
-        'aria-label': r.sy.name + ' weak in ' + n + ' of ' + flagged + ' forms: ' + r.fs.map((f) => f.full).join(', ') },
-        h('span', { class: 'lbl', text: shortSys(r.sy.name) }),
-        h('span', { class: 'segbar', 'aria-hidden': 'true' }, h('span', { style: 'width:' + (n / flagged * 100) + '%;background:' + (rec ? 'var(--bad)' : 'var(--s1)') })),
-        h('span', { class: 'val' }, n + '/' + flagged, h('small', { text: ' ' + r.fs.map((f) => f.tag).join(' ') })));
-    })), rows.length > 8 ? h('button', { class: 'linkish', style: 'margin-top:10px', onclick: () => { ui.weakAll = !ui.weakAll; render(); } }, ui.weakAll ? 'Show fewer' : 'Show all ' + rows.length) : null,
-      h('p', { class: 'hint', style: 'margin-top:10px', text: 'Red = weak in 2 or more of the ' + plural(flagged, 'form') + ' you marked. Tap a system for its notes and status.' })].filter(Boolean));
+    const recurring = rows.filter((r) => r.hits.length >= 2);
+    const shown = ui.weakAll ? rows : rows.slice(0, 10);
+    const total = sources.length;
+    const cols = 'grid-template-columns:minmax(7.5rem,9.5rem) repeat(' + sources.length + ',22px) 4.2rem';
+    const head = h('div', { class: 'wm-row wm-head', style: cols, 'aria-hidden': 'true' },
+      h('span'),
+      sources.map((src, i) => h('button', { class: 'wm-col' + (src.kind === 'qbank' ? ' qb' : '') + (src.kind === 'qbank' && (i === 0 || sources[i - 1].kind !== 'qbank') ? ' first-qb' : ''),
+        title: src.full + (src.date ? ' · ' + fmtDate(src.date) : ''), tabindex: '-1', onclick: src.open }, src.tag)),
+      h('span', { class: 'wm-tot', text: 'times' }));
+    const body = shown.map((r) => {
+      const hit = new Set(r.hits.map((x) => x.key)), n = r.hits.length;
+      return h('button', { class: 'wm-row' + (n >= 2 ? ' rec' : ''), style: cols, 'data-open': r.sy.id, onclick: () => openSystem(r.sy),
+        'aria-label': r.sy.name + ': weak ' + n + ' of ' + total + ' times — ' + r.hits.map((x) => x.full).join(', ') + (r.recent ? '. Weak recently.' : '') },
+        h('span', { class: 'wm-name', title: r.sy.name }, shortSys(r.sy.name), h('small', { class: 'wm-n', text: n + '×' }), r.recent ? h('i', { class: 'wm-recent', title: 'Weak in one of your last two marked assessments' }) : null),
+        sources.map((src, i) => h('span', { class: 'wm-cell' + (hit.has(src.key) ? (src.kind === 'qbank' ? ' on qb' : ' on') : '') + (src.kind === 'qbank' && (i === 0 || sources[i - 1].kind !== 'qbank') ? ' first-qb' : ''),
+          title: hit.has(src.key) ? shortSys(r.sy.name) + ' weak · ' + src.full : '' })),
+        h('span', { class: 'wm-tot' }, h('b', { text: String(n) }), h('span', { class: 'wm-bar', 'aria-hidden': 'true' }, h('i', { style: 'width:' + (n / total * 100) + '%' }))));
+    });
+    box.replaceChildren(...[
+      h('div', { class: 'wm-sum' },
+        recurring.length
+          ? h('p', null, h('b', { text: 'Recurring: ' }), recurring.slice(0, 4).map((r) => shortSys(r.sy.name) + ' ' + r.hits.length + '×').join(' · '))
+          : h('p', { class: 'muted', text: 'No system has come up weak twice yet.' }),
+        h('p', { class: 'hint', text: plural(nTests, 'assessment') + (nBanks ? ' and ' + plural(nBanks, 'finished qbank') : '') + ' marked' })),
+      h('div', { class: 'wm-scroll' }, h('div', { class: 'wm' }, head, body)),
+      rows.length > 10 ? h('button', { class: 'linkish', style: 'margin-top:8px', onclick: () => { ui.weakAll = !ui.weakAll; render(); } }, ui.weakAll ? 'Show top 10' : 'Show all ' + rows.length + ' systems') : null,
+      h('div', { class: 'heat-legend wm-legend', 'aria-hidden': 'true' },
+        h('span', null, h('i', { class: 'wm-cell on' }), 'Weak in an assessment'),
+        nBanks ? h('span', null, h('i', { class: 'wm-cell on qb' }), 'Weak in a qbank') : null,
+        h('span', null, h('i', { class: 'wm-recent' }), 'Weak in your last 2 assessments'),
+        h('span', { text: 'Columns oldest → newest · tap a row for the system, a column for the form' })),
+    ].filter(Boolean));
   }
 
   function renderNext(tests, cms, qb, dl) {
@@ -772,12 +827,12 @@
       lis.push(['Pace', left.length + ' assessment' + (left.length > 1 ? 's' : '') + ' left in ' + plural(dl, 'day') +
         (every >= 1 ? ' · about one every ' + (every < 10 ? every.toFixed(1).replace(/\.0$/, '') : Math.round(every)) + ' days' : ' · more than one a day — consider trimming the list')]);
     }
-    const paced = qb.banks.filter((b) => b.left != null && b.started);
+    const paced = qb.banks.filter((b) => b.left != null && b.started && !b.finished);
     if (paced.length && dl != null && dl > 0) {
       lis.push(['Qbank', paced.map((b) => b.left > 0 ? b.qb.name + ' ' + fmtN(b.left) + ' left (~' + Math.ceil(b.left / dl) + '/day)' : b.qb.name + ' finished').join(' · ')]);
     }
-    const pattern = weakPattern().rows.filter((r) => r.fs.length >= 2);
-    if (pattern.length) lis.push(['Pattern', go(pattern.slice(0, 3).map((r) => shortSys(r.sy.name) + ' (' + r.fs.length + ' forms)').join(', ') + ' keep coming up weak', () => openSystem(pattern[0].sy), pattern[0].sy.id)]);
+    const pattern = weakPattern().rows.filter((r) => r.hits.length >= 2);
+    if (pattern.length) lis.push(['Pattern', go(pattern.slice(0, 3).map((r) => shortSys(r.sy.name) + ' (' + r.hits.length + '×)').join(', ') + ' keep coming up weak', () => openSystem(pattern[0].sy), pattern[0].sy.id)]);
     const unread = allArticles().filter((a) => !artItem(a.id).reads);
     if (unread.length) lis.push(['Articles', go(unread.length + ' of ' + allArticles().length + ' AMBOSS articles not read yet — next: ' + unread[0].name, () => showTab('articles', true))]);
     const unrev = tests.concat(cms).filter((f) => item(f.id).status === 1);
@@ -1111,7 +1166,7 @@
       setTimeout(() => $('add-sys')?.focus(), 0);
     };
     inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') add(); });
-    const weakIn = new Map(weakPattern().rows.map((r) => [r.sy.id, r.fs]));
+    const weakIn = new Map(weakPattern().rows.map((r) => [r.sy.id, r.hits]));
     $('sys-rows').replaceChildren(...sortedSystems().map((sy) => {
       const it = sysItem(sy.id), uw = num(it.uw);
       return h('div', { class: 'sys' },
@@ -1120,7 +1175,7 @@
           h('div', { class: 'tags' }, TAGS.filter((t) => t === 'Sketchy' || it.tags.includes(t)).map((t) => tagBtn(sy.id, t)),
             uw != null ? h('span', { class: 'tag uw ' + band('cms', uw), title: 'UWorld % correct', text: 'UW ' + fmtPct(uw) }) : null,
             weakIn.get(sy.id) ? h('span', { class: 'tag weak-tag' + (weakIn.get(sy.id).length >= 2 ? ' rec' : ''), title: 'Marked weak on ' + weakIn.get(sy.id).map((f) => f.full).join(', '),
-              text: 'Weak in ' + plural(weakIn.get(sy.id).length, 'form') }) : null)),
+              text: 'Weak ' + weakIn.get(sy.id).length + '×' }) : null)),
         h('span', { class: 'conf', role: 'group', 'aria-label': 'Confidence for ' + sy.name },
           [1, 2, 3, 4, 5].map((n) => h('button', { class: it.conf >= n ? 'on' : '', 'aria-label': 'Confidence ' + n, 'aria-pressed': it.conf === n ? 'true' : 'false', title: 'Confidence ' + n + '/5', onclick: () => setSys(sy.id, { conf: it.conf === n ? 0 : n }) }))),
         h('span', { class: 'seg', role: 'group', 'aria-label': 'Status for ' + sy.name },
@@ -1396,13 +1451,14 @@
     $('qb-banks').replaceChildren(...qb.banks.map((b) => {
       const big = b.done != null && (b.baseQ || b.loggedQ) ? fmtN(b.done) : b.pctDone != null ? fmtPct(b.pctDone) : '—';
       const note = [b.pctDone != null && b.done != null && b.bank ? fmtPct(b.pctDone) + ' done' : '', b.acc != null ? fmtPct(b.acc) + ' correct' : '',
-        b.left != null && b.started ? fmtN(b.left) + ' left' : '', b.loggedQ ? fmtN(b.loggedQ) + ' logged here' : '',
-        b.baseQ == null ? 'add the bank size to count questions' : ''].filter(Boolean).join(' · ');
-      return h('button', { class: 'tile qbc', 'data-open': 'qb-' + b.qb.id, onclick: () => openQbank(b.qb), 'aria-label': b.qb.name + ': edit progress' },
-        h('span', { class: 'eyebrow qbc-h' }, b.qb.name, h('span', { class: 'qbc-edit', text: 'Edit' })),
+        b.left != null && b.started && !b.finished ? fmtN(b.left) + ' left' : '', b.loggedQ ? fmtN(b.loggedQ) + ' logged here' : '',
+        b.baseQ == null && !b.finished ? 'add the bank size to count questions' : ''].filter(Boolean).join(' · ');
+      return h('button', { class: 'tile qbc' + (b.finished ? ' fin' : ''), 'data-open': 'qb-' + b.qb.id, onclick: () => openQbank(b.qb), 'aria-label': b.qb.name + (b.finished ? ', finished' : '') + ': edit progress' },
+        h('span', { class: 'eyebrow qbc-h' }, h('span', null, b.qb.name, b.finished ? h('span', { class: 'qbc-fin', text: '✓ Finished ' + fmtDate(b.qb.finished) }) : null), h('span', { class: 'qbc-edit', text: 'Edit' })),
         h('span', { class: 'big' }, big, b.bank && b.done != null && (b.baseQ || b.loggedQ) ? h('small', { text: '/ ' + fmtN(b.bank) }) : null),
         h('span', { class: 'meter' }, h('b', { style: 'width:' + Math.round(b.pctDone || 0) + '%' })),
-        h('span', { class: 'note', text: note || 'Tap to enter your progress so far' }));
+        h('span', { class: 'note', text: note || 'Tap to enter your progress so far' }),
+        b.finished ? h('span', { class: 'note qbc-weak' }, b.qb.weak.length ? h('b', { class: 'weak-l', text: 'Weak: ' + weakNames(b.qb.weak) }) : 'Tap to mark its weak systems') : null);
     }), h('button', { class: 'add-chip qbc-add', 'data-open': 'qb-new', onclick: () => openQbank(null) }, '+ Add a qbank'));
     // keep the session form's qbank list in step with your qbanks
     const sel = $('lg-src'), keep = sel.value, opts = state.qbanks.map((q) => q.name).concat('Other');
@@ -1471,7 +1527,7 @@
   // Edit a qbank's size and the progress you'd made before logging sessions here (null = add a new one).
   function openQbank(qb) {
     const isNew = !qb, builtIn = qb && QBANKS.some((d) => d.id === qb.id);
-    const draft = qb ? null : { id: 'qb-x' + uid(), name: '', bank: '', done: '', unit: 'q', acc: '', t: 0 };
+    const draft = qb ? null : { id: 'qb-x' + uid(), name: '', bank: '', done: '', unit: 'q', acc: '', finished: '', weak: [], t: 0 };
     const cur = () => (isNew ? draft : state.qbanks.find((x) => x.id === qb.id) || draft);
     const patch = (p) => {
       if (isNew) { Object.assign(draft, p); return; }
@@ -1500,12 +1556,34 @@
     done.field.append(unitSel);
     unitSel.addEventListener('change', () => { patch({ unit: unitSel.value }); done.inp.placeholder = unitSel.value === 'pct' ? 'e.g. 94' : 'e.g. 930'; });
     const acc = numField('qb-acc', '% correct so far', { inputmode: 'decimal', step: 'any', placeholder: 'e.g. 65', value: cur().acc }, 0, 100, false, (raw) => patch({ acc: raw }));
+    // Finished: you can stop before 100%. Once finished, mark its weak systems like an assessment.
+    const finIn = h('input', { type: 'checkbox', id: 'qb-fin' });
+    finIn.checked = !!cur().finished;
+    const finDate = h('input', { type: 'date', id: 'qb-fin-date', value: cur().finished, 'aria-label': 'Finished on' });
+    const picker = weakPicker(() => cur().weak || [], (weak) => patch({ weak }));
+    const finBox = h('div', { class: 'field qb-fin-box' });
+    const drawFin = () => {
+      const b = bankStats(cur()), fin = !!cur().finished;
+      finIn.checked = fin;
+      if (document.activeElement !== finDate) finDate.value = cur().finished;
+      finBox.replaceChildren(...[
+        h('label', { class: 'switch sim-opt', for: 'qb-fin' }, finIn, h('span', null, h('b', { text: 'Finished' }),
+          h('small', { class: 'muted', text: fin ? '' : b.pctDone != null && b.pctDone >= 100 ? ' — looks complete' : ' — you can finish early and skip the rest' }))),
+        fin ? h('div', { class: 'two' }, h('div', { class: 'field' }, h('label', { for: 'qb-fin-date', text: 'Finished on' }), finDate), h('div')) : null,
+        fin ? h('div', { class: 'field' }, h('span', { class: 'lab', text: 'Weak systems in this qbank' }), picker.box,
+          h('p', { class: 'hint', text: 'Use its performance-by-system report. These join your assessments in “Recurring weak systems” on the overview.' })) : null,
+      ].filter(Boolean));
+      picker.draw();
+    };
+    finIn.addEventListener('change', () => { patch({ finished: finIn.checked ? cur().finished || today() : '' }); drawFin(); });
+    finDate.addEventListener('change', () => { if (isDate(finDate.value)) patch({ finished: finDate.value }); });
+    drawFin();
     const summary = h('p', { class: 'hint' });
     const drawSummary = () => {
       const b = bankStats(cur());
       summary.textContent = b.started
         ? [b.done != null ? fmtN(b.done) + (b.bank ? ' of ' + fmtN(b.bank) : '') + ' done' : fmtPct(b.pctDone) + ' done', b.pctDone != null && b.bank ? fmtPct(b.pctDone) : '',
-          b.acc != null ? fmtPct(b.acc) + ' correct' : '', b.loggedQ ? 'includes ' + fmtN(b.loggedQ) + ' logged in sessions' : ''].filter(Boolean).join(' · ')
+          b.acc != null ? fmtPct(b.acc) + ' correct' : '', b.loggedQ ? 'includes ' + fmtN(b.loggedQ) + ' logged in sessions' : '', b.finished ? 'finished' : ''].filter(Boolean).join(' · ')
         : 'Nothing entered yet.';
     };
     drawSummary();
@@ -1529,6 +1607,7 @@
       h('div', { class: 'two' }, done.field, h('div')),
       h('p', { class: 'hint', text: 'Enter where you are now — from the qbank’s own stats page. Sessions you log on this tab are added on top. “% of the bank” needs the bank size to count questions.' }),
       summary,
+      finBox,
       h('div', { class: 'actions' }, actions),
     ], () => {
       const a = document.activeElement;
@@ -1536,7 +1615,7 @@
       if (a !== done.inp) done.inp.value = cur().done;
       if (a !== acc.inp) acc.inp.value = cur().acc;
       unitSel.value = cur().unit;
-      drawSummary();
+      drawSummary(); drawFin();
     }, builtIn ? '#qb-bank' : '#qb-name');
   }
 
@@ -1615,16 +1694,8 @@
     drawStep(); drawConv();
 
     const dateField = h('div', { class: 'field' }, h('label', { for: 'ed-date', text: 'Date taken' }), dateIn);
-    const weakBox = isCms ? null : h('div', { class: 'tags weak-pick', role: 'group', 'aria-label': 'Weak systems in this form' });
-    const drawWeak = () => weakBox && weakBox.replaceChildren(...allSystems().map((sy) => {
-      const on = cur().weak.includes(sy.id);
-      return h('button', { class: 'tag' + (on ? ' on weak-on' : ''), 'aria-pressed': on ? 'true' : 'false', title: sy.name, onclick: () => {
-        const w = cur().weak.filter((x) => x !== sy.id);
-        patch({ weak: on ? w : w.concat(sy.id) });
-        drawWeak();
-      } }, (on ? '✓ ' : '') + shortSys(sy.name));
-    }));
-    drawWeak();
+    const picker = isCms ? null : weakPicker(() => cur().weak, (weak) => patch({ weak }));
+    const weakBox = picker && picker.box, drawWeak = () => picker && picker.draw();
     const clearBtn = h('button', { class: 'btn ghost danger', onclick: () => {
       const undo = snapshot();
       delete state.items[f.id]; save(); closeSheet();
@@ -1930,7 +2001,7 @@
       rows.push(['system', '', sy.name, SYS_ST[it.status] + (it.conf ? ' · confidence ' + it.conf + '/5' : ''), '', it.uw, '', '', [it.tags.join(' / '), it.notes].filter(Boolean).join(' · ')]);
     });
     state.qbanks.map(bankStats).forEach((b) => rows.push(['qbank-total', b.qb.name, b.bank ? 'bank of ' + b.bank : '', '', '', b.acc != null ? Math.round(b.acc * 10) / 10 : '',
-      b.done != null ? b.done : '', '', b.pctDone != null ? Math.round(b.pctDone) + '% done' : '']));
+      b.done != null ? b.done : '', b.qb.finished, [b.pctDone != null ? Math.round(b.pctDone) + '% done' : '', b.finished ? 'finished' : ''].filter(Boolean).join(' · '), weakNames(b.qb.weak || [])]));
     state.log.slice().sort((a, b) => a.date.localeCompare(b.date)).forEach((e) => rows.push(['qbank', e.src, '', '', '', e.pct, e.q, e.date, e.note]));
     orderedSections().forEach((sec) => sec.articles.forEach((ar) => {
       const it = artItem(ar.id);
@@ -2023,7 +2094,7 @@
     // qbanks
     const qbList = h('div', { class: 'set-list' });
     const drawQb = () => qbList.replaceChildren(...qbStats().banks.map((b) => h('div', { class: 'set-row' },
-      h('div', null, h('b', { text: b.qb.name }), h('small', { text: [b.bank ? fmtN(b.bank) + ' questions' : 'bank size not set', b.pctDone != null ? fmtPct(b.pctDone) + ' done' : '', b.acc != null ? fmtPct(b.acc) + ' correct' : ''].filter(Boolean).join(' · ') })),
+      h('div', null, h('b', { text: b.qb.name }), h('small', { text: [b.bank ? fmtN(b.bank) + ' questions' : 'bank size not set', b.pctDone != null ? fmtPct(b.pctDone) + ' done' : '', b.acc != null ? fmtPct(b.acc) + ' correct' : '', b.finished ? 'finished ' + fmtDate(b.qb.finished) : ''].filter(Boolean).join(' · ') })),
       h('button', { class: 'btn', 'data-open': 'qb-' + b.qb.id, onclick: () => openQbank(b.qb) }, 'Edit'))),
       h('div', { class: 'btnrow' }, h('button', { class: 'btn ghost', 'data-open': 'qb-new', onclick: () => openQbank(null) }, '+ Add a qbank')));
 

@@ -17,14 +17,14 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
-<link rel="stylesheet" href="styles.css?v=6">
+<link rel="stylesheet" href="styles.css?v=7">
 <script>
   // Apply a saved light/dark choice before first paint.
   try { const t = (JSON.parse(localStorage.getItem('ck-tracker') || '{}').prefs || {}).theme; if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
 </script>
-<script src="config.js?v=6" defer></script>
-<script src="cloud.js?v=6" defer></script>
-<script src="app.js?v=6" defer></script>
+<script src="config.js?v=7" defer></script>
+<script src="cloud.js?v=7" defer></script>
+<script src="app.js?v=7" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -93,9 +93,9 @@
         <div id="heat"></div>
       </div>
     </div>
-    <div class="grid2">
+    <div class="grid-wide">
       <div class="card">
-        <div class="sec-head"><div><h3>Recurring weak systems</h3><p class="sub">Systems you marked weak on your NBME, UWSA and Free 120 forms</p></div></div>
+        <div class="sec-head"><div><h3>Recurring weak systems</h3><p class="sub">Systems you marked weak on your NBME, UWSA and Free 120 forms and finished qbanks</p></div></div>
         <div id="weak"></div>
       </div>
       <div class="card">

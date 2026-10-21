@@ -8,10 +8,10 @@
 // this worker only ever reads, writes and deletes caches named `ck-tracker-…`.
 //
 // Releasing: bump VERSION here, `?v=` in index.html and APP_VERSION in app.js together.
-const VERSION = 6;
+const VERSION = 7;
 const PREFIX = 'ck-tracker-';
 const CACHE = PREFIX + 'v' + VERSION;
-const SHELL = ['./', 'index.html', 'styles.css?v=6', 'config.js?v=6', 'cloud.js?v=6', 'app.js?v=6', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'];
+const SHELL = ['./', 'index.html', 'styles.css?v=7', 'config.js?v=7', 'cloud.js?v=7', 'app.js?v=7', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE)
