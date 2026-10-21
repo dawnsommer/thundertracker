@@ -61,7 +61,7 @@
   const subs = new Set();
 
   const configured = () => !!(CFG.appId && CFG.workerUrl && CFG.returnUrl && CFG.driveScope);
-  const onSite = () => location.protocol === 'https:' && location.href.toLowerCase().startsWith(String(CFG.returnUrl).toLowerCase());
+  const onSite = () => location.href.toLowerCase().startsWith(String(CFG.returnUrl).toLowerCase());
   const worker = (path) => String(CFG.workerUrl).replace(/\/$/, '') + path;
   const session = () => get(K.session);
   const authError = (msg) => Object.assign(new Error(msg), { auth: true });
@@ -264,7 +264,23 @@
     if (app) app.flush();
     set('connecting', 'Opening Google sign-in…');
     const params = new URLSearchParams({ app_id: APP_ID, return_url: CFG.returnUrl, device_id: deviceId() });
-    location.assign(worker('/oauth/start') + '?' + params);
+    const url = worker('/oauth/start') + '?' + params;
+    // Ask the Worker first, so a refusal (e.g. this app's address not on its allow-list) is explained here
+    // instead of leaving you on a raw error page. If the reply can't be read, go ahead as normal.
+    try {
+      const res = await timed(url, { redirect: 'manual', cache: 'no-store', credentials: 'omit' }, 8000);
+      if (res.type !== 'opaqueredirect' && res.status >= 400) {
+        const body = await res.json().catch(() => ({}));
+        const code = String(body.error || body.message || 'HTTP ' + res.status);
+        const msg = /return_url|redirect/i.test(code)
+          ? 'Google sign-in isn’t set up for Thunder tracker yet: the sign-in service doesn’t have ' + CFG.returnUrl + ' on its allow-list (“' + code + '”). ' +
+            'Until it’s added, sign in to ThunderShadow in this same browser, then tap Sign in here — the tracker can use that sign-in.'
+          : 'The sign-in service refused the request (“' + code + '”). Your progress is safe on this device.';
+        set('error', msg);
+        throw Object.assign(new Error(msg), { refused: true });
+      }
+    } catch (e) { if (e.refused) throw e; }
+    location.assign(url);
   }
 
   async function disconnect() {

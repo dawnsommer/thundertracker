@@ -48,7 +48,7 @@
   const SYS_ST = ['Not started', 'Learning', 'Qbank done', 'Revised'];
   const TABS = ['overview', 'nbme', 'cms', 'systems', 'qbank', 'articles'];
   const PASS = 218;
-  const APP_VERSION = 7; // matches VERSION in sw.js and ?v= in index.html
+  const APP_VERSION = 8; // matches VERSION in sw.js and ?v= in index.html
   const KEY = 'ck-tracker';
 
   // ---------- small helpers ----------
@@ -2185,7 +2185,8 @@
   }
   function signIn() {
     if (!cloud()) return;
-    Promise.resolve(cloud().connect()).then(() => { if (cloud().status().connected) toast('Signed in with Google'); }).catch((e) => toast(e.message));
+    Promise.resolve(cloud().connect()).then(() => { if (cloud().status().connected) toast('Signed in with Google'); })
+      .catch((e) => { if (e.refused) { toast('Google sign-in isn’t available yet — details in Settings'); if (ui.tab !== 'settings') openSettings('#st-google'); } else toast(e.message); });
   }
   const leaveSettings = () => showTab(ui.prevTab && ui.prevTab !== 'settings' ? ui.prevTab : 'overview', true);
   $('open-settings').addEventListener('click', () => (ui.tab === 'settings' ? leaveSettings() : openSettings()));

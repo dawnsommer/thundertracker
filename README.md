@@ -49,7 +49,7 @@ The tracker shares ThunderShadow's Google OAuth client and Drive scope (`drive.a
 - **Browser storage.** The tracker writes only `ck-tracker` and `thundertracker:*` keys.
 - **Shared sign-in.** If you're already signed in to ThunderShadow in the same browser (both apps are on `dawnsommer.github.io`), the tracker reuses that sign-in instead of asking again. It only reads ThunderShadow's `cloudflareWorkerSession`, never changes it, and signing out of the tracker doesn't sign ThunderShadow out.
 
-**One-time setup:** add `https://dawnsommer.github.io/thundertracker/` (and app ID `thundertracker`, if the Worker checks app IDs) to the Worker's allow-list, the same way ThunderShadow's return URL is listed. Until then, the tracker can still sync through an existing ThunderShadow sign-in in the same browser.
+**One-time setup (required):** the Worker only accepts app IDs and return URLs it knows. Until `thundertracker` → `https://dawnsommer.github.io/thundertracker/` is registered, sign-in fails with `invalid_return_url`. Register it in the Worker's configuration next to the existing entries (`thundershadow` → `…/ThunderShadow/`, `exam-simulator2` → `…/exam-simulator2/`) and redeploy the Worker. No Google Cloud change is needed, because Google only sees the Worker's own `/oauth/callback`. Before redirecting, the app checks the Worker's answer and explains a refusal in Settings. Until the Worker is updated, the tracker can sync through an existing ThunderShadow sign-in in the same browser.
 
 ## Hosting on GitHub Pages
 
