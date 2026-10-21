@@ -40,11 +40,13 @@
   // old system ids folded into the merged ones
   const MERGE = { 'sys-male': 'sys-repro', 'sys-ob': 'sys-repro', 'sys-gyn': 'sys-repro', 'sys-ent': 'sys-neuro', 'sys-derm': 'sys-immuno' };
   const TAGS = ['Sketchy', 'UWorld', 'AMBOSS', 'Anki'];
-  const SRC = ['UWorld', 'AMBOSS', 'Other'];
+  // Built-in qbanks; you can add more on the Qbank tab. Sessions point at a qbank by name.
+  const QBANKS = [{ id: 'uworld', name: 'UWorld' }, { id: 'amboss', name: 'AMBOSS' }];
+  const PASSES = 5; // read-throughs per AMBOSS article, as in the checklist
 
   const FORM_ST = ['Not taken', 'Taken', 'Reviewed', 'Anki made'];
   const SYS_ST = ['Not started', 'Learning', 'Qbank done', 'Revised'];
-  const TABS = ['overview', 'nbme', 'cms', 'systems', 'qbank'];
+  const TABS = ['overview', 'nbme', 'cms', 'systems', 'qbank', 'articles'];
   const PASS = 218;
   const KEY = 'ck-tracker';
 
@@ -86,6 +88,22 @@
   const daysUntil = (d) => dayNum(d) - dayNum(today());
   const weekday = (n) => (new Date(n * 864e5).getUTCDay() + 6) % 7; // Monday = 0
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const slug = (x) => String(x).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const fmtN = (n) => Math.round(n).toLocaleString('en-US');
+
+  // AMBOSS articles from the Step 2 CK master checklist, in its order (its "Step 2 Prep Condensed"
+  // list is left out). Your own sections come after these; your own articles can go in any section.
+  const ARTICLE_SECTIONS = [
+    ['psqi', 'High-Yield Patient Safety & Quality Improvement', ['Patient safety', 'Quality improvement']],
+    ['screen', 'High-Yield Screening & Vaccination', ['Screening', 'Vaccination']],
+    ['ethics', 'High-Yield Ethics', ['Challenging clinical and ethical scenarios']],
+    ['biostat', 'High-Yield Biostatistics & Epidemiology', ['Epidemiology', 'Population health', 'Statistical analysis of data', 'Interpreting medical evidence', 'Research ethics']],
+    ['nutrition', 'High-Yield Nutrition', ['Principles of nutrition', 'Vitamins', 'Trace elements', 'Acute primary malnutrition in children',
+      'Unintentional weight loss and malnutrition in adults', 'Overweight and obesity', 'Specialized nutrition support']],
+    ['extra', 'Recommended Extra Articles', ['Preventive medicine', 'Health care system', 'Infection prevention and control', 'Overview of palliative medicine',
+      'Death', 'Grief and end-of-life counseling', 'Pain management', 'Managing chronic conditions', 'Logistics of US health care and hospitals']],
+  ].map(([key, name, list]) => ({ id: 'sec-' + key, name, builtIn: true,
+    articles: list.map((n) => ({ id: ('amb-' + key + '-' + slug(n)).slice(0, 48).replace(/-+$/, ''), name: n, sec: 'sec-' + key, builtIn: true })) }));
 
   // ---------- sanitising (old saves and imported files) ----------
   const ID_RE = /^[a-z0-9-]{1,48}$/i;
@@ -105,14 +123,27 @@
   function normSys(x) {
     x = obj(x);
     return { status: int(x.status, 0, 3), conf: int(x.conf, 0, 5), notes: str(x.notes), uw: str(x.uw, 12),
-      tags: [...new Set(arr(x.tags).filter((t) => typeof t === 'string').map((t) => t.slice(0, 30)))], t: stampOf(x.t) };
+      tags: [...new Set(arr(x.tags).filter((t) => typeof t === 'string').map((t) => t.slice(0, 30)))], day: isDate(x.day), t: stampOf(x.t) };
+  }
+  const safeUrl = (x) => { try { const u = new URL(String(x).trim()); return /^https?:$/.test(u.protocol) ? u.href.slice(0, 500) : ''; } catch (e) { return ''; } };
+  function normQbank(x) {
+    x = obj(x);
+    const name = str(x.name, 40).trim();
+    if (typeof x.id !== 'string' || !ID_RE.test(x.id) || !name) return null;
+    const unit = x.unit === 'pct' ? 'pct' : 'q';
+    return { id: x.id, name, bank: inRange(x.bank, 1, 50000), done: inRange(x.done, 0, unit === 'pct' ? 100 : 50000), unit, acc: inRange(x.acc, 0, 100), t: stampOf(x.t) };
+  }
+  const blankQbank = (d) => ({ id: d.id, name: d.name, bank: '', done: '', unit: 'q', acc: '', t: 0 });
+  function normArt(x) {
+    x = obj(x);
+    return { reads: int(x.reads, 0, PASSES), date: isDate(x.date), notes: str(x.notes), t: stampOf(x.t) };
   }
   function normLog(x) {
     x = obj(x);
     const date = isDate(x.date), q = int(x.q, 0, 5000);
     if (!date || !q) return null;
     return { id: typeof x.id === 'string' && ID_RE.test(x.id) ? x.id : uid(), date, q, pct: inRange(x.pct, 0, 100),
-      src: SRC.includes(x.src) ? x.src : 'UWorld', note: str(x.note, 200), t: stampOf(x.t) };
+      src: str(x.src, 40).trim() || 'UWorld', note: str(x.note, 200), t: stampOf(x.t) };
   }
   function migrate(sys) {
     for (const old in MERGE) {
@@ -121,7 +152,7 @@
       sys[to] = {
         status: Math.max(a.status, b.status), conf: Math.max(a.conf, b.conf), uw: b.uw || a.uw,
         notes: [b.notes, a.notes].filter(Boolean).join('\n'),
-        tags: [...new Set([...b.tags, ...a.tags])], t: Math.max(a.t, b.t),
+        tags: [...new Set([...b.tags, ...a.tags])], day: a.day > b.day ? a.day : b.day, t: Math.max(a.t, b.t),
       };
       delete sys[old];
     }
@@ -130,6 +161,7 @@
 
   // `base`, `deleted`, `lt` and `pt` exist for Google sync: see "change stamps + merge" below.
   const blank = () => ({ v: 2, base: 0, deleted: {}, lt: 0, pt: 0, items: {}, systems: {}, extraForms: {}, extraAssess: {}, extraSystems: [], removed: [], log: [],
+    qbanks: QBANKS.map(blankQbank), articles: {}, artSections: [], artCustom: [],
     prefs: { showOld: false, theme: 'system', examDate: '', target: '', bank: '', chart: 'score', sysSort: 'default', lastBackup: '' } });
 
   // Accepts v1 saves (the original single-file version) and v2.
@@ -145,7 +177,17 @@
     for (const g of GROUPS) { const a = ints(obj(s.extraAssess)[g.key], g.min, g.max); if (a.length) extraAssess[g.key] = a; }
     const p = obj(s.prefs), b = blank().prefs;
     const deleted = {};
-    for (const [k, t] of Object.entries(obj(s.deleted))) if (/^[ilsx]:[a-z0-9-]{1,48}$/i.test(k) && stampOf(t)) deleted[k] = stampOf(t);
+    for (const [k, t] of Object.entries(obj(s.deleted))) if (/^[ilsxqacr]:[a-z0-9-]{1,48}$/i.test(k) && stampOf(t)) deleted[k] = stampOf(t);
+    const qIn = arr(s.qbanks).map(normQbank).filter(Boolean);
+    const qbanks = QBANKS.map((d) => Object.assign(qIn.find((x) => x.id === d.id) || blankQbank(d), { name: d.name }))
+      .concat(qIn.filter((x) => !QBANKS.some((d) => d.id === x.id)));
+    if (!qbanks[0].bank) qbanks[0].bank = inRange(p.bank, 1, 50000); // v2 kept the UWorld bank size in prefs
+    const articles = {};
+    for (const [id, x] of Object.entries(obj(s.articles))) if (ID_RE.test(id)) articles[id] = normArt(x);
+    const artSections = arr(s.artSections).filter((x) => x && typeof x.id === 'string' && ID_RE.test(x.id) && typeof x.name === 'string' && x.name.trim())
+      .map((x) => ({ id: x.id, name: x.name.trim().slice(0, 80), t: stampOf(x.t) }));
+    const artCustom = arr(s.artCustom).filter((x) => x && typeof x.id === 'string' && ID_RE.test(x.id) && typeof x.sec === 'string' && typeof x.name === 'string' && x.name.trim())
+      .map((x) => ({ id: x.id, sec: x.sec.slice(0, 48), name: x.name.trim().slice(0, 120), url: x.url ? safeUrl(x.url) : '', t: stampOf(x.t) }));
     return {
       v: 2, base: stampOf(s.base), deleted, lt: stampOf(s.lt), pt: stampOf(s.pt),
       items, systems: migrate(sys), extraForms, extraAssess,
@@ -153,6 +195,7 @@
         .map((x) => ({ id: x.id, name: x.name.trim().slice(0, 60), t: stampOf(x.t) })),
       removed: [...new Set(arr(s.removed).filter((x) => typeof x === 'string' && ID_RE.test(x)))],
       log: arr(s.log).map(normLog).filter(Boolean),
+      qbanks, articles, artSections, artCustom,
       prefs: {
         showOld: !!p.showOld,
         theme: ['light', 'dark'].includes(p.theme) ? p.theme : b.theme,
@@ -168,7 +211,8 @@
 
   // ---------- state + storage ----------
   let state = blank();
-  const ui = { tab: 'overview', subj: 'all', st: 'all', addingFor: null, focusAdd: false, editForms: false, logAll: false };
+  const ui = { tab: 'overview', subj: 'all', st: 'all', addingFor: null, focusAdd: false, editForms: false, logAll: false, heatDay: '',
+    artF: 'all', artQ: '', artAdding: null, artNewSec: false, artRename: null };
   let saveTimer = null, storageOk = true, storageMsg = '';
   let saved = blank(); // copy of what is in storage, used to stamp what changed
   const cloud = () => window.CKCloud || null;
@@ -247,7 +291,10 @@
   const listsSig = (s) => JSON.stringify([s.extraForms, s.extraAssess, s.removed]);
   const prefsSig = (s) => JSON.stringify(SYNC_PREFS.map((k) => s.prefs[k]));
   const byId = (a) => new Map(a.map((x) => [x.id, x]));
-  const records = (s) => [['i:', new Map(Object.entries(s.items))], ['s:', new Map(Object.entries(s.systems))], ['l:', byId(s.log)], ['x:', byId(s.extraSystems)]];
+  // [tombstone tag, state key, shape]: every record kind that syncs one by one
+  const REC = [['i:', 'items', 'map'], ['s:', 'systems', 'map'], ['l:', 'log', 'list'], ['x:', 'extraSystems', 'list'],
+    ['q:', 'qbanks', 'list'], ['a:', 'articles', 'map'], ['c:', 'artSections', 'list'], ['r:', 'artCustom', 'list']];
+  const records = (s) => REC.map(([tag, key, shape]) => [tag, shape === 'map' ? new Map(Object.entries(s[key])) : byId(s[key])]);
 
   function stamp(next, prev, now) {
     let changed = false;
@@ -273,8 +320,8 @@
   // Order-independent comparison that ignores per-device prefs.
   function canon(s) {
     const sort = (v) => Array.isArray(v) ? v.map(sort) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sort(v[k])])) : v;
-    const c = Object.assign({}, s, { log: s.log.slice().sort((a, b) => a.id.localeCompare(b.id)), extraSystems: s.extraSystems.slice().sort((a, b) => a.id.localeCompare(b.id)),
-      prefs: Object.fromEntries(SYNC_PREFS.map((k) => [k, s.prefs[k]])) });
+    const c = Object.assign({}, s, { prefs: Object.fromEntries(SYNC_PREFS.map((k) => [k, s.prefs[k]])) });
+    for (const [, key, shape] of REC) if (shape === 'list') c[key] = s[key].slice().sort((a, b) => a.id.localeCompare(b.id));
     return JSON.stringify(sort(c));
   }
   const same = (a, b) => canon(a) === canon(b);
@@ -297,10 +344,10 @@
     const out = clone(a);
     out.base = base;
     const ra = new Map(records(a)), rb = new Map(records(b));
-    out.items = Object.fromEntries(join('i:', ra.get('i:'), rb.get('i:')));
-    out.systems = Object.fromEntries(join('s:', ra.get('s:'), rb.get('s:')));
-    out.log = join('l:', ra.get('l:'), rb.get('l:')).map(([, r]) => r);
-    out.extraSystems = join('x:', ra.get('x:'), rb.get('x:')).map(([, r]) => r);
+    for (const [tag, key, shape] of REC) {
+      const joined = join(tag, ra.get(tag), rb.get(tag));
+      out[key] = shape === 'map' ? Object.fromEntries(joined) : joined.map(([, r]) => r);
+    }
     // Lists and plan prefs: newest wins. A tie (typically two devices whose data predates sync) keeps
     // everything: lists are combined and empty plan fields are filled from the other side.
     if (a.lt !== b.lt) {
@@ -397,6 +444,15 @@
   const allTests = () => GROUPS.flatMap((g) => testForms(g));
   const allCms = () => SUBJ.flatMap((s) => cmsForms(s, state.prefs.showOld));
   const allSystems = () => SYSTEMS.concat(state.extraSystems);
+  const artItem = (id) => state.articles[id] || { reads: 0, date: '', notes: '', t: 0 };
+  // Checklist sections first (with any articles you added to them), then your own sections.
+  function artSections() {
+    const mine = (secId) => state.artCustom.filter((x) => x.sec === secId).map((x) => ({ id: x.id, name: x.name, sec: x.sec, url: x.url, builtIn: false }));
+    return ARTICLE_SECTIONS.map((sec) => Object.assign({}, sec, { articles: sec.articles.concat(mine(sec.id)) }))
+      .concat(state.artSections.map((sec) => ({ id: sec.id, name: sec.name, builtIn: false, articles: mine(sec.id) })));
+  }
+  const allArticles = () => artSections().flatMap((sec) => sec.articles);
+  const artUrl = (ar) => ar.url || 'https://next.amboss.com/us/search?q=' + encodeURIComponent(ar.name) + '&v=overview';
   const taken = (f) => item(f.id).status > 0;
   // CMS keeps % correct in `score` (v1 format); assessments keep the 3-digit score in `score` and % in `pct`.
   const scaledOf = (f) => (f.kind === 'test' && f.g.scaled ? num(item(f.id).score) : null);
@@ -477,12 +533,34 @@
     return s >= 80 ? 'sc-good' : s >= 65 ? 'sc-warn' : 'sc-bad';
   };
 
+  // One qbank: the progress you entered as "done so far" plus every session logged for it.
+  function bankStats(qb) {
+    const logs = state.log.filter((e) => e.src === qb.name);
+    const bank = num(qb.bank), dv = num(qb.done), da = num(qb.acc);
+    // "% of bank" needs the bank size to become a question count
+    const baseQ = dv == null ? 0 : qb.unit === 'pct' ? (bank ? Math.round(bank * dv / 100) : null) : dv;
+    const loggedQ = sum(logs.map((e) => e.q));
+    const done = baseQ == null ? null : baseQ + loggedQ;
+    const parts = logs.filter((e) => num(e.pct) != null).map((e) => [e.q, num(e.pct)]);
+    if (da != null && baseQ) parts.push([baseQ, da]);
+    const wq = sum(parts.map((x) => x[0]));
+    let acc = wq ? sum(parts.map(([q, v]) => q * v)) / wq : null;
+    if (baseQ == null && da != null) acc = da;
+    const pctDone = bank && done != null ? Math.min(100, done / bank * 100) : qb.unit === 'pct' && dv != null ? dv : null;
+    return { qb, logs, loggedQ, baseQ, done, bank, pctDone, acc, left: bank && done != null ? Math.max(0, bank - done) : null,
+      started: dv != null || da != null || logs.length > 0 };
+  }
   function qbStats() {
     const log = state.log, t = dayNum(today());
-    const total = sum(log.map((e) => e.q));
-    const scored = log.filter((e) => num(e.pct) != null);
-    const sq = sum(scored.map((e) => e.q));
-    const acc = sq ? sum(scored.map((e) => e.q * num(e.pct))) / sq : null;
+    const banks = state.qbanks.map(bankStats);
+    const names = new Set(state.qbanks.map((q) => q.name));
+    const other = log.filter((e) => !names.has(e.src));
+    // all questions done: each qbank's total plus sessions logged under "Other"
+    const total = sum(banks.map((b) => b.done || 0)) + sum(other.map((e) => e.q));
+    const parts = banks.filter((b) => b.acc != null).map((b) => [b.done || b.loggedQ || 1, b.acc])
+      .concat(other.filter((e) => num(e.pct) != null).map((e) => [e.q, num(e.pct)]));
+    const wq = sum(parts.map((x) => x[0]));
+    const acc = wq ? sum(parts.map(([q, v]) => q * v)) / wq : null;
     const recent = log.filter((e) => { const d = t - dayNum(e.date); return d >= 0 && d < 7; });
     const days = new Set(log.map((e) => dayNum(e.date)));
     let streak = 0, d = days.has(t) ? t : t - 1;
@@ -491,7 +569,7 @@
     [...days].sort((a, b) => a - b).forEach((x) => { run = prev === x - 1 ? run + 1 : 1; best = Math.max(best, run); prev = x; });
     const bySrc = {};
     log.forEach((e) => (bySrc[e.src] = (bySrc[e.src] || 0) + e.q));
-    return { total, acc, week: sum(recent.map((e) => e.q)), streak, best, bySrc, uw: bySrc.UWorld || 0, bank: num(state.prefs.bank), sessions: log.length };
+    return { total, acc, week: sum(recent.map((e) => e.q)), streak, best, bySrc, banks, sessions: log.length, logged: sum(log.map((e) => e.q)) };
   }
   const isEmpty = () => !Object.keys(state.items).length && !Object.keys(state.systems).length && !state.log.length && !state.prefs.examDate;
 
@@ -532,6 +610,7 @@
     if (ui.tab === 'cms') renderCms();
     if (ui.tab === 'systems') renderSystems();
     if (ui.tab === 'qbank') renderQbank();
+    if (ui.tab === 'articles') renderArticles();
   }
   function renderNotice() {
     $('notice').replaceChildren(...(storageMsg ? [h('div', { class: 'banner', style: 'margin-bottom:20px', text: storageMsg })] : []));
@@ -546,6 +625,8 @@
     $('ct-sys').textContent = sy.filter((s) => sysItem(s.id).status === 3).length + '/' + sy.length;
     const q = sum(state.log.map((e) => e.q));
     $('ct-qb').textContent = q ? fmtK(q) : '';
+    const arts = allArticles();
+    $('ct-art').textContent = arts.filter((a) => artItem(a.id).reads > 0).length + '/' + arts.length;
   }
 
   function tile(label, big, small, frac, note) {
@@ -603,8 +684,10 @@
         cScores.length ? 'Average ' + fmtPct(avg(cScores)) + ' correct · ' + cTaken.filter((f) => item(f.id).status >= 2).length + ' reviewed' : 'No scores logged yet'),
       tile('Systems revised', String(sRev), 'of ' + sys.length, sys.length ? sRev / sys.length : 0,
         (sAny ? sAny + ' started' : 'None started yet') + ' · ' + sys.filter((s) => sysItem(s.id).tags.includes('Sketchy')).length + ' Sketchy done'),
-      tile(qb.bank ? 'UWorld qbank' : 'Qbank', fmtK(qb.bank ? qb.uw : qb.total), qb.bank ? 'of ' + fmtK(qb.bank) : 'questions', qb.bank ? qb.uw / qb.bank : null,
-        qb.total ? (qb.acc != null ? fmtPct(qb.acc) + ' correct · ' : '') + qb.week + ' this week' : h('button', { class: 'linkish', onclick: () => showTab('qbank', true) }, 'Log your first session')),
+      tile('Qbanks', fmtK(qb.total), 'questions', null,
+        qb.total || qb.acc != null
+          ? [qb.banks.filter((b) => b.pctDone != null).map((b) => b.qb.name + ' ' + fmtPct(b.pctDone)).join(' · '), qb.acc != null ? fmtPct(qb.acc) + ' correct' : ''].filter(Boolean).join(' · ')
+          : h('button', { class: 'linkish', onclick: () => showTab('qbank', true) }, 'Add your qbank progress')),
     );
 
     drawTrend();
@@ -640,10 +723,12 @@
       lis.push(['Pace', left.length + ' assessment' + (left.length > 1 ? 's' : '') + ' left in ' + plural(dl, 'day') +
         (every >= 1 ? ' · about one every ' + (every < 10 ? every.toFixed(1).replace(/\.0$/, '') : Math.round(every)) + ' days' : ' · more than one a day — consider trimming the list')]);
     }
-    if (qb.bank && dl != null && dl > 0) {
-      const rest = qb.bank - qb.uw;
-      lis.push(['Qbank', rest > 0 ? fmtK(rest) + ' UWorld questions left · ~' + Math.ceil(rest / dl) + '/day to finish by test day' : 'UWorld bank finished — nice.']);
+    const paced = qb.banks.filter((b) => b.left != null && b.started);
+    if (paced.length && dl != null && dl > 0) {
+      lis.push(['Qbank', paced.map((b) => b.left > 0 ? b.qb.name + ' ' + fmtN(b.left) + ' left (~' + Math.ceil(b.left / dl) + '/day)' : b.qb.name + ' finished').join(' · ')]);
     }
+    const unread = allArticles().filter((a) => !artItem(a.id).reads);
+    if (unread.length) lis.push(['Articles', go(unread.length + ' of ' + allArticles().length + ' AMBOSS articles not read yet — next: ' + unread[0].name, () => showTab('articles', true))]);
     const unrev = tests.concat(cms).filter((f) => item(f.id).status === 1);
     if (unrev.length) lis.push(['Review', go(plural(unrev.length, 'taken form') + ' still need review: ' + unrev.slice(0, 4).map((f) => f.full).join(', ') + (unrev.length > 4 ? '…' : ''), () => openForm(unrev[0]), unrev[0].id)]);
     const weak = SUBJ.map((s) => ({ s, a: avg(cmsForms(s, state.prefs.showOld).map(pctOf).filter(nn)) }))
@@ -744,16 +829,37 @@
     state.prefs.chart = b.dataset.mode; save(); drawTrend();
   });
 
-  // Activity calendar: questions logged per day, exam days ringed.
+  // Everything dated, by day: qbank questions, self-assessments, CMS forms, system updates, article reads.
+  function activityByDay() {
+    const act = new Map();
+    const get = (d) => { if (!act.has(d)) act.set(d, { q: 0, src: {}, tests: [], cms: [], sys: [], arts: [] }); return act.get(d); };
+    state.log.forEach((e) => { const a = get(e.date); a.q += e.q; a.src[e.src] = (a.src[e.src] || 0) + e.q; });
+    allTests().forEach((f) => { const it = item(f.id), s3 = scaledOf(f), p = pctOf(f); if (it.status > 0 && it.date) get(it.date).tests.push(f.full + (s3 != null ? ' · ' + s3 : p != null ? ' · ' + fmtPct(p) : '')); });
+    SUBJ.flatMap((s) => cmsForms(s, true)).forEach((f) => { const it = item(f.id), p = pctOf(f); if (it.status > 0 && it.date) get(it.date).cms.push(f.full + (p != null ? ' · ' + fmtPct(p) : '')); });
+    allSystems().forEach((sy) => { const it = sysItem(sy.id); if (it.day) get(it.day).sys.push(sy.name + ' (' + SYS_ST[it.status].toLowerCase() + ')'); });
+    allArticles().forEach((ar) => { const it = artItem(ar.id); if (it.reads && it.date) get(it.date).arts.push(ar.name); });
+    return act;
+  }
+  const dayText = (ds, a) => {
+    if (!a) return fmtLong(ds) + ' — nothing logged';
+    const parts = [];
+    if (a.q) parts.push(fmtN(a.q) + ' qbank questions' + (Object.keys(a.src).length > 1 || !a.src.UWorld ? ' (' + Object.entries(a.src).map(([k, v]) => k + ' ' + v).join(', ') + ')' : ''));
+    if (a.tests.length) parts.push(a.tests.join(', '));
+    if (a.cms.length) parts.push('CMS ' + a.cms.join(', '));
+    if (a.sys.length) parts.push('Systems: ' + a.sys.join(', '));
+    if (a.arts.length) parts.push('Read ' + a.arts.join(', '));
+    return fmtLong(ds) + ' — ' + parts.join(' · ');
+  };
+
+  // Activity calendar. Qbank volume fills the square; a self-assessment adds a yellow diamond,
+  // a CMS form a teal border and a system update a pink dot, so several can share one day.
   function renderHeat(box) {
     const weeks = 20, t = dayNum(today());
     const start = t - weekday(t) - (weeks - 1) * 7;
-    const act = new Map();
-    const get = (d) => { if (!act.has(d)) act.set(d, { q: 0, ex: [] }); return act.get(d); };
-    state.log.forEach((e) => (get(e.date).q += e.q));
-    allTests().concat(SUBJ.flatMap((s) => cmsForms(s, true))).forEach((f) => { const it = item(f.id); if (it.status > 0 && it.date) get(it.date).ex.push(f.full); });
+    const act = activityByDay();
     const cells = [], months = [];
-    let prevMonth = null, activeDays = 0, totalQ = 0;
+    const tot = { days: 0, q: 0, tests: 0, cms: 0, sys: 0 };
+    let prevMonth = null, lastActive = null;
     for (let w = 0; w < weeks; w++) {
       const mon = new Date((start + w * 7) * 864e5).getUTCMonth();
       // label each month at its first week; skip a leading partial month that would collide with the next label
@@ -765,20 +871,39 @@
       for (let d = 0; d < 7; d++) {
         const n = start + w * 7 + d;
         if (n > t) { cells.push(h('i', { class: 'hc fut' })); continue; }
-        const a = act.get(fromDay(n)), q = a ? a.q : 0;
-        if (a) { activeDays++; totalQ += q; }
+        const ds = fromDay(n), a = act.get(ds), q = a ? a.q : 0;
+        if (a) {
+          tot.days++; tot.q += q; tot.tests += a.tests.length; tot.cms += a.cms.length; tot.sys += a.sys.length;
+          lastActive = ds;
+        }
         const lv = q === 0 ? 0 : q < 40 ? 1 : q < 80 ? 2 : q < 160 ? 3 : 4;
-        cells.push(h('i', { class: 'hc l' + lv + (a && a.ex.length ? ' ex' : '') + (n === t ? ' today' : ''),
-          title: fmtDate(fromDay(n)) + ' · ' + (q ? q + ' questions' : 'no questions') + (a && a.ex.length ? ' · ' + a.ex.join(', ') : '') }));
+        cells.push(h('i', { class: 'hc l' + lv + (a && a.tests.length ? ' m-ex' : '') + (a && a.cms.length ? ' m-cms' : '') + (a && a.sys.length ? ' m-sys' : '') +
+          (n === t ? ' today' : '') + (ui.heatDay === ds ? ' sel' : ''), 'data-day': ds, title: dayText(ds, a) }));
       }
     }
-    const cols = 'grid-template-columns:repeat(' + weeks + ',1fr)';
+    const shown = ui.heatDay && dayNum(ui.heatDay) >= start ? ui.heatDay : lastActive;
+    const detail = h('p', { class: 'heat-detail', 'aria-live': 'polite', text: shown ? dayText(shown, act.get(shown)) : 'Nothing logged in the last 20 weeks yet.' });
+    const cols = 'grid-template-columns:repeat(' + weeks + ',minmax(0,1fr))';
+    const grid = h('div', { class: 'heat', style: cols, role: 'img', 'aria-label': 'Activity over the last ' + weeks + ' weeks: ' + plural(tot.days, 'active day') + ', ' + tot.q + ' qbank questions, ' +
+      plural(tot.tests, 'self-assessment') + ', ' + plural(tot.cms, 'CMS form') + ', ' + plural(tot.sys, 'system update') }, cells);
+    grid.addEventListener('click', (e) => {
+      const c = e.target.closest('.hc[data-day]'); if (!c) return;
+      ui.heatDay = c.dataset.day;
+      grid.querySelectorAll('.hc.sel').forEach((x) => x.classList.remove('sel'));
+      c.classList.add('sel');
+      detail.textContent = dayText(ui.heatDay, act.get(ui.heatDay));
+    });
     box.replaceChildren(
-      h('div', { class: 'heat-m', style: cols, 'aria-hidden': 'true' }, months),
-      h('div', { class: 'heat', style: cols, role: 'img', 'aria-label': 'Activity over the last ' + weeks + ' weeks: ' + plural(activeDays, 'active day') + ', ' + totalQ + ' questions' }, cells),
+      h('div', { class: 'heat-wrap' },
+        h('span'), h('div', { class: 'heat-m', style: cols, 'aria-hidden': 'true' }, months),
+        h('div', { class: 'heat-d', 'aria-hidden': 'true' }, ['Mon', '', 'Wed', '', 'Fri', '', ''].map((x) => h('span', { text: x }))), grid),
+      detail,
       h('div', { class: 'heat-legend', 'aria-hidden': 'true' },
-        h('span', null, 'Less', [0, 1, 2, 3, 4].map((l) => h('i', { class: 'hc l' + l })), 'More'),
-        h('span', null, h('i', { class: 'hc ex' }), 'Exam day')));
+        h('span', null, 'Qbank', [1, 2, 3, 4].map((l) => h('i', { class: 'hc l' + l }))),
+        h('span', null, h('i', { class: 'hc m-ex' }), 'NBME / UWSA / Free 120'),
+        h('span', null, h('i', { class: 'hc m-cms' }), 'CMS form'),
+        h('span', null, h('i', { class: 'hc m-sys' }), 'System update')),
+      h('p', { class: 'heat-sum', text: [plural(tot.days, 'active day'), fmtN(tot.q) + ' questions', plural(tot.tests, 'assessment'), plural(tot.cms, 'CMS form'), plural(tot.sys, 'system update')].join(' · ') }));
   }
 
   function statusPill(st, labels) {
@@ -900,8 +1025,9 @@
   $('show-old').addEventListener('change', (e) => { state.prefs.showOld = e.target.checked; save(); render(); });
 
   // ---------- systems tab ----------
+  // Status, confidence and resource ticks count as working on a system that day (shown on the calendar).
   function setSys(id, patch) {
-    state.systems[id] = Object.assign({}, sysItem(id), patch);
+    state.systems[id] = Object.assign({}, sysItem(id), patch, { day: today() });
     save(); render();
   }
   function tagBtn(id, t, after) {
@@ -948,14 +1074,180 @@
   }
   $('sys-sort').addEventListener('change', (e) => { state.prefs.sysSort = e.target.value; save(); render(); });
 
+  // ---------- AMBOSS articles tab ----------
+  function setReads(id, n) {
+    const cur = artItem(id);
+    state.articles[id] = Object.assign({}, cur, { reads: n, date: n > cur.reads ? today() : n ? cur.date : '' });
+    save(); render(); refreshSheet();
+  }
+  const extIcon = () => { const a = h('span', { 'aria-hidden': 'true' }); a.innerHTML = svgIcon('<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>'); return a; };
+  function passBoxes(ar, label) {
+    const it = artItem(ar.id);
+    return h('span', { class: 'passes', role: 'group', 'aria-label': label || 'Read-throughs of ' + ar.name },
+      Array.from({ length: PASSES }, (_, i) => h('button', { class: 'pass' + (it.reads > i ? ' on' : ''), 'aria-pressed': it.reads > i ? 'true' : 'false',
+        'aria-label': 'Read ' + (i + 1) + ' of ' + PASSES, title: it.reads > i ? 'Read ' + (i + 1) + ' — tap to untick' : 'Mark read-through ' + (i + 1),
+        onclick: () => setReads(ar.id, it.reads === i + 1 ? i : i + 1) })));
+  }
+  // Inline form for a new article; the AMBOSS link is optional (without one the title opens an AMBOSS search).
+  function addArticleRow(sec) {
+    const name = h('input', { type: 'text', maxlength: '120', placeholder: 'Article title, as in AMBOSS', 'aria-label': 'Article title' });
+    const url = h('input', { type: 'url', maxlength: '500', placeholder: 'AMBOSS link (optional)', 'aria-label': 'AMBOSS link' });
+    const submit = () => {
+      const n = name.value.trim(), u = url.value.trim();
+      if (!n) { name.focus(); return; }
+      if (u && !safeUrl(u)) { toast('That link doesn’t look right — paste the full https:// address'); url.focus(); return; }
+      state.artCustom.push({ id: 'ar-x' + uid(), sec: sec.id, name: n.slice(0, 120), url: u ? safeUrl(u) : '', t: 0 });
+      save(); ui.focusAdd = true; render();
+      toast('Added “' + n + '” to ' + sec.name);
+    };
+    [name, url].forEach((x) => x.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); if (e.key === 'Escape') { ui.artAdding = null; render(); } }));
+    if (ui.focusAdd) { ui.focusAdd = false; setTimeout(() => name.focus(), 0); }
+    return h('div', { class: 'add-row art-add' }, name, url, h('button', { onclick: submit }, 'Add'), h('button', { class: 'ghost', onclick: () => { ui.artAdding = null; render(); } }, 'Done'));
+  }
+  function renderArticles() {
+    const q = ui.artQ.trim().toLowerCase(), f = ui.artF, filtering = !!q || f !== 'all';
+    document.querySelectorAll('[data-af]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.af === f ? 'true' : 'false'));
+    const groups = artSections().map((sec) => {
+      const all = sec.articles;
+      const read = all.filter((a) => artItem(a.id).reads > 0).length, passes = sum(all.map((a) => artItem(a.id).reads));
+      const shown = all.filter((a) => (f === 'all' || (f === 'unread' ? !artItem(a.id).reads : artItem(a.id).reads > 0)) && (!q || a.name.toLowerCase().includes(q)));
+      if (filtering && !shown.length) return null;
+      const rows = shown.map((ar) => {
+        const it = artItem(ar.id);
+        const link = h('a', { class: 'xs ext', href: artUrl(ar), target: '_blank', rel: 'noopener noreferrer', title: ar.url ? 'Open in AMBOSS' : 'Search AMBOSS for this article', 'aria-label': 'Open ' + ar.name + ' in AMBOSS' });
+        link.append(extIcon());
+        return h('div', { class: 'art' + (it.reads >= PASSES ? ' done' : '') },
+          h('button', { class: 'nm', 'data-open': ar.id, onclick: () => openArticle(ar) },
+            h('span', null, ar.name, ar.builtIn ? null : h('span', { class: 'old', text: 'added' })),
+            it.notes || it.date ? h('small', { text: [it.date ? 'last read ' + fmtDate(it.date) : '', it.notes].filter(Boolean).join(' · ') }) : null),
+          passBoxes(ar), link);
+      });
+      if (!filtering) rows.push(ui.artAdding === sec.id ? addArticleRow(sec)
+        : h('button', { class: 'add-link', onclick: () => { ui.artAdding = sec.id; ui.focusAdd = true; render(); } }, '+ Add an article'));
+      let title = h('h3', { text: sec.name });
+      if (ui.artRename === sec.id) {
+        title = h('input', { type: 'text', class: 'sec-rename', value: sec.name, maxlength: '80', 'aria-label': 'Section name' });
+        const done = () => {
+          if (ui.artRename !== sec.id) return; // Enter already saved; this is the blur that follows
+          const v = title.value.trim();
+          if (v) state.artSections = state.artSections.map((x) => (x.id === sec.id ? Object.assign({}, x, { name: v }) : x));
+          ui.artRename = null; save(); render();
+        };
+        title.addEventListener('keydown', (e) => { if (e.key === 'Enter') done(); if (e.key === 'Escape') { ui.artRename = null; render(); } });
+        title.addEventListener('blur', done);
+        setTimeout(() => { title.focus(); title.select(); }, 0);
+      }
+      return h('div', { class: 'group' },
+        h('div', { class: 'subj-head' }, title,
+          h('span', { class: 'stat', text: read + '/' + all.length + ' read' + (passes ? ' · ' + plural(passes, 'read-through') : '') }),
+          sec.builtIn ? null : h('span', { class: 'sec-tools' },
+            h('button', { class: 'linkish', onclick: () => { ui.artRename = sec.id; render(); } }, 'Rename'),
+            h('button', { class: 'linkish', onclick: () => {
+              const undo = snapshot();
+              state.artCustom = state.artCustom.filter((x) => x.sec !== sec.id);
+              state.artSections = state.artSections.filter((x) => x.id !== sec.id);
+              save(); render();
+              toast(sec.name + ' removed', undo);
+            } }, 'Remove'))),
+        h('div', { class: 'rows' }, rows));
+    }).filter(Boolean);
+    if (!filtering) groups.push(ui.artNewSec ? newSectionRow() : h('button', { class: 'add-chip art-newsec', onclick: () => { ui.artNewSec = true; render(); } }, '+ Add a section (for example a system, like Cardiology)'));
+    $('art-list').replaceChildren(...(groups.length ? groups : [h('p', { class: 'sub', text: 'No articles match.' })]));
+  }
+  function newSectionRow() {
+    const inp = h('input', { type: 'text', maxlength: '80', placeholder: 'Section name, e.g. Cardiology', 'aria-label': 'New section name', list: 'art-sec-ideas' });
+    const ideas = h('datalist', { id: 'art-sec-ideas' }, allSystems().map((x) => h('option', { value: x.name })));
+    const submit = () => {
+      const v = inp.value.trim(); if (!v) { inp.focus(); return; }
+      const id = 'sec-x' + uid();
+      state.artSections.push({ id, name: v, t: 0 });
+      ui.artNewSec = false; ui.artAdding = id; ui.focusAdd = true;
+      save(); render();
+      toast(v + ' added — now add its articles');
+    };
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); if (e.key === 'Escape') { ui.artNewSec = false; render(); } });
+    setTimeout(() => inp.focus(), 0);
+    return h('div', { class: 'card add-row art-sec-form' }, inp, ideas, h('button', { onclick: submit }, 'Add section'), h('button', { class: 'ghost', onclick: () => { ui.artNewSec = false; render(); } }, 'Cancel'));
+  }
+  document.querySelectorAll('[data-af]').forEach((b) => b.addEventListener('click', () => { ui.artF = b.dataset.af; render(); }));
+  $('art-search').addEventListener('input', (e) => { ui.artQ = e.target.value; render(); });
+  $('art-add-sec').addEventListener('click', () => {
+    ui.artF = 'all'; ui.artQ = ''; $('art-search').value = ''; ui.artNewSec = true; render();
+    $('art-list').lastElementChild.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  });
+
+  function openArticle(ar) {
+    const cur = () => artItem(ar.id);
+    const custom = () => state.artCustom.find((x) => x.id === ar.id);
+    const patch = (p) => { state.articles[ar.id] = Object.assign({}, cur(), p); save(); render(); };
+    const sec = artSections().find((x) => x.id === ar.sec);
+    const boxWrap = h('div');
+    const drawBoxes = () => boxWrap.replaceChildren(passBoxes(ar, 'Read-throughs'));
+    drawBoxes();
+    const dateIn = h('input', { type: 'date', id: 'ar-date', value: cur().date });
+    dateIn.addEventListener('change', () => patch({ date: isDate(dateIn.value) }));
+    const notesIn = h('textarea', { id: 'ar-notes', placeholder: 'Key points, what to revisit, linked questions…' });
+    notesIn.value = cur().notes;
+    notesIn.addEventListener('input', () => patch({ notes: notesIn.value }));
+    const open = h('a', { class: 'btn', href: artUrl(ar), target: '_blank', rel: 'noopener noreferrer' }, ar.url || !ar.builtIn ? 'Open in AMBOSS' : 'Find in AMBOSS');
+    open.append(extIcon());
+    let editFields = null;
+    if (!ar.builtIn) {
+      const nameIn = h('input', { type: 'text', id: 'ar-name', maxlength: '120', value: ar.name });
+      const urlIn = h('input', { type: 'url', id: 'ar-url', maxlength: '500', placeholder: 'https://next.amboss.com/…', value: ar.url || '' });
+      const setCustom = (p) => { state.artCustom = state.artCustom.map((x) => (x.id === ar.id ? Object.assign({}, x, p) : x)); save(); render(); };
+      nameIn.addEventListener('input', () => { const v = nameIn.value.trim(); if (v) setCustom({ name: v.slice(0, 120) }); });
+      urlIn.addEventListener('change', () => {
+        const v = urlIn.value.trim();
+        if (v && !safeUrl(v)) { toast('That link doesn’t look right — paste the full https:// address'); return; }
+        setCustom({ url: v ? safeUrl(v) : '' });
+        open.href = artUrl(custom() || ar);
+      });
+      editFields = [h('div', { class: 'field' }, h('label', { for: 'ar-name', text: 'Title' }), nameIn),
+        h('div', { class: 'field' }, h('label', { for: 'ar-url', text: 'AMBOSS link' }), urlIn, h('p', { class: 'hint', text: 'Without a link, the button searches AMBOSS for the title.' }))];
+    }
+    const rm = !ar.builtIn ? h('button', { class: 'btn ghost danger', onclick: () => {
+      const undo = snapshot();
+      state.artCustom = state.artCustom.filter((x) => x.id !== ar.id); delete state.articles[ar.id];
+      save(); closeSheet(); toast('Article removed', undo);
+    } }, 'Remove article') : null;
+    openSheet(ar.id, ar.name, [
+      sheetHead('AMBOSS · ' + (sec ? sec.name : 'Article'), ar.name),
+      h('div', { class: 'field' }, h('span', { class: 'lab', text: 'Read-throughs (tick one each time you read it)' }), boxWrap),
+      h('div', { class: 'two' }, h('div', { class: 'field' }, h('label', { for: 'ar-date', text: 'Last read' }), dateIn), h('div', { class: 'field' }, h('span', { class: 'lab', text: 'Article' }), open)),
+      editFields,
+      h('div', { class: 'field' }, h('label', { for: 'ar-notes', text: 'Notes' }), notesIn),
+      h('div', { class: 'actions' }, h('button', { class: 'btn primary', onclick: closeSheet }, 'Done'), rm),
+    ], () => {
+      const a = document.activeElement;
+      if (a !== dateIn) dateIn.value = cur().date;
+      if (a !== notesIn) notesIn.value = cur().notes;
+      drawBoxes();
+    }, '.passes .pass');
+  }
+
   // ---------- qbank tab ----------
   function renderQbank() {
     const qb = qbStats();
-    const others = Object.entries(qb.bySrc).filter(([k]) => k !== 'UWorld').map(([k, v]) => k + ' ' + fmtK(v)).join(' · ');
+    $('qb-banks').replaceChildren(...qb.banks.map((b) => {
+      const big = b.done != null && (b.baseQ || b.loggedQ) ? fmtN(b.done) : b.pctDone != null ? fmtPct(b.pctDone) : '—';
+      const note = [b.pctDone != null && b.done != null && b.bank ? fmtPct(b.pctDone) + ' done' : '', b.acc != null ? fmtPct(b.acc) + ' correct' : '',
+        b.left != null && b.started ? fmtN(b.left) + ' left' : '', b.loggedQ ? fmtN(b.loggedQ) + ' logged here' : '',
+        b.baseQ == null ? 'add the bank size to count questions' : ''].filter(Boolean).join(' · ');
+      return h('button', { class: 'tile qbc', 'data-open': 'qb-' + b.qb.id, onclick: () => openQbank(b.qb), 'aria-label': b.qb.name + ': edit progress' },
+        h('span', { class: 'eyebrow qbc-h' }, b.qb.name, h('span', { class: 'qbc-edit', text: 'Edit' })),
+        h('span', { class: 'big' }, big, b.bank && b.done != null && (b.baseQ || b.loggedQ) ? h('small', { text: '/ ' + fmtN(b.bank) }) : null),
+        h('span', { class: 'meter' }, h('b', { style: 'width:' + Math.round(b.pctDone || 0) + '%' })),
+        h('span', { class: 'note', text: note || 'Tap to enter your progress so far' }));
+    }), h('button', { class: 'add-chip qbc-add', 'data-open': 'qb-new', onclick: () => openQbank(null) }, '+ Add a qbank'));
+    // keep the session form's qbank list in step with your qbanks
+    const sel = $('lg-src'), keep = sel.value, opts = state.qbanks.map((q) => q.name).concat('Other');
+    if ([...sel.options].map((o) => o.value).join('|') !== opts.join('|')) {
+      sel.replaceChildren(...opts.map((n) => h('option', { value: n, text: n })));
+      sel.value = opts.includes(keep) ? keep : opts[0];
+    }
     $('qb-tiles').replaceChildren(
-      tile('UWorld done', fmtK(qb.uw), qb.bank ? 'of ' + fmtK(qb.bank) : 'questions', qb.bank ? qb.uw / qb.bank : null,
-        qb.bank ? fmtPct(qb.uw / qb.bank * 100) + ' of the bank' + (others ? ' · ' + others : '') : h('button', { class: 'linkish', 'data-open': 'settings', onclick: () => openSettings('#st-bank') }, 'Set your bank size to track completion')),
-      tile('Accuracy', qb.acc != null ? fmtPct(qb.acc) : '—', '', qb.acc != null ? qb.acc / 100 : null, 'Weighted by questions · all qbanks'),
+      tile('Accuracy', qb.acc != null ? fmtPct(qb.acc) : '—', '', qb.acc != null ? qb.acc / 100 : null, 'All qbanks, weighted by questions'),
       tile('Last 7 days', fmtK(qb.week), 'questions', null, qb.week ? '~' + Math.round(qb.week / 7) + ' a day' : 'Nothing logged this week'),
       tile('Streak', String(qb.streak), qb.streak === 1 ? 'day' : 'days', null, 'Longest ' + plural(qb.best, 'day') + ' · ' + plural(qb.sessions, 'session')),
     );
@@ -1011,6 +1303,78 @@
       toast('Logged ' + qn + ' ' + src.value + ' questions', undo);
     });
   })();
+
+  // Edit a qbank's size and the progress you'd made before logging sessions here (null = add a new one).
+  function openQbank(qb) {
+    const isNew = !qb, builtIn = qb && QBANKS.some((d) => d.id === qb.id);
+    const draft = qb ? null : { id: 'qb-x' + uid(), name: '', bank: '', done: '', unit: 'q', acc: '', t: 0 };
+    const cur = () => (isNew ? draft : state.qbanks.find((x) => x.id === qb.id) || draft);
+    const patch = (p) => {
+      if (isNew) { Object.assign(draft, p); return; }
+      state.qbanks = state.qbanks.map((x) => (x.id === qb.id ? Object.assign({}, x, p) : x));
+      save(); render(); drawSummary();
+    };
+    const nameIn = h('input', { type: 'text', id: 'qb-name', maxlength: '40', placeholder: 'e.g. Kaplan', value: cur().name });
+    const nameErr = h('span', { class: 'err', text: 'Give it a name that isn’t already used' });
+    const nameField = h('div', { class: 'field' }, h('label', { for: 'qb-name', text: 'Qbank name' }), nameIn, nameErr);
+    nameIn.addEventListener('input', () => {
+      const v = nameIn.value.trim(), clash = state.qbanks.some((x) => x.id !== cur().id && x.name.toLowerCase() === v.toLowerCase()) || /^other$/i.test(v);
+      nameField.classList.toggle('bad', !v || clash);
+      if (v && !clash && !isNew) {
+        // sessions refer to a qbank by name, so rename them too
+        const old = cur().name;
+        state.log = state.log.map((e) => (e.src === old ? Object.assign({}, e, { src: v }) : e));
+        patch({ name: v });
+      } else if (isNew) patch({ name: v });
+    });
+    const bank = numField('qb-bank', 'Questions in the bank', { inputmode: 'numeric', step: '1', placeholder: 'e.g. 3509', value: cur().bank }, 1, 50000, true, (raw) => patch({ bank: raw }));
+    const unitSel = h('select', { id: 'qb-unit', 'aria-label': 'Done so far is counted in' },
+      h('option', { value: 'q', text: 'questions' }), h('option', { value: 'pct', text: '% of the bank' }));
+    unitSel.value = cur().unit;
+    const done = numField('qb-done', 'Done so far', { inputmode: 'decimal', step: 'any', placeholder: cur().unit === 'pct' ? 'e.g. 94' : 'e.g. 930', value: cur().done },
+      0, 50000, false, (raw) => patch({ done: raw }));
+    done.field.append(unitSel);
+    unitSel.addEventListener('change', () => { patch({ unit: unitSel.value }); done.inp.placeholder = unitSel.value === 'pct' ? 'e.g. 94' : 'e.g. 930'; });
+    const acc = numField('qb-acc', '% correct so far', { inputmode: 'decimal', step: 'any', placeholder: 'e.g. 65', value: cur().acc }, 0, 100, false, (raw) => patch({ acc: raw }));
+    const summary = h('p', { class: 'hint' });
+    const drawSummary = () => {
+      const b = bankStats(cur());
+      summary.textContent = b.started
+        ? [b.done != null ? fmtN(b.done) + (b.bank ? ' of ' + fmtN(b.bank) : '') + ' done' : fmtPct(b.pctDone) + ' done', b.pctDone != null && b.bank ? fmtPct(b.pctDone) : '',
+          b.acc != null ? fmtPct(b.acc) + ' correct' : '', b.loggedQ ? 'includes ' + fmtN(b.loggedQ) + ' logged in sessions' : ''].filter(Boolean).join(' · ')
+        : 'Nothing entered yet.';
+    };
+    drawSummary();
+    const actions = [
+      isNew ? h('button', { class: 'btn primary', onclick: () => {
+        const v = draft.name.trim();
+        if (!v || state.qbanks.some((x) => x.name.toLowerCase() === v.toLowerCase()) || /^other$/i.test(v)) { nameField.classList.add('bad'); nameIn.focus(); return; }
+        state.qbanks.push(Object.assign({}, draft, { name: v }));
+        save(); closeSheet(); toast(v + ' added');
+      } }, 'Add qbank') : h('button', { class: 'btn primary', onclick: closeSheet }, 'Done'),
+      !isNew && !builtIn ? h('button', { class: 'btn ghost danger', onclick: () => {
+        const undo = snapshot();
+        state.qbanks = state.qbanks.filter((x) => x.id !== qb.id);
+        save(); closeSheet(); toast(qb.name + ' removed (its sessions are kept)', undo);
+      } }, 'Remove qbank') : null,
+    ];
+    openSheet(isNew ? 'qb-new' : 'qb-' + qb.id, isNew ? 'Add a qbank' : qb.name, [
+      sheetHead('Qbank', isNew ? 'Add a qbank' : qb.name),
+      builtIn ? null : nameField,
+      h('div', { class: 'two' }, bank.field, acc.field),
+      h('div', { class: 'two' }, done.field, h('div')),
+      h('p', { class: 'hint', text: 'Enter where you are now — from the qbank’s own stats page. Sessions you log on this tab are added on top. “% of the bank” needs the bank size to count questions.' }),
+      summary,
+      h('div', { class: 'actions' }, actions),
+    ], () => {
+      const a = document.activeElement;
+      if (a !== bank.inp) bank.inp.value = cur().bank;
+      if (a !== done.inp) done.inp.value = cur().done;
+      if (a !== acc.inp) acc.inp.value = cur().acc;
+      unitSel.value = cur().unit;
+      drawSummary();
+    }, builtIn ? '#qb-bank' : '#qb-name');
+  }
 
   // ---------- sheets (editor panels) ----------
   const root = $('sheet-root');
@@ -1230,8 +1594,6 @@
     if (/free\s*-?\s*120|^f-?120/i.test(id + ' ' + title) && (m = /(20[1-4]\d)/.exec(id + ' ' + title))) return { kind: 'test', g: GROUPS[2], n: +m[1] };
     return null;
   }
-  const slug = (x) => String(x).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-
   function simPlan(src) {
     const rows = [];
     for (const id of new Set([...Object.keys(src.docs), ...src.suspended])) {
@@ -1391,7 +1753,13 @@
       const it = sysItem(sy.id);
       rows.push(['system', '', sy.name, SYS_ST[it.status] + (it.conf ? ' · confidence ' + it.conf + '/5' : ''), '', it.uw, '', '', [it.tags.join(' / '), it.notes].filter(Boolean).join(' · ')]);
     });
+    state.qbanks.map(bankStats).forEach((b) => rows.push(['qbank-total', b.qb.name, b.bank ? 'bank of ' + b.bank : '', '', '', b.acc != null ? Math.round(b.acc * 10) / 10 : '',
+      b.done != null ? b.done : '', '', b.pctDone != null ? Math.round(b.pctDone) + '% done' : '']));
     state.log.slice().sort((a, b) => a.date.localeCompare(b.date)).forEach((e) => rows.push(['qbank', e.src, '', '', '', e.pct, e.q, e.date, e.note]));
+    artSections().forEach((sec) => sec.articles.forEach((ar) => {
+      const it = artItem(ar.id);
+      rows.push(['article', sec.name, ar.name, it.reads + '/' + PASSES + ' read-throughs', '', '', '', it.date, it.notes]);
+    }));
     download('ck-tracker-' + today() + '.csv', '﻿' + rows.map((r) => r.map(cell).join(',')).join('\r\n'), 'text/csv');
     toast('CSV downloaded');
   }
@@ -1423,7 +1791,6 @@
     const examIn = h('input', { type: 'date', id: 'st-exam', value: p().examDate, min: today() });
     examIn.addEventListener('change', () => setPref('examDate', isDate(examIn.value)));
     const target = numField('st-target', 'Target score', { inputmode: 'numeric', step: '1', placeholder: 'e.g. 255', value: p().target }, 1, 300, true, (raw) => setPref('target', raw));
-    const bank = numField('st-bank', 'UWorld bank size', { inputmode: 'numeric', step: '1', placeholder: 'e.g. 3800', value: p().bank }, 1, 20000, true, (raw) => setPref('bank', raw));
     const theme = h('div', { class: 'seg mode', role: 'group', 'aria-label': 'Theme' });
     const drawTheme = () => theme.replaceChildren(...[['system', 'System'], ['light', 'Light'], ['dark', 'Dark']].map(([k, l]) =>
       h('button', { 'aria-pressed': p().theme === k ? 'true' : 'false', onclick: () => { state.prefs.theme = k; applyTheme(); save(); drawTheme(); } }, l)));
@@ -1487,7 +1854,7 @@
     openSheet('settings', 'Settings', [
       sheetHead('Settings', 'Plan, sync & backup'),
       h('div', { class: 'two' }, h('div', { class: 'field' }, h('label', { for: 'st-exam', text: 'Test date' }), examIn), target.field),
-      h('div', { class: 'two' }, bank.field, h('div', { class: 'field' }, h('span', { class: 'lab', text: 'Theme' }), theme)),
+      h('div', { class: 'two' }, h('div', { class: 'field' }, h('span', { class: 'lab', text: 'Theme' }), theme), h('div')),
       h('p', { class: 'hint', text: 'The test date drives the countdown, pace and score projection. The target adds a line to the score chart.' }),
       gBox,
       h('div', { class: 'sect' },
@@ -1508,7 +1875,6 @@
       const a = document.activeElement;
       if (a !== examIn) examIn.value = p().examDate;
       if (a !== target.inp) target.inp.value = p().target;
-      if (a !== bank.inp) bank.inp.value = p().bank;
       drawTheme(); drawBackup(); drawGoogle();
     }, focus);
   }

@@ -1,7 +1,7 @@
 {
-  "name": "Step 2 CK Tracker",
-  "short_name": "CK Tracker",
-  "description": "Track NBME, UWSA, Free 120 and CMS practice exams, systems review and qbank progress for USMLE Step 2 CK.",
+  "name": "Thunder Tracker",
+  "short_name": "Thunder Tracker",
+  "description": "Track NBME, UWSA, Free 120 and CMS practice exams, AMBOSS articles, systems review and qbank progress for USMLE Step 2 CK.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

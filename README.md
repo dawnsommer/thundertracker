@@ -1,4 +1,4 @@
-# Step 2 CK Tracker
+# Thunder Tracker
 
 A study tracker for USMLE Step 2 CK that runs in your browser. Everything you log is saved on your device first, so it works offline and installs as an app. You can also sign in with Google to keep your progress in your Google account and use it on every device.
 
@@ -7,7 +7,8 @@ A study tracker for USMLE Step 2 CK that runs in your browser. Everything you lo
 - **Self-assessments**: NBME CCSSA Forms 6–16, UWSA 1–3 and Free 120 (2019, 2021, 2023). For each one you can log the 3-digit score, % correct, the date, notes and a review status (taken → reviewed → Anki cards made). You can add newer forms or releases, and hide the ones you won't take.
 - **CMS forms**: all eight Clinical Mastery Series subjects, with % correct per form, a filter for older forms and an editable form list.
 - **Systems**: 17 systems. For each you can set a status and a confidence rating (1–5), mark resources done (Sketchy, UWorld, AMBOSS, Anki), record your UWorld % correct and keep notes. You can add your own topics and sort the list several ways.
-- **Qbank**: log each study session (date, number of questions, % correct, which qbank). It shows your completion of the bank, accuracy weighted by questions, the last 7 days, your streak and a 12-week volume chart.
+- **Qbanks**: a card each for UWorld and AMBOSS, plus any you add. Enter the bank size and where you are now (questions done, or % of the bank, and % correct). Sessions you log (date, questions, % correct) add on top. The tab shows completion, questions left, accuracy weighted by questions, the last 7 days, your streak and a 12-week volume chart.
+- **AMBOSS articles**: the AMBOSS Step 2 CK master checklist (26 articles in 6 sections; its "Step 2 Prep Condensed" list is left out). Each article has 5 boxes, ticked once per read-through, plus a last-read date, notes and a link to AMBOSS. You can add your own articles to any section, with an optional AMBOSS link, and add your own sections (for example one per system) after the checklist ones.
 
 The overview page brings this together:
 
@@ -15,8 +16,8 @@ The overview page brings this together:
 - **Score outlook**: a trend-line projection of your 3-digit score to test day, plus your latest, best and recent-average scores.
 - **Score trend chart**: switches between 3-digit score and % correct, with lines for the passing score (218) and your target.
 - **CMS progress** by subject.
-- **Activity calendar** covering the last 20 weeks.
-- **"Up next" suggestions**: the next assessment to take, the pace you need, forms still to review, your weakest subject, low-confidence systems and a backup reminder.
+- **Activity calendar** covering the last 20 weeks. Qbank questions fill a day's square (darker means more), a self-assessment adds a yellow diamond, a CMS form a teal border and a system update a pink dot. Tap a day to see what you did.
+- **"Up next" suggestions**: the next assessment to take, the pace you need (assessments and questions per day for each qbank), forms still to review, unread articles, your weakest subject, low-confidence systems and a backup reminder.
 
 Use the moon/sun button in the header (or press `t`) to switch between light mode, dark mode and matching your device.
 

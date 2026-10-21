@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Step 2 CK Tracker</title>
-<meta name="description" content="Track NBME, UWSA, Free 120 and CMS practice exams, systems review and qbank progress for USMLE Step 2 CK. Works offline; your data stays in your browser.">
+<title>Thunder Tracker</title>
+<meta name="description" content="Thunder Tracker: track NBME, UWSA, Free 120 and CMS practice exams, AMBOSS articles, systems review and qbank progress for USMLE Step 2 CK. Works offline; your data stays in your browser.">
 <meta name="theme-color" content="#f3f5f8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0e131a" media="(prefers-color-scheme: dark)">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="CK Tracker">
+<meta name="apple-mobile-web-app-title" content="Thunder Tracker">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
@@ -34,7 +34,7 @@
     <div class="top-in">
       <div>
         <div class="eyebrow">USMLE Step 2 CK</div>
-        <h1>Practice <mark>tracker</mark></h1>
+        <h1>Thunder <mark>Tracker</mark></h1>
       </div>
       <div class="top-r">
         <div class="save" id="save" role="status"><i></i><span id="save-t">Loading…</span></div>
@@ -50,6 +50,7 @@
       <button class="tab" role="tab" id="tab-cms" data-tab="cms" aria-controls="view-cms" aria-selected="false" tabindex="-1">CMS forms<span class="ct" id="ct-cms"></span></button>
       <button class="tab" role="tab" id="tab-systems" data-tab="systems" aria-controls="view-systems" aria-selected="false" tabindex="-1">Systems<span class="ct" id="ct-sys"></span></button>
       <button class="tab" role="tab" id="tab-qbank" data-tab="qbank" aria-controls="view-qbank" aria-selected="false" tabindex="-1">Qbank<span class="ct" id="ct-qb"></span></button>
+      <button class="tab" role="tab" id="tab-articles" data-tab="articles" aria-controls="view-articles" aria-selected="false" tabindex="-1">Articles<span class="ct" id="ct-art"></span></button>
     </nav>
   </div>
 </header>
@@ -88,7 +89,7 @@
         <ul class="next" id="next"></ul>
       </div>
       <div class="card">
-        <div class="sec-head"><div><h3>Activity</h3><p class="sub">Last 20 weeks · qbank questions and exam days</p></div></div>
+        <div class="sec-head"><div><h3>Activity</h3><p class="sub">Last 20 weeks · tap a day to see what you did</p></div></div>
         <div id="heat"></div>
       </div>
     </div>
@@ -142,8 +143,9 @@
 
   <section class="view" id="view-qbank" role="tabpanel" aria-labelledby="tab-qbank" hidden>
     <div class="sec-head">
-      <div><h2>Qbank</h2><p class="sub">Log each study block. Totals feed the overview, your pace and the activity calendar.</p></div>
+      <div><h2>Qbanks</h2><p class="sub">Enter where each qbank stands, then log study blocks as you go. Totals feed the overview, your pace and the activity calendar.</p></div>
     </div>
+    <div class="tiles qbanks" id="qb-banks"></div>
     <div class="tiles" id="qb-tiles"></div>
     <form class="card logf" id="log-form" autocomplete="off" novalidate>
       <h3>Log a session</h3>
@@ -165,10 +167,25 @@
     </div>
   </section>
 
+  <section class="view" id="view-articles" role="tabpanel" aria-labelledby="tab-articles" hidden>
+    <div class="sec-head">
+      <div><h2>AMBOSS articles</h2><p class="sub">Tick a box each time you read an article, up to 5 read-throughs. Tap a title for notes and a link to AMBOSS.</p></div>
+      <button class="btn" id="art-add-sec">+ Add a section</button>
+    </div>
+    <div class="toolbar">
+      <span class="eyebrow" style="margin-right:2px">Show</span>
+      <button class="pill" data-af="all">All</button>
+      <button class="pill" data-af="unread">Not read</button>
+      <button class="pill" data-af="read">Read</button>
+      <input type="search" class="sel" id="art-search" placeholder="Search articles" aria-label="Search articles" style="margin-left:auto;min-width:0;flex:0 1 14rem">
+    </div>
+    <div id="art-list"></div>
+  </section>
+
   <footer>
     <p>Your progress is saved in this browser first. Sign in with Google in <button class="linkish" data-open="settings" id="foot-settings">Settings</button> to keep it in your Google account and use it on any device, or export a backup file now and then.</p>
     <p>CMS form numbers reflect the latest forms reported in mid-2026 (Medicine &amp; OB/GYN to Form 10, Surgery, Pediatrics &amp; Neurology to 9, Psychiatry 8, Family Medicine 5, EM 3). Use “Add form” for a new release and “Edit list” to remove forms you won’t take.</p>
-    <p>Keyboard: <kbd>1</kbd>–<kbd>5</kbd> switch tabs · <kbd>,</kbd> settings · <kbd>t</kbd> light/dark · <kbd>Esc</kbd> closes a panel.</p>
+    <p>Keyboard: <kbd>1</kbd>–<kbd>6</kbd> switch tabs · <kbd>,</kbd> settings · <kbd>t</kbd> light/dark · <kbd>Esc</kbd> closes a panel.</p>
   </footer>
 </main>
 
