@@ -1,6 +1,6 @@
 // What the app tracks: assessments, CMS subjects, systems, qbanks, AMBOSS articles, labels and constants.
 
-import { slug } from './util.js?v=9';
+import { slug } from './util.js?v=10';
 
 // Self-assessments. `base` is the default list; newer releases can be added from the Assessments tab.
 export const GROUPS = [
@@ -48,9 +48,9 @@ export const FORM_ST = ['Not taken', 'Taken', 'Reviewed', 'Anki made'];
 export const SYS_ST = ['Not started', 'Learning', 'Qbank done', 'Revised'];
 export const TABS = ['overview', 'nbme', 'cms', 'systems', 'qbank', 'articles'];
 export const PASS = 218;
-export const APP_VERSION = 9; // matches VERSION in sw.js and every ?v= (tools/release.mjs keeps them in step)
+export const APP_VERSION = 10; // matches VERSION in sw.js and every ?v= (tools/release.mjs keeps them in step)
 // The app's script files, for “Reload latest version”.
-export const APP_FILES = ['js/articles.js', 'js/assessments.js', 'js/backup.js', 'js/calculator.js', 'js/catalog.js', 'js/cloud.js', 'js/cms.js', 'js/config.js', 'js/data.js', 'js/main.js', 'js/model.js', 'js/overview.js', 'js/planner.js', 'js/qbank.js', 'js/settings.js', 'js/sheets.js', 'js/shell.js', 'js/sim-import.js', 'js/store.js', 'js/systems.js', 'js/updates.js', 'js/util.js'];
+export const APP_FILES = ['js/articles.js', 'js/assessments.js', 'js/backup.js', 'js/calculator.js', 'js/catalog.js', 'js/cloud.js', 'js/cms.js', 'js/config.js', 'js/data.js', 'js/main.js', 'js/model.js', 'js/overview.js', 'js/planner.js', 'js/print.js', 'js/qbank.js', 'js/settings.js', 'js/sheets.js', 'js/shell.js', 'js/sim-import.js', 'js/store.js', 'js/systems.js', 'js/updates.js', 'js/util.js'];
 export const KEY = 'ck-tracker';
 
 // AMBOSS articles from the Step 2 CK master checklist, in its order (its "Step 2 Prep Condensed"

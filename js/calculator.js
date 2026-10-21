@@ -4,12 +4,12 @@
 // or a straight line fitted to your own forms that have both a score and a % correct.
 // A score you type in is never changed; the estimate is shown next to it.
 
-import { $, avg, fmtPct, h, num } from './util.js?v=9';
-import { GROUPS } from './catalog.js?v=9';
-import { normConversion } from './model.js?v=9';
-import { save, snapshot, state, toast, ui } from './store.js?v=9';
-import { allTests, band, pctOf, scaledOf, testForms } from './data.js?v=9';
-import { render } from './shell.js?v=9';
+import { $, avg, fmtPct, h, num } from './util.js?v=10';
+import { GROUPS } from './catalog.js?v=10';
+import { normConversion } from './model.js?v=10';
+import { save, snapshot, state, toast, ui } from './store.js?v=10';
+import { allTests, band, pctOf, scaledOf, testForms } from './data.js?v=10';
+import { render } from './shell.js?v=10';
 
 export function fitLine(points) {
   const n = points.length;

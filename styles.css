@@ -566,3 +566,39 @@ button.wm-row:hover{background:color-mix(in srgb,var(--hl-soft) 40%,transparent)
 .hc.fut.m-plan::before{content:"";position:absolute;inset:32%;border:1.5px dashed var(--brand);transform:rotate(45deg);border-radius:2px}
 .hc.fut.m-test{background:color-mix(in srgb,var(--bad) 22%,transparent);box-shadow:inset 0 0 0 2px var(--bad)}
 .heat .hc.fut[data-day]{cursor:pointer}
+
+/* ---- printable one-page summary (js/print.js): only on paper, always black on white */
+#print-sheet{display:none}
+@media print{
+  @page{size:auto;margin:11mm 10mm}
+  html,body{background:#fff !important;color:#111 !important}
+  body > *:not(#print-sheet){display:none !important}
+  #print-sheet{display:block;font:8.6pt/1.35 var(--f-body);color:#111;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .pr-page{max-width:100%}
+  .pr-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;border-bottom:1.5px solid #111;padding-bottom:5px;margin-bottom:7px}
+  .pr-head h1{font:700 15pt/1.1 var(--f-display);margin:0}
+  .pr-head p{margin:2px 0 0;color:#555}
+  .pr-exam{display:flex;flex-direction:column;align-items:flex-end;gap:1px}
+  .pr-exam b{font-size:10pt}
+  .pr-exam span{color:#555}
+  .pr-stats{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-bottom:8px}
+  .pr-stat{border:1px solid #ccc;border-radius:5px;padding:4px 6px;display:flex;flex-direction:column;break-inside:avoid}
+  .pr-stat span{font-size:7pt;text-transform:uppercase;letter-spacing:.04em;color:#666}
+  .pr-stat b{font:700 12.5pt/1.15 var(--f-mono)}
+  .pr-stat small{font-size:7pt;color:#555}
+  .pr-cols{display:grid;grid-template-columns:1.65fr 1fr;gap:12px;align-items:start}
+  .pr-sec{margin-bottom:8px;break-inside:avoid}
+  .pr-sec h2{font:700 9.5pt/1.2 var(--f-display);margin:0 0 3px;padding-bottom:2px;border-bottom:1px solid #bbb}
+  .pr-table{width:100%;border-collapse:collapse}
+  .pr-table th{text-align:left;font-size:7pt;text-transform:uppercase;letter-spacing:.03em;color:#666;font-weight:600;padding:1px 4px 2px 0}
+  .pr-table td{padding:1.5px 4px 1.5px 0;border-top:.5px solid #e2e2e2;vertical-align:top}
+  .pr-table td.n{font-family:var(--f-mono);text-align:right;white-space:nowrap;padding-right:7px}
+  .pr-table th.n{text-align:right;padding-right:7px}
+  .pr-table td.nw{white-space:nowrap;padding-right:7px}
+  .pr-table td.wk{color:#8a1c1c;font-size:7.8pt}
+  .pr-line{margin:3px 0 0}
+  .pr-muted{margin:3px 0 0;color:#777;font-size:7.5pt}
+  .pr-weak{margin:0;padding-left:16px}
+  .pr-weak li{margin:1px 0}
+  .pr-trend{width:100%;height:auto;display:block}
+}

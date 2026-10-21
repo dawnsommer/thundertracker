@@ -1,15 +1,16 @@
 // The Settings page.
 
-import { $, daysUntil, fmtDate, fmtLong, fmtN, fmtPct, h, isDate, plural } from './util.js?v=9';
-import { APP_VERSION } from './catalog.js?v=9';
-import { blank, norm, stampAll } from './model.js?v=9';
-import { applyTheme, cloud, save, setState, snapshot, state, toast, ui } from './store.js?v=9';
-import { qbStats } from './data.js?v=9';
-import { numField, refreshSheet } from './sheets.js?v=9';
-import { render, showTab } from './shell.js?v=9';
-import { openQbank } from './qbank.js?v=9';
-import { exportCsv, exportJson } from './backup.js?v=9';
-import { reloadLatest } from './updates.js?v=9';
+import { $, daysUntil, fmtDate, fmtLong, fmtN, fmtPct, h, isDate, plural } from './util.js?v=10';
+import { APP_VERSION } from './catalog.js?v=10';
+import { blank, norm, stampAll } from './model.js?v=10';
+import { applyTheme, cloud, save, setState, snapshot, state, toast, ui } from './store.js?v=10';
+import { qbStats } from './data.js?v=10';
+import { numField, refreshSheet } from './sheets.js?v=10';
+import { render, showTab } from './shell.js?v=10';
+import { openQbank } from './qbank.js?v=10';
+import { exportCsv, exportJson } from './backup.js?v=10';
+import { reloadLatest } from './updates.js?v=10';
+import { printSummary } from './print.js?v=10';
 
 // Built once each time you open it; live parts redraw through settingsRefresh so typing isn't interrupted.
 export let settingsRefresh = null;
@@ -146,7 +147,7 @@ export function buildSettings() {
     toast('All data erased', undo);
   } }, 'Erase all data');
 
-  const keys = [['1 – 6', 'Switch tabs'], [',', 'Open settings'], ['t', 'Light / dark'], ['Esc', 'Close a panel, or leave settings'], ['← →', 'Move between tabs (when a tab is focused)']];
+  const keys = [['1 – 6', 'Switch tabs'], [',', 'Open settings'], ['t', 'Light / dark'], ['p', 'Print a one-page summary'], ['Esc', 'Close a panel, or leave settings'], ['← →', 'Move between tabs (when a tab is focused)']];
   const SECTIONS = [
     ['set-plan', 'Plan'], ['set-sync', 'Google sync'], ['set-look', 'Appearance'], ['set-qbanks', 'Qbanks'],
     ['set-data', 'Backup & import'], ['set-keys', 'Shortcuts'], ['set-app', 'App version'], ['set-danger', 'Erase data'],
@@ -166,7 +167,8 @@ export function buildSettings() {
       h('div', { class: 'btnrow' },
         h('button', { class: 'btn primary', id: 'st-export', onclick: exportJson }, 'Export backup'),
         h('button', { class: 'btn', onclick: exportCsv }, 'Export CSV'),
-        h('button', { class: 'btn', onclick: () => $('import').click() }, 'Import backup')),
+        h('button', { class: 'btn', onclick: () => $('import').click() }, 'Import backup'),
+        h('button', { class: 'btn', id: 'st-print', onclick: printSummary }, 'Print summary')),
       h('div', { class: 'btnrow' }, h('button', { class: 'btn', 'data-open': 'sim-import', onclick: () => $('sim-import').click() }, 'Import from Exam Simulator')),
       h('p', { class: 'hint', text: 'Exam Simulator import reads its progress backup (.zip) and fills in finished NBME, UWSA and CMS forms. You see what changes before anything is saved.' }),
       persistNote, h('div', { class: 'btnrow' }, persistBtn)),

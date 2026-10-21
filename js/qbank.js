@@ -1,12 +1,12 @@
 // The Qbank tab: qbank cards and editor, session log and weekly volume.
 
-import { $, dayNum, fmtDate, fmtK, fmtN, fmtPct, fromDay, h, isDate, num, plural, today, uid, weekday } from './util.js?v=9';
-import { QBANKS } from './catalog.js?v=9';
-import { save, snapshot, state, toast, ui } from './store.js?v=9';
-import { band, bankStats, qbStats, weakNames } from './data.js?v=9';
-import { closeSheet, numField, openSheet, sheetHead, weakPicker } from './sheets.js?v=9';
-import { render } from './shell.js?v=9';
-import { tile } from './overview.js?v=9';
+import { $, dayNum, fmtDate, fmtK, fmtN, fmtPct, fromDay, h, isDate, num, plural, today, uid, weekday } from './util.js?v=10';
+import { QBANKS } from './catalog.js?v=10';
+import { save, snapshot, state, toast, ui } from './store.js?v=10';
+import { band, bankStats, qbStats, weakNames } from './data.js?v=10';
+import { closeSheet, numField, openSheet, sheetHead, weakPicker } from './sheets.js?v=10';
+import { render } from './shell.js?v=10';
+import { tile } from './overview.js?v=10';
 
 export function renderQbank() {
   const qb = qbStats();
