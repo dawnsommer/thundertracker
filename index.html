@@ -1,0 +1,929 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}</style>
+<title>Step 2 CK Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: sticky header + tab strip; each tab is a single column of sections, chips in wrapping grids; editor opens as a side sheet (bottom sheet on phones). */
+:root{
+  --bg:#f3f5f8; --panel:#ffffff; --ink:#152033; --muted:#5a6578; --line:#dce1e9;
+  --hl:#f6cd2a; --hl-soft:#fbeaa3; --brand:#1d3f73; --brand-ink:#ffffff;
+  --good:#1d8658; --warn:#a86f12; --bad:#bf3a2b;
+  --s0:#e7eaf0; --s1:#b7cdee; --s2:#4c7cc2; --s3:#1a3561;
+  --s0-ink:#5a6578; --s1-ink:#152033; --s2-ink:#ffffff; --s3-ink:#ffffff;
+  --shadow:0 12px 40px rgba(20,32,51,.18);
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"Public Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0e131a; --panel:#151c26; --ink:#e5eaf2; --muted:#93a0b3; --line:#253043;
+  --hl:#e3b927; --hl-soft:#4a3f12; --brand:#8db3ee; --brand-ink:#0e131a;
+  --good:#4cc38a; --warn:#e3a640; --bad:#f06b5a;
+  --s0:#222b39; --s1:#2f4a72; --s2:#4f80c6; --s3:#a4c4f6;
+  --s0-ink:#93a0b3; --s1-ink:#e5eaf2; --s2-ink:#ffffff; --s3-ink:#0e131a;
+  --shadow:0 12px 40px rgba(0,0,0,.5); color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0e131a; --panel:#151c26; --ink:#e5eaf2; --muted:#93a0b3; --line:#253043;
+  --hl:#e3b927; --hl-soft:#4a3f12; --brand:#8db3ee; --brand-ink:#0e131a;
+  --good:#4cc38a; --warn:#e3a640; --bad:#f06b5a;
+  --s0:#222b39; --s1:#2f4a72; --s2:#4f80c6; --s3:#a4c4f6;
+  --s0-ink:#93a0b3; --s1-ink:#e5eaf2; --s2-ink:#ffffff; --s3-ink:#0e131a;
+  --shadow:0 12px 40px rgba(0,0,0,.5); color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.wrap{max-width:1080px;margin-inline:auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 64px}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+/* header */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);margin-bottom:24px}
+.top-in{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:8px 20px;padding-top:18px}
+h1{font-family:var(--f-display);font-weight:700;font-size:clamp(1.5rem,3.4vw,2rem);line-height:1.1;margin:0;letter-spacing:-.01em}
+h1 mark{background:linear-gradient(180deg,transparent 55%,var(--hl) 55%,var(--hl) 92%,transparent 92%);color:inherit;padding:0 .08em}
+.save{font-size:.8rem;color:var(--muted);display:flex;align-items:center;gap:6px;white-space:nowrap}
+.save i{width:7px;height:7px;border-radius:50%;background:var(--good);display:inline-block}
+.save.busy i{background:var(--warn)} .save.off i{background:var(--bad)}
+.tabs{display:flex;gap:4px;overflow-x:auto;margin-top:10px;scrollbar-width:none}
+.tab{border:0;background:none;padding:10px 12px 12px;font-weight:600;color:var(--muted);position:relative;white-space:nowrap;border-radius:8px 8px 0 0}
+.tab:hover{color:var(--ink)}
+.tab[aria-selected="true"]{color:var(--ink)}
+.tab[aria-selected="true"]::after{content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:5px;background:var(--hl);border-radius:3px 3px 0 0}
+.tab .ct{font-family:var(--f-mono);font-size:.75rem;color:var(--muted);margin-left:6px;font-weight:400}
+
+h2{font-family:var(--f-display);font-weight:500;font-size:1.25rem;margin:0;letter-spacing:-.005em;text-wrap:balance}
+h3{font-size:.95rem;font-weight:600;margin:0}
+.eyebrow{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.sub{color:var(--muted);font-size:.875rem;margin:4px 0 0}
+section.view{display:flex;flex-direction:column;gap:28px}
+.sec-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:8px 16px;margin-bottom:12px}
+
+/* tiles */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:12px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.tile .big{font-family:var(--f-display);font-size:2rem;line-height:1;font-weight:500}
+.tile .big small{font-family:var(--f-body);font-size:.9rem;color:var(--muted);font-weight:400;margin-left:4px}
+.meter{height:6px;border-radius:3px;background:var(--s0);overflow:hidden}
+.meter b{display:block;height:100%;background:var(--s2);border-radius:3px}
+.tile .note{font-size:.8rem;color:var(--muted)}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px;min-width:0}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:12px}
+
+/* chart */
+.chart{position:relative;min-height:220px}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.chart .empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--muted);font-size:.875rem;padding:16px}
+
+/* subject bars */
+.sbars{display:flex;flex-direction:column;gap:10px}
+.sbar{display:grid;grid-template-columns:minmax(0,9.5rem) 1fr auto;gap:10px;align-items:center;font-size:.875rem;border:0;background:none;padding:2px 0;text-align:left;width:100%}
+.sbar:hover .lbl{text-decoration:underline}
+.sbar .lbl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sbar .val{font-family:var(--f-mono);font-size:.8rem;color:var(--muted);min-width:7.5rem;text-align:right}
+.segbar{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--s0)}
+.segbar span{display:block;height:100%}
+
+.next{display:flex;flex-direction:column;gap:8px;margin:0;padding:0;list-style:none}
+.next li{display:flex;gap:10px;align-items:baseline;font-size:.9rem}
+.next li b{font-weight:600}
+.next .k{font-family:var(--f-mono);font-size:.72rem;color:var(--muted);min-width:4.5rem;text-transform:uppercase;letter-spacing:.04em}
+
+/* legend */
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.78rem;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+
+/* toolbar */
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.pill{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:5px 12px;font-size:.82rem;font-weight:500;color:var(--muted)}
+.pill[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.switch{display:inline-flex;align-items:center;gap:8px;font-size:.82rem;color:var(--muted);cursor:pointer;user-select:none}
+.switch input{accent-color:var(--brand);width:16px;height:16px}
+
+/* chips (forms) */
+.subject{margin-top:4px}
+.subject + .subject{margin-top:22px}
+.subj-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;margin-bottom:10px}
+.subj-head .stat{font-family:var(--f-mono);font-size:.78rem;color:var(--muted)}
+.chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px}
+.chip{border:1px solid var(--line);background:var(--panel);border-radius:9px;padding:9px 10px 8px;text-align:left;display:flex;flex-direction:column;gap:4px;min-height:74px;position:relative;transition:transform .12s}
+.chip:hover{border-color:var(--brand)}
+@media (prefers-reduced-motion:no-preference){.chip:active{transform:scale(.97)}}
+.chip .nm{font-weight:600;font-size:.88rem;display:flex;justify-content:space-between;gap:6px;align-items:center}
+.old{font-size:.62rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:0 4px;font-weight:600}
+.chip .sc{font-family:var(--f-mono);font-size:1rem;font-weight:600}
+.chip .sc.none{color:var(--muted);font-weight:400;font-size:.8rem}
+.chip .steps{display:flex;gap:3px;margin-top:auto}
+.chip .steps i{flex:1;height:4px;border-radius:2px;background:var(--s0)}
+.chip.s1 .steps i:nth-child(-n+1),.chip.s2 .steps i:nth-child(-n+2),.chip.s3 .steps i:nth-child(-n+3){background:var(--s2)}
+.chip.s3{border-color:var(--s2)}
+.add-chip{border:1px dashed var(--line);background:none;color:var(--muted);border-radius:9px;min-height:74px;font-size:.82rem;display:flex;align-items:center;justify-content:center;gap:6px;padding:8px}
+.add-chip:hover{color:var(--ink);border-color:var(--muted)}
+.add-form{display:flex;gap:6px;align-items:center;border:1px dashed var(--muted);border-radius:9px;padding:8px;min-height:74px}
+.add-form input{width:100%;min-width:0;border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:5px 6px}
+.add-form button{border:0;background:var(--brand);color:var(--brand-ink);border-radius:6px;padding:5px 8px;font-size:.8rem;font-weight:600}
+.sc-good{color:var(--good)} .sc-warn{color:var(--warn)} .sc-bad{color:var(--bad)}
+
+/* NBME list */
+.rows{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r);background:var(--panel);overflow:hidden}
+.row{display:grid;grid-template-columns:7.25rem minmax(0,1fr) 5rem 6.5rem;gap:12px;align-items:center;padding:12px 14px;border:0;border-top:1px solid var(--line);background:none;text-align:left;width:100%}
+.row:first-child{border-top:0}
+.row:hover{background:color-mix(in srgb,var(--hl-soft) 35%,transparent)}
+.row .nm{font-weight:600;display:flex;align-items:center;gap:6px}
+.row .dt{font-family:var(--f-mono);font-size:.78rem;color:var(--muted);text-align:right}
+.row .sc{font-family:var(--f-mono);font-weight:600;text-align:right}
+.row .sc.none{color:var(--muted);font-weight:400}
+.status{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;border-radius:999px;padding:2px 10px 2px 8px;font-weight:500;width:max-content;max-width:100%}
+.status i{width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.8}
+.st0{background:var(--s0);color:var(--s0-ink)} .st1{background:var(--s1);color:var(--s1-ink)}
+.st2{background:var(--s2);color:var(--s2-ink)} .st3{background:var(--s3);color:var(--s3-ink)}
+.row .notes-p{display:block;font-size:.78rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px}
+@media (max-width:560px){
+  .row{grid-template-columns:6.6rem minmax(0,1fr) 3.4rem;gap:10px}
+  .row .dt{display:none}
+}
+
+/* systems */
+.sys{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px 16px;align-items:center;padding:12px 14px;border-top:1px solid var(--line)}
+.sys:first-child{border-top:0}
+.sys .nm{font-weight:600;border:0;background:none;padding:0;text-align:left;min-width:0}
+.sys .nm:hover{text-decoration:underline}
+.sys .nm small{display:block;font-weight:400;font-size:.78rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;border-left:1px solid var(--line);background:var(--panel);font-size:.76rem;padding:5px 9px;color:var(--muted);white-space:nowrap}
+.seg button:first-child{border-left:0}
+.seg button[aria-pressed="true"].v1{background:var(--s1);color:var(--s1-ink)}
+.seg button[aria-pressed="true"].v2{background:var(--s2);color:var(--s2-ink)}
+.seg button[aria-pressed="true"].v3{background:var(--s3);color:var(--s3-ink)}
+.seg button[aria-pressed="true"].v0{background:var(--s0);color:var(--ink)}
+.conf{display:inline-flex;gap:3px}
+.conf button{width:18px;height:18px;border-radius:50%;border:1.5px solid var(--muted);background:none;padding:0}
+.conf button.on{background:var(--hl);border-color:var(--hl)}
+@media (max-width:720px){
+  .sys{grid-template-columns:minmax(0,1fr) auto}
+  .sys .seg{grid-column:1/-1;order:3}
+}
+.add-sys{display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--line)}
+.add-sys input{flex:1;min-width:0;border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:7px 10px}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:7px 12px;font-weight:600;font-size:.85rem}
+.btn.primary{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
+.btn.ghost{background:none}
+.btn.danger{color:var(--bad)}
+
+/* editor sheet */
+.scrim{position:fixed;inset:0;background:rgba(10,16,26,.38);z-index:20}
+.sheet{position:fixed;z-index:21;top:0;right:0;bottom:0;width:min(420px,100%);background:var(--panel);border-left:1px solid var(--line);box-shadow:var(--shadow);display:flex;flex-direction:column;
+  padding-top:max(20px,env(safe-area-inset-top,0px));padding-bottom:max(20px,env(safe-area-inset-bottom,0px));padding-right:max(20px,env(safe-area-inset-right,0px));padding-left:20px;overflow-y:auto;gap:18px}
+@media (max-width:600px){
+  .sheet{top:auto;left:0;width:100%;max-height:88%;border-left:0;border-top:1px solid var(--line);border-radius:16px 16px 0 0;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+}
+@media (prefers-reduced-motion:no-preference){
+  .sheet{animation:slideIn .22s cubic-bezier(.2,.8,.2,1)}
+  @keyframes slideIn{from{transform:translateX(24px);opacity:.4}to{transform:none;opacity:1}}
+}
+.sheet-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.x{border:0;background:var(--s0);width:32px;height:32px;border-radius:50%;font-size:1.1rem;line-height:1;flex:none}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label,.field .lab{font-size:.78rem;font-weight:600;color:var(--muted)}
+.field input,.field textarea{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:9px 11px;width:100%}
+.field textarea{min-height:120px;resize:vertical}
+.field .hint{font-size:.75rem;color:var(--muted)}
+.stepper{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.stepper button{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:8px 4px;font-size:.78rem;font-weight:600;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:4px}
+.stepper button i{font-style:normal;font-family:var(--f-mono);font-size:.7rem;opacity:.8}
+.stepper button[aria-pressed="true"]{border-color:var(--s2);color:var(--ink);background:color-mix(in srgb,var(--s1) 45%,var(--panel))}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:auto}
+.banner{background:var(--hl-soft);border-radius:8px;padding:10px 12px;font-size:.85rem}
+.muted{color:var(--muted)}
+.tip{position:absolute;pointer-events:none;background:var(--panel);border:1px solid var(--line);box-shadow:var(--shadow);border-radius:8px;padding:6px 9px;font-size:.78rem;white-space:nowrap;transform:translate(-50%,-110%)}
+.tip b{font-family:var(--f-mono)}
+/* edit-list mode */
+.editbar{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px 12px;background:var(--hl-soft);border-radius:8px;padding:8px 8px 8px 12px;font-size:.85rem;margin:4px 0 18px}
+.chip .del{position:absolute;top:-7px;right:-7px;width:20px;height:20px;border-radius:50%;background:var(--bad);color:#fff;font-size:.8rem;line-height:1;display:flex;align-items:center;justify-content:center;font-weight:600;box-shadow:0 0 0 2px var(--bg)}
+.chip.editing:hover{border-color:var(--bad)}
+.chip.removed{background:none;border-style:dashed;opacity:.55}
+.chip.removed .del{background:var(--good)}
+.chip.removed:hover{opacity:.85;border-color:var(--good)}
+.linkish{border:0;background:none;padding:0;color:var(--muted);font-size:.78rem;text-decoration:underline;text-underline-offset:2px}
+.linkish:hover{color:var(--ink)}
+/* system tags */
+.sys-main{min-width:0;display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.tags{display:flex;flex-wrap:wrap;gap:4px}
+.tag{border:1px solid var(--line);background:none;border-radius:999px;padding:1px 9px;font-size:.72rem;color:var(--muted);font-weight:500}
+.tag:hover{border-color:var(--muted);color:var(--ink)}
+.tag.on{background:var(--hl-soft);border-color:var(--hl);color:var(--ink)}
+footer{margin-top:40px;font-size:.78rem;color:var(--muted)}
+</style>
+</head>
+<body>
+
+
+<header class="top">
+  <div class="wrap" style="padding-bottom:0">
+    <div class="top-in">
+      <div>
+        <div class="eyebrow">USMLE Step 2 CK</div>
+        <h1>Practice <mark>tracker</mark></h1>
+      </div>
+      <div class="save" id="save" role="status"><i></i><span id="save-t">Loading…</span></div>
+    </div>
+    <nav class="tabs" role="tablist" id="tabs">
+      <button class="tab" role="tab" id="tab-overview" data-tab="overview" aria-selected="true">Overview</button>
+      <button class="tab" role="tab" id="tab-nbme" data-tab="nbme" aria-selected="false">NBME<span class="ct" id="ct-nbme"></span></button>
+      <button class="tab" role="tab" id="tab-cms" data-tab="cms" aria-selected="false">CMS forms<span class="ct" id="ct-cms"></span></button>
+      <button class="tab" role="tab" id="tab-systems" data-tab="systems" aria-selected="false">Systems<span class="ct" id="ct-sys"></span></button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="notice"></div>
+
+  <section class="view" id="view-overview">
+    <div class="tiles" id="tiles"></div>
+    <div class="grid2">
+      <div class="card">
+        <div class="sec-head"><div><h3>NBME score trend</h3><p class="sub">Predicted 3-digit score, in the order you took them</p></div></div>
+        <div class="chart" id="trend"></div>
+      </div>
+      <div class="card">
+        <div class="sec-head"><div><h3>CMS by subject</h3><p class="sub">Forms done and average % correct</p></div></div>
+        <div class="sbars" id="sbars"></div>
+        <div class="legend" style="margin-top:14px">
+          <span><i style="background:var(--s1)"></i>Taken</span>
+          <span><i style="background:var(--s2)"></i>Reviewed</span>
+          <span><i style="background:var(--s3)"></i>Anki made</span>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="margin-bottom:10px">Up next</h3>
+      <ul class="next" id="next"></ul>
+    </div>
+  </section>
+
+  <section class="view" id="view-nbme" hidden>
+    <div class="sec-head">
+      <div><h2>NBME self-assessments</h2><p class="sub">CCSSA forms 6–16 · 200 questions, 4 blocks each. Tap a form to log it.</p></div>
+      <div class="legend">
+        <span><i style="background:var(--s0)"></i>Not taken</span>
+        <span><i style="background:var(--s1)"></i>Taken</span>
+        <span><i style="background:var(--s2)"></i>Reviewed</span>
+        <span><i style="background:var(--s3)"></i>Anki made</span>
+      </div>
+    </div>
+    <div class="rows" id="nbme-rows"></div>
+  </section>
+
+  <section class="view" id="view-cms" hidden>
+    <div class="sec-head">
+      <div><h2>Clinical Mastery Series</h2><p class="sub">50 questions per form. Tap a form to log score, date and review status.</p></div>
+    </div>
+    <div class="toolbar" id="cms-subj"></div>
+    <div class="toolbar">
+      <span class="eyebrow" style="margin-right:2px">Show</span>
+      <button class="pill" data-st="all" id="st-all">All</button>
+      <button class="pill" data-st="todo" id="st-todo">Not taken</button>
+      <button class="pill" data-st="done" id="st-done">Taken</button>
+      <label class="switch" style="margin-left:8px"><input type="checkbox" id="show-old"> Include older forms</label>
+      <button class="pill" id="edit-forms" aria-pressed="false" style="margin-left:auto">Edit list</button>
+    </div>
+    <div id="cms-list"></div>
+  </section>
+
+  <section class="view" id="view-systems" hidden>
+    <div class="sec-head">
+      <div><h2>Systems</h2><p class="sub">Set where each system stands and how confident you feel (1–5). Tap a name for notes.</p></div>
+    </div>
+    <div class="rows" id="sys-rows"></div>
+  </section>
+
+  <footer>CMS form numbers reflect the latest forms reported in mid-2026 (Medicine & OB/GYN to Form 10, Surgery, Pediatrics & Neurology to 9, Psychiatry 8, Family Medicine 5, EM 3). Use “Add form” for a new release and “Edit list” to remove forms you won’t take.
+    <div id="backup" hidden style="margin-top:14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+      <span>Progress is saved in this browser. Keep a backup or move it to another device:</span>
+      <button class="btn" id="export">Export backup</button>
+      <label class="btn" for="import" style="cursor:pointer">Import backup</label>
+      <input type="file" id="import" accept="application/json,.json" hidden>
+      <span id="backup-msg" role="status"></span>
+    </div>
+  </footer>
+</main>
+
+<div id="sheet-root"></div>
+
+<script>
+(() => {
+  // ---------- catalog ----------
+  const NBME = [];
+  for (let n = 6; n <= 16; n++) NBME.push({ id: 'nbme-' + n, n, label: 'Form ' + n, old: n <= 8 });
+
+  const SUBJ = [
+    { key: 'med',   name: 'Internal Medicine', latest: 10 },
+    { key: 'surg',  name: 'Surgery',           latest: 9 },
+    { key: 'peds',  name: 'Pediatrics',        latest: 9 },
+    { key: 'obgyn', name: 'OB/GYN',            latest: 10 },
+    { key: 'psych', name: 'Psychiatry',        latest: 8 },
+    { key: 'neuro', name: 'Clinical Neurology',latest: 9 },
+    { key: 'fm',    name: 'Family Medicine',   latest: 5 },
+    { key: 'em',    name: 'Emergency Medicine',latest: 3 },
+  ];
+  const SYSTEMS = [
+    ['cardio','Cardiovascular'],['resp','Pulmonary & Critical Care'],['gi','Gastrointestinal & Hepatology'],
+    ['renal','Renal, Urology & Electrolytes'],['endo','Endocrine & Diabetes'],['heme','Hematology & Oncology'],
+    ['id','Infectious Disease'],['immuno','Immunology, Allergy & Dermatology'],['rheum','Rheumatology & Musculoskeletal'],
+    ['neuro','Neurology, Ophthalmology & ENT'],['psych','Psychiatry & Behavioral'],
+    ['repro','Reproductive: OB, Gyn & Male'],
+    ['peds','Pediatrics & Genetics'],['surg','Surgery & Trauma'],['emtox','Emergency Medicine & Toxicology'],
+    ['biostat','Biostatistics & Epidemiology'],['ethics','Ethics, Communication & Patient Safety'],
+  ].map(([id, name]) => ({ id: 'sys-' + id, name }));
+  // old system ids folded into the merged ones
+  const MERGE = { 'sys-male': 'sys-repro', 'sys-ob': 'sys-repro', 'sys-gyn': 'sys-repro', 'sys-ent': 'sys-neuro', 'sys-derm': 'sys-immuno' };
+  const TAGS = ['Sketchy', 'UWorld', 'AMBOSS', 'Anki'];
+
+  const FORM_ST = ['Not taken', 'Taken', 'Reviewed', 'Anki made'];
+  const SYS_ST = ['Not started', 'Learning', 'Qbank done', 'Revised'];
+
+  // ---------- state ----------
+  const blank = () => ({ v: 1, items: {}, systems: {}, extraForms: {}, extraSystems: [], removed: [], prefs: { showOld: false } });
+  let state = blank();
+  let ui = { tab: 'overview', subj: 'all', st: 'all', addingFor: null, editForms: false };
+  function migrate(sys) {
+    for (const old in MERGE) {
+      if (!sys[old]) continue;
+      const a = sys[old], to = MERGE[old], b = sys[to] || { status: 0, conf: 0, notes: '', tags: [] };
+      sys[to] = {
+        status: Math.max(a.status || 0, b.status || 0), conf: Math.max(a.conf || 0, b.conf || 0),
+        notes: [b.notes, a.notes].filter(Boolean).join('\n'),
+        tags: [...new Set([...(b.tags || []), ...(a.tags || [])])],
+      };
+      delete sys[old];
+    }
+    return sys;
+  }
+  let ref = null, lastJSON = null, saveTimer = null, saving = false, again = false, offline = false;
+
+  const norm = (s) => {
+    const b = blank();
+    if (!s || typeof s !== 'object') return b;
+    return {
+      v: 1,
+      items: s.items && typeof s.items === 'object' ? s.items : {},
+      systems: s.systems && typeof s.systems === 'object' ? migrate(Object.assign({}, s.systems)) : {},
+      extraForms: s.extraForms && typeof s.extraForms === 'object' ? s.extraForms : {},
+      extraSystems: Array.isArray(s.extraSystems) ? s.extraSystems : [],
+      removed: Array.isArray(s.removed) ? s.removed : [],
+      prefs: Object.assign(b.prefs, s.prefs || {}),
+    };
+  };
+  const item = (id) => state.items[id] || { status: 0, score: '', date: '', notes: '' };
+  const sysItem = (id) => state.systems[id] || { status: 0, conf: 0, notes: '', tags: [] };
+
+  const setSave = (cls, text) => {
+    const el = document.getElementById('save');
+    el.className = 'save ' + cls;
+    document.getElementById('save-t').textContent = text;
+  };
+
+  function scheduleSave() {
+    if (offline || !ref) {
+      try { localStorage.setItem('ck-tracker', JSON.stringify(state)); setSave('', 'Saved on this device'); }
+      catch (e) { setSave('off', 'Not saved — browser storage is blocked'); }
+      return;
+    }
+    setSave('busy', 'Saving…');
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(flush, 600);
+  }
+  async function flush() {
+    if (saving) { again = true; return; }
+    saving = true;
+    const json = JSON.stringify(state);
+    try {
+      await ref.set(JSON.parse(json));
+      lastJSON = json;
+      setSave('', 'Saved');
+    } catch (e) {
+      if (e && e.code === 'unavailable') { setTimeout(flush, 1500 + Math.random() * 1000); }
+      else setSave('off', 'Not saved — ' + (e && e.code === 'quota_exceeded' ? 'storage full' : 'try again'));
+    }
+    saving = false;
+    if (again) { again = false; flush(); }
+  }
+
+  // ---------- helpers ----------
+  const h = (tag, attrs, ...kids) => {
+    const el = document.createElement(tag);
+    if (attrs) for (const k in attrs) {
+      const v = attrs[k];
+      if (v == null || v === false) continue;
+      if (k === 'class') el.className = v;
+      else if (k === 'text') el.textContent = v;
+      else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+      else el.setAttribute(k, v === true ? '' : v);
+    }
+    for (const c of kids.flat()) if (c != null && c !== false) el.append(c.nodeType ? c : document.createTextNode(String(c)));
+    return el;
+  };
+  const num = (v) => { const x = parseFloat(v); return Number.isFinite(x) ? x : null; };
+  const band = (kind, s) => {
+    if (s == null) return '';
+    if (kind === 'nbme') return s >= 250 ? 'sc-good' : s >= 230 ? 'sc-warn' : 'sc-bad';
+    return s >= 80 ? 'sc-good' : s >= 65 ? 'sc-warn' : 'sc-bad';
+  };
+  const fmtDate = (d) => {
+    if (!d) return '';
+    const t = new Date(d + 'T00:00:00');
+    return isNaN(t) ? d : t.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' });
+  };
+  const today = () => { const t = new Date(); return new Date(t - t.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
+
+  function cmsForms(s, includeOld, includeRemoved) {
+    const rm = new Set(state.removed);
+    const ns = new Set();
+    for (let n = 1; n <= s.latest; n++) ns.add(n);
+    (state.extraForms[s.key] || []).forEach((n) => ns.add(n));
+    return [...ns].sort((a, b) => a - b).map((n) => {
+      const id = 'cms-' + s.key + '-' + n;
+      const extra = n > s.latest;
+      const old = !extra && n <= s.latest - 4;
+      return { id, n, label: 'Form ' + n, old, subj: s, removed: rm.has(id), extra };
+    }).filter((f) => (includeRemoved || !f.removed) && (includeOld || !f.old || item(f.id).status > 0));
+  }
+  function toggleRemove(f) {
+    if (f.extra) {
+      state.extraForms[f.subj.key] = (state.extraForms[f.subj.key] || []).filter((n) => n !== f.n);
+    } else {
+      const set = new Set(state.removed);
+      if (set.has(f.id)) set.delete(f.id); else set.add(f.id);
+      state.removed = [...set];
+    }
+    scheduleSave(); render();
+  }
+  const allSystems = () => SYSTEMS.concat(state.extraSystems.filter((x) => x && x.id && x.name));
+
+  // ---------- tabs ----------
+  function showTab(t, push) {
+    if (!['overview', 'nbme', 'cms', 'systems'].includes(t)) t = 'overview';
+    ui.tab = t;
+    document.querySelectorAll('.tab').forEach((b) => b.setAttribute('aria-selected', b.dataset.tab === t ? 'true' : 'false'));
+    document.querySelectorAll('section.view').forEach((s) => (s.hidden = s.id !== 'view-' + t));
+    if (push) try { history.replaceState(null, '', '#' + t); } catch (e) {}
+    render();
+  }
+  document.getElementById('tabs').addEventListener('click', (e) => {
+    const b = e.target.closest('.tab'); if (b) showTab(b.dataset.tab, true);
+  });
+
+  // ---------- render ----------
+  function render() {
+    renderCounts();
+    if (ui.tab === 'overview') renderOverview();
+    if (ui.tab === 'nbme') renderNbme();
+    if (ui.tab === 'cms') renderCms();
+    if (ui.tab === 'systems') renderSystems();
+  }
+
+  function renderCounts() {
+    const nDone = NBME.filter((f) => item(f.id).status > 0).length;
+    document.getElementById('ct-nbme').textContent = nDone + '/' + NBME.length;
+    const cms = SUBJ.flatMap((s) => cmsForms(s, state.prefs.showOld));
+    document.getElementById('ct-cms').textContent = cms.filter((f) => item(f.id).status > 0).length + '/' + cms.length;
+    const sy = allSystems();
+    document.getElementById('ct-sys').textContent = sy.filter((s) => sysItem(s.id).status === 3).length + '/' + sy.length;
+  }
+
+  function tile(label, big, small, frac, note) {
+    return h('div', { class: 'tile' },
+      h('div', { class: 'eyebrow', text: label }),
+      h('div', { class: 'big' }, big, small ? h('small', { text: small }) : null),
+      frac != null ? h('div', { class: 'meter' }, h('b', { style: 'width:' + Math.round(frac * 100) + '%' })) : null,
+      note ? h('div', { class: 'note', text: note }) : null);
+  }
+
+  function nbmeScored() {
+    return NBME.map((f) => ({ f, it: item(f.id), s: num(item(f.id).score) }))
+      .filter((x) => x.s != null)
+      .sort((a, b) => (a.it.date && b.it.date ? a.it.date.localeCompare(b.it.date) : a.it.date ? -1 : b.it.date ? 1 : a.f.n - b.f.n));
+  }
+
+  function renderOverview() {
+    const tiles = document.getElementById('tiles');
+    const nTaken = NBME.filter((f) => item(f.id).status > 0).length;
+    const scored = nbmeScored();
+    const latest = scored.length ? scored[scored.length - 1] : null;
+    const best = scored.length ? Math.max(...scored.map((x) => x.s)) : null;
+
+    const cms = SUBJ.flatMap((s) => cmsForms(s, state.prefs.showOld));
+    const cTaken = cms.filter((f) => item(f.id).status > 0);
+    const cScores = cTaken.map((f) => num(item(f.id).score)).filter((x) => x != null);
+    const cAvg = cScores.length ? cScores.reduce((a, b) => a + b, 0) / cScores.length : null;
+
+    const sys = allSystems();
+    const sRev = sys.filter((s) => sysItem(s.id).status === 3).length;
+    const sAny = sys.filter((s) => sysItem(s.id).status > 0).length;
+
+    const allForms = NBME.concat(cms);
+    const reviewed = allForms.filter((f) => item(f.id).status >= 2).length;
+    const anki = allForms.filter((f) => item(f.id).status >= 3).length;
+    const taken = nTaken + cTaken.length;
+
+    tiles.replaceChildren(
+      tile('NBMEs done', String(nTaken), 'of ' + NBME.length, nTaken / NBME.length,
+        latest ? 'Latest: ' + latest.s + ' (' + latest.f.label + ')' + (best != null && best !== latest.s ? ' · best ' + best : '') : 'No scores logged yet'),
+      tile('CMS forms done', String(cTaken.length), 'of ' + cms.length, cms.length ? cTaken.length / cms.length : 0,
+        cAvg != null ? 'Average ' + cAvg.toFixed(1) + '% correct' : 'No scores logged yet'),
+      tile('Systems revised', String(sRev), 'of ' + sys.length, sys.length ? sRev / sys.length : 0,
+        (sAny ? sAny + ' started' : 'None started yet') + ' · ' + sys.filter((s) => (sysItem(s.id).tags || []).includes('Sketchy')).length + ' Sketchy done'),
+      tile('Reviewed', String(reviewed), 'of ' + taken + ' taken', taken ? reviewed / taken : 0,
+        anki + ' with Anki cards made'),
+    );
+
+    drawTrend(scored);
+
+    const sb = document.getElementById('sbars');
+    sb.replaceChildren(...SUBJ.map((s) => {
+      const fs = cmsForms(s, state.prefs.showOld);
+      const cnt = [0, 0, 0, 0];
+      fs.forEach((f) => cnt[item(f.id).status || 0]++);
+      const sc = fs.map((f) => num(item(f.id).score)).filter((x) => x != null);
+      const avg = sc.length ? sc.reduce((a, b) => a + b, 0) / sc.length : null;
+      const tot = fs.length || 1;
+      return h('button', { class: 'sbar', onclick: () => { ui.subj = s.key; showTab('cms', true); } },
+        h('span', { class: 'lbl', text: s.name }),
+        h('span', { class: 'segbar', 'aria-hidden': 'true' },
+          h('span', { style: 'width:' + (cnt[1] / tot * 100) + '%;background:var(--s1)' }),
+          h('span', { style: 'width:' + (cnt[2] / tot * 100) + '%;background:var(--s2)' }),
+          h('span', { style: 'width:' + (cnt[3] / tot * 100) + '%;background:var(--s3)' })),
+        h('span', { class: 'val' }, (cnt[1] + cnt[2] + cnt[3]) + '/' + fs.length,
+          avg != null ? h('span', { class: band('cms', avg), text: ' · ' + avg.toFixed(0) + '%' }) : ' · —'));
+    }));
+
+    // up next
+    const nx = document.getElementById('next');
+    const lis = [];
+    const nextN = NBME.find((f) => item(f.id).status === 0);
+    if (nextN) lis.push(['NBME', 'Take ' + nextN.label, nextN]);
+    const unrev = allForms.filter((f) => item(f.id).status === 1);
+    if (unrev.length) lis.push(['Review', unrev.length + ' taken form' + (unrev.length > 1 ? 's' : '') + ' still need review: ' + unrev.slice(0, 4).map((f) => (f.subj ? f.subj.name + ' ' : 'NBME ') + f.n).join(', ') + (unrev.length > 4 ? '…' : '')]);
+    const weak = SUBJ.map((s) => {
+      const sc = cmsForms(s, true).map((f) => num(item(f.id).score)).filter((x) => x != null);
+      return { s, avg: sc.length ? sc.reduce((a, b) => a + b, 0) / sc.length : null };
+    }).filter((x) => x.avg != null).sort((a, b) => a.avg - b.avg)[0];
+    if (weak) lis.push(['Weakest', weak.s.name + ' CMS average is ' + weak.avg.toFixed(0) + '%']);
+    const lowSys = allSystems().filter((s) => sysItem(s.id).conf > 0).sort((a, b) => sysItem(a.id).conf - sysItem(b.id).conf)[0];
+    if (lowSys) lis.push(['Low conf.', lowSys.name + ' (' + sysItem(lowSys.id).conf + '/5)']);
+    const notStarted = allSystems().filter((s) => sysItem(s.id).status === 0);
+    if (notStarted.length) lis.push(['Systems', notStarted.length + ' not started yet, e.g. ' + notStarted.slice(0, 3).map((s) => s.name).join(', ')]);
+    if (!lis.length) lis.push(['Done', 'Everything is logged. Nice work.']);
+    nx.replaceChildren(...lis.map(([k, t]) => h('li', null, h('span', { class: 'k', text: k }), h('span', { text: t }))));
+  }
+
+  function drawTrend(pts) {
+    const box = document.getElementById('trend');
+    box.replaceChildren();
+    if (pts.length < 1) {
+      box.append(h('div', { class: 'empty', text: 'Log a score on any NBME form and your trend line will show here.' }));
+      return;
+    }
+    const W = Math.max(300, box.clientWidth || 480), H = 220;
+    const m = { t: 22, r: 18, b: 30, l: 40 };
+    const ns = 'http://www.w3.org/2000/svg';
+    const s = (tag, a) => { const e = document.createElementNS(ns, tag); for (const k in a) e.setAttribute(k, a[k]); return e; };
+    const svg = s('svg', { viewBox: `0 0 ${W} ${H}`, width: '100%', role: 'img', 'aria-label': 'NBME score trend' });
+    const vals = pts.map((p) => p.s);
+    let lo = Math.min(...vals, 220), hi = Math.max(...vals, 260);
+    lo = Math.floor((lo - 5) / 10) * 10; hi = Math.ceil((hi + 5) / 10) * 10;
+    const x = (i) => pts.length === 1 ? (m.l + W - m.r) / 2 : m.l + (i / (pts.length - 1)) * (W - m.l - m.r);
+    const y = (v) => m.t + (1 - (v - lo) / (hi - lo)) * (H - m.t - m.b);
+    const step = (hi - lo) > 60 ? 20 : 10;
+    for (let v = lo; v <= hi; v += step) {
+      svg.append(s('line', { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), stroke: 'var(--line)', 'stroke-width': 1 }));
+      const t = s('text', { x: m.l - 8, y: y(v) + 4, 'text-anchor': 'end', fill: 'var(--muted)', 'font-size': 11, 'font-family': 'var(--f-mono)' });
+      t.textContent = v; svg.append(t);
+    }
+    // pass line (Step 2 CK passing standard 218)
+    if (218 >= lo && 218 <= hi) {
+      svg.append(s('line', { x1: m.l, x2: W - m.r, y1: y(218), y2: y(218), stroke: 'var(--bad)', 'stroke-width': 1, 'stroke-dasharray': '4 4', opacity: .7 }));
+      const t = s('text', { x: W - m.r, y: y(218) - 5, 'text-anchor': 'end', fill: 'var(--bad)', 'font-size': 10.5 });
+      t.textContent = 'Pass 218'; svg.append(t);
+    }
+    if (pts.length > 1) {
+      const d = pts.map((p, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(p.s).toFixed(1)).join(' ');
+      svg.append(s('path', { d, fill: 'none', stroke: 'var(--s2)', 'stroke-width': 2.5, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+    }
+    const every = Math.ceil(pts.length / Math.max(1, Math.floor((W - m.l - m.r) / 56)));
+    pts.forEach((p, i) => {
+      const last = i === pts.length - 1;
+      svg.append(s('circle', { cx: x(i), cy: y(p.s), r: last ? 5.5 : 4, fill: last ? 'var(--hl)' : 'var(--panel)', stroke: last ? 'var(--ink)' : 'var(--s2)', 'stroke-width': 2 }));
+      if (i % every === 0 || last) {
+        const t = s('text', { x: x(i), y: H - 10, 'text-anchor': 'middle', fill: 'var(--muted)', 'font-size': 11, 'font-family': 'var(--f-mono)' });
+        t.textContent = 'F' + p.f.n; svg.append(t);
+      }
+      if (last || pts.length <= 6) {
+        const t = s('text', { x: x(i), y: y(p.s) - 10, 'text-anchor': 'middle', fill: 'var(--ink)', 'font-size': 11.5, 'font-weight': 600, 'font-family': 'var(--f-mono)' });
+        t.textContent = p.s; svg.append(t);
+      }
+      const hit = s('circle', { cx: x(i), cy: y(p.s), r: 14, fill: 'transparent', style: 'cursor:pointer' });
+      hit.addEventListener('mouseenter', () => {
+        tip.hidden = false;
+        tip.replaceChildren(h('span', { text: p.f.label + (p.it.date ? ' · ' + fmtDate(p.it.date) + '  ' : '  ') }), h('b', { text: String(p.s) }));
+        const r = box.getBoundingClientRect(), sr = svg.getBoundingClientRect();
+        tip.style.left = Math.min(Math.max(60, (x(i) / W) * sr.width), r.width - 60) + 'px';
+        tip.style.top = ((y(p.s) / H) * sr.height) + 'px';
+      });
+      hit.addEventListener('mouseleave', () => (tip.hidden = true));
+      hit.addEventListener('click', () => openForm(p.f));
+      svg.append(hit);
+    });
+    const tip = h('div', { class: 'tip', hidden: true });
+    box.append(svg, tip);
+  }
+
+  function statusPill(st, labels) {
+    return h('span', { class: 'status st' + st }, h('i'), labels[st]);
+  }
+
+  function renderNbme() {
+    const rows = document.getElementById('nbme-rows');
+    rows.replaceChildren(...NBME.map((f) => {
+      const it = item(f.id); const sc = num(it.score);
+      return h('button', { class: 'row', onclick: () => openForm(f), 'aria-label': f.label + ', ' + FORM_ST[it.status || 0] },
+        h('span', { class: 'nm' }, f.label, f.old ? h('span', { class: 'old', text: 'older' }) : null),
+        h('span', { style: 'min-width:0' }, statusPill(it.status || 0, FORM_ST), it.notes ? h('span', { class: 'notes-p', text: it.notes }) : null),
+        h('span', { class: 'sc ' + (sc != null ? band('nbme', sc) : 'none'), text: sc != null ? String(sc) : '—' }),
+        h('span', { class: 'dt', text: fmtDate(it.date) }));
+    }));
+  }
+
+  function renderCms() {
+    const sbar = document.getElementById('cms-subj');
+    sbar.replaceChildren(
+      h('button', { class: 'pill', 'aria-pressed': ui.subj === 'all' ? 'true' : 'false', onclick: () => { ui.subj = 'all'; render(); } }, 'All subjects'),
+      ...SUBJ.map((s) => h('button', { class: 'pill', 'aria-pressed': ui.subj === s.key ? 'true' : 'false', onclick: () => { ui.subj = s.key; render(); } }, s.name)));
+    document.querySelectorAll('[data-st]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.st === ui.st ? 'true' : 'false'));
+    document.getElementById('show-old').checked = !!state.prefs.showOld;
+    const eb = document.getElementById('edit-forms');
+    eb.setAttribute('aria-pressed', ui.editForms ? 'true' : 'false');
+    eb.textContent = ui.editForms ? 'Done editing' : 'Edit list';
+
+    const list = document.getElementById('cms-list');
+    const subs = SUBJ.filter((s) => ui.subj === 'all' || ui.subj === s.key);
+    const bar = ui.editForms ? h('div', { class: 'editbar' },
+      h('span', { text: 'Tap × to remove a form, ↺ to bring it back. Your scores are kept.' }),
+      h('button', { class: 'btn primary', onclick: () => { ui.editForms = false; render(); } }, 'Done')) : null;
+    list.replaceChildren(...[bar].filter(Boolean), ...subs.map((s) => {
+      const visibleAll = cmsForms(s, state.prefs.showOld);
+      const nRemoved = cmsForms(s, true, true).filter((f) => f.removed).length;
+      const forms = ui.editForms ? cmsForms(s, state.prefs.showOld, true)
+        : visibleAll.filter((f) => ui.st === 'all' || (ui.st === 'todo' ? item(f.id).status === 0 : item(f.id).status > 0));
+      const done = visibleAll.filter((f) => item(f.id).status > 0).length;
+      const sc = visibleAll.map((f) => num(item(f.id).score)).filter((x) => x != null);
+      const avg = sc.length ? sc.reduce((a, b) => a + b, 0) / sc.length : null;
+      const chips = forms.map((f) => {
+        const it = item(f.id); const v = num(it.score);
+        if (ui.editForms) {
+          return h('button', { class: 'chip editing ' + (f.removed ? 'removed' : 's' + (it.status || 0)), onclick: () => toggleRemove(f),
+            'aria-label': (f.removed ? 'Restore ' : 'Remove ') + s.name + ' ' + f.label },
+            h('span', { class: 'del', 'aria-hidden': 'true', text: f.removed ? '↺' : '×' }),
+            h('span', { class: 'nm' }, f.label, f.old ? h('span', { class: 'old', text: 'older' }) : null),
+            h('span', { class: 'sc none', text: f.removed ? 'Removed' : v != null ? v + '%' : FORM_ST[it.status || 0] }),
+            h('span', { class: 'steps', 'aria-hidden': 'true' }, h('i'), h('i'), h('i')));
+        }
+        return h('button', { class: 'chip s' + (it.status || 0), onclick: () => openForm(f), 'aria-label': s.name + ' ' + f.label + ', ' + FORM_ST[it.status || 0] },
+          h('span', { class: 'nm' }, f.label, f.old ? h('span', { class: 'old', text: 'older' }) : null),
+          v != null ? h('span', { class: 'sc ' + band('cms', v), text: v + '%' }) : h('span', { class: 'sc none', text: FORM_ST[it.status || 0] }),
+          h('span', { class: 'steps', 'aria-hidden': 'true' }, h('i'), h('i'), h('i')));
+      });
+      if (ui.addingFor === s.key) {
+        const inp = h('input', { type: 'number', min: '1', max: '40', placeholder: 'Form #', id: 'add-' + s.key, 'aria-label': 'New form number' });
+        const add = () => {
+          const n = parseInt(inp.value, 10);
+          if (!(n >= 1 && n <= 40)) { inp.focus(); return; }
+          const arr = new Set(state.extraForms[s.key] || []); if (n > s.latest) arr.add(n);
+          state.extraForms[s.key] = [...arr].sort((a, b) => a - b);
+          if (n <= s.latest - 4) state.prefs.showOld = true;
+          ui.addingFor = null; scheduleSave(); render();
+        };
+        inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') add(); if (e.key === 'Escape') { ui.addingFor = null; render(); } });
+        chips.push(h('div', { class: 'add-form' }, inp, h('button', { onclick: add }, 'Add')));
+        setTimeout(() => inp.focus(), 0);
+      } else if (ui.st !== 'done' && !ui.editForms) {
+        chips.push(h('button', { class: 'add-chip', onclick: () => { ui.addingFor = s.key; render(); } }, '+ Add form'));
+      }
+      return h('div', { class: 'subject', id: 'cms-' + s.key },
+        h('div', { class: 'subj-head' }, h('h3', { text: s.name }),
+          h('span', { class: 'stat' }, done + '/' + visibleAll.length + ' done', avg != null ? h('span', { class: band('cms', avg), text: ' · avg ' + avg.toFixed(1) + '%' }) : null),
+          nRemoved && !ui.editForms ? h('button', { class: 'linkish', onclick: () => { ui.editForms = true; render(); } }, nRemoved + ' removed · restore') : null),
+        forms.length || chips.length ? h('div', { class: 'chips' }, chips) : h('p', { class: 'sub', text: 'Nothing here for this filter.' }));
+    }));
+  }
+  document.querySelectorAll('[data-st]').forEach((b) => b.addEventListener('click', () => { ui.st = b.dataset.st; render(); }));
+  document.getElementById('edit-forms').addEventListener('click', () => { ui.editForms = !ui.editForms; ui.addingFor = null; render(); });
+  document.getElementById('show-old').addEventListener('change', (e) => { state.prefs.showOld = e.target.checked; scheduleSave(); render(); });
+
+  function setSys(id, patch) {
+    state.systems[id] = Object.assign({}, sysItem(id), patch);
+    scheduleSave(); render();
+  }
+  function tagBtn(id, t, after) {
+    const on = (sysItem(id).tags || []).includes(t);
+    return h('button', { class: 'tag' + (on ? ' on' : ''), 'aria-pressed': on ? 'true' : 'false', title: on ? t + ' done' : 'Mark ' + t + ' done',
+      onclick: () => {
+        const cur = sysItem(id).tags || [];
+        setSys(id, { tags: on ? cur.filter((x) => x !== t) : cur.concat(t) });
+        if (after) after();
+      } }, (on ? '✓ ' : '') + t);
+  }
+
+  function renderSystems() {
+    const rows = document.getElementById('sys-rows');
+    const inp = h('input', { type: 'text', placeholder: 'Add a system or topic (e.g. Vascular surgery)', id: 'add-sys', maxlength: '60', 'aria-label': 'New system name' });
+    const add = () => {
+      const name = inp.value.trim(); if (!name) return;
+      state.extraSystems.push({ id: 'sys-x' + Date.now().toString(36), name });
+      scheduleSave(); render();
+      setTimeout(() => document.getElementById('add-sys')?.focus(), 0);
+    };
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') add(); });
+    rows.replaceChildren(...allSystems().map((sy) => {
+      const it = sysItem(sy.id);
+      const tags = it.tags || [];
+      return h('div', { class: 'sys' },
+        h('div', { class: 'sys-main' },
+          h('button', { class: 'nm', onclick: () => openSystem(sy) }, sy.name, it.notes ? h('small', { text: it.notes }) : null),
+          h('div', { class: 'tags' }, TAGS.filter((t) => t === 'Sketchy' || tags.includes(t)).map((t) => tagBtn(sy.id, t)))),
+        h('span', { class: 'conf', role: 'group', 'aria-label': 'Confidence' },
+          [1, 2, 3, 4, 5].map((n) => h('button', { class: it.conf >= n ? 'on' : '', 'aria-label': 'Confidence ' + n, title: 'Confidence ' + n + '/5', onclick: () => setSys(sy.id, { conf: it.conf === n ? 0 : n }) }))),
+        h('span', { class: 'seg', role: 'group', 'aria-label': 'Status' },
+          SYS_ST.map((l, i) => h('button', { class: 'v' + i, 'aria-pressed': (it.status || 0) === i ? 'true' : 'false', onclick: () => setSys(sy.id, { status: i }) }, l))));
+    }), h('div', { class: 'add-sys' }, inp, h('button', { class: 'btn', onclick: add }, 'Add')));
+  }
+
+  // ---------- editor ----------
+  const root = document.getElementById('sheet-root');
+  let openId = null;
+  function closeSheet() { root.replaceChildren(); openId = null; render(); }
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && openId) closeSheet(); });
+
+  function openForm(f) {
+    openId = f.id;
+    const kind = f.subj ? 'cms' : 'nbme';
+    const cur = () => item(f.id);
+    const patch = (p) => { state.items[f.id] = Object.assign({}, cur(), p); scheduleSave(); renderBehind(); };
+    const stepper = h('div', { class: 'stepper', role: 'group', 'aria-label': 'Status' });
+    const drawStep = () => stepper.replaceChildren(...FORM_ST.map((l, i) =>
+      h('button', { 'aria-pressed': (cur().status || 0) === i ? 'true' : 'false', onclick: () => {
+        const p = { status: i }; if (i > 0 && !cur().date) { p.date = today(); dateIn.value = p.date; }
+        patch(p); drawStep();
+      } }, h('i', { text: i === 0 ? '○' : '●'.repeat(i) }), l)));
+    const scoreIn = h('input', { type: 'number', inputmode: 'decimal', id: 'ed-score', step: kind === 'cms' ? '1' : '1', min: '0', max: kind === 'cms' ? '100' : '300', placeholder: kind === 'cms' ? 'e.g. 82' : 'e.g. 248', value: cur().score ?? '' });
+    scoreIn.addEventListener('input', () => {
+      const p = { score: scoreIn.value };
+      if (scoreIn.value !== '' && !(cur().status > 0)) { p.status = 1; if (!cur().date) { p.date = today(); dateIn.value = p.date; } }
+      patch(p); drawStep();
+    });
+    const dateIn = h('input', { type: 'date', id: 'ed-date', value: cur().date || '' });
+    dateIn.addEventListener('change', () => patch({ date: dateIn.value }));
+    const notesIn = h('textarea', { id: 'ed-notes', placeholder: 'Weak areas, recurring mistakes, topics to read…' });
+    notesIn.value = cur().notes || '';
+    notesIn.addEventListener('input', () => patch({ notes: notesIn.value }));
+    drawStep();
+
+    const conv = kind === 'cms' && f.subj ? h('p', { class: 'hint', text: '50 questions · enter % correct' }) : h('p', { class: 'hint', text: '200 questions · enter the predicted 3-digit score' });
+    const clearBtn = h('button', { class: 'btn ghost danger', onclick: () => {
+      if (clearBtn.dataset.arm) { delete state.items[f.id]; scheduleSave(); closeSheet(); }
+      else { clearBtn.dataset.arm = '1'; clearBtn.textContent = 'Tap again to clear'; }
+    } }, 'Clear entry');
+    const rmBtn = f.subj ? h('button', { class: 'btn ghost danger', onclick: () => {
+      if (rmBtn.dataset.arm) { if (!f.removed) toggleRemove(f); closeSheet(); }
+      else { rmBtn.dataset.arm = '1'; rmBtn.textContent = 'Tap again to remove'; }
+    } }, 'Remove form') : null;
+    const sheet = h('div', { class: 'sheet', role: 'dialog', 'aria-modal': 'true', 'aria-label': (f.subj ? f.subj.name + ' ' : 'NBME ') + f.label },
+      h('div', { class: 'sheet-head' },
+        h('div', null, h('div', { class: 'eyebrow', text: f.subj ? 'CMS · ' + f.subj.name : 'NBME · CCSSA' }), h('h2', { text: f.label + (f.old ? ' (older)' : '') })),
+        h('button', { class: 'x', 'aria-label': 'Close', onclick: closeSheet }, '×')),
+      h('div', { class: 'field' }, h('span', { class: 'lab', text: 'Status' }), stepper),
+      h('div', { class: 'two' },
+        h('div', { class: 'field' }, h('label', { for: 'ed-score', text: kind === 'cms' ? 'Score (% correct)' : 'Score' }), scoreIn),
+        h('div', { class: 'field' }, h('label', { for: 'ed-date', text: 'Date taken' }), dateIn)),
+      conv,
+      h('div', { class: 'field' }, h('label', { for: 'ed-notes', text: 'Notes' }), notesIn),
+      h('div', { class: 'actions' }, h('button', { class: 'btn primary', onclick: closeSheet }, 'Done'), clearBtn, rmBtn));
+    root.replaceChildren(h('div', { class: 'scrim', onclick: closeSheet }), sheet);
+    sheet.refresh = () => {
+      const a = document.activeElement;
+      if (a !== scoreIn) scoreIn.value = cur().score ?? '';
+      if (a !== dateIn) dateIn.value = cur().date || '';
+      if (a !== notesIn) notesIn.value = cur().notes || '';
+      drawStep();
+    };
+    setTimeout(() => sheet.querySelector('.x').focus(), 0);
+  }
+
+  function openSystem(sy) {
+    openId = sy.id;
+    const cur = () => sysItem(sy.id);
+    const notesIn = h('textarea', { id: 'ed-sys-notes', placeholder: 'High-yield gaps, UWorld %, resources to revisit…' });
+    notesIn.value = cur().notes || '';
+    notesIn.addEventListener('input', () => { state.systems[sy.id] = Object.assign({}, cur(), { notes: notesIn.value }); scheduleSave(); renderBehind(); });
+    const tagBox = h('div', { class: 'tags', role: 'group', 'aria-label': 'Resources done' });
+    const drawTags = () => tagBox.replaceChildren(...TAGS.map((t) => tagBtn(sy.id, t, drawTags)));
+    drawTags();
+    const isExtra = state.extraSystems.some((x) => x.id === sy.id);
+    const rm = isExtra ? h('button', { class: 'btn ghost danger', onclick: () => {
+      if (rm.dataset.arm) { state.extraSystems = state.extraSystems.filter((x) => x.id !== sy.id); delete state.systems[sy.id]; scheduleSave(); closeSheet(); }
+      else { rm.dataset.arm = '1'; rm.textContent = 'Tap again to remove'; }
+    } }, 'Remove system') : null;
+    const sheet = h('div', { class: 'sheet', role: 'dialog', 'aria-modal': 'true', 'aria-label': sy.name },
+      h('div', { class: 'sheet-head' },
+        h('div', null, h('div', { class: 'eyebrow', text: 'System · ' + SYS_ST[cur().status || 0] + (cur().conf ? ' · confidence ' + cur().conf + '/5' : '') }), h('h2', { text: sy.name })),
+        h('button', { class: 'x', 'aria-label': 'Close', onclick: closeSheet }, '×')),
+      h('div', { class: 'field' }, h('span', { class: 'lab', text: 'Resources done' }), tagBox),
+      h('div', { class: 'field' }, h('label', { for: 'ed-sys-notes', text: 'Notes' }), notesIn),
+      h('div', { class: 'actions' }, h('button', { class: 'btn primary', onclick: closeSheet }, 'Done'), rm));
+    root.replaceChildren(h('div', { class: 'scrim', onclick: closeSheet }), sheet);
+    sheet.refresh = () => { if (document.activeElement !== notesIn) notesIn.value = cur().notes || ''; drawTags(); };
+    setTimeout(() => notesIn.focus(), 0);
+  }
+  function renderBehind() { render(); }
+
+  // ---------- boot ----------
+  const hash = (location.hash || '').slice(1);
+  showTab(['overview', 'nbme', 'cms', 'systems'].includes(hash) ? hash : 'overview');
+  let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (ui.tab === 'overview') drawTrend(nbmeScored()); }, 150); });
+
+  function goOffline(msg) {
+    offline = true;
+    try { const raw = localStorage.getItem('ck-tracker'); if (raw) state = norm(JSON.parse(raw)); } catch (e) {}
+    setSave(msg ? 'off' : '', msg ? 'Saved in this browser only' : 'Saved on this device');
+    if (msg) document.getElementById('notice').replaceChildren(h('div', { class: 'banner', style: 'margin-bottom:20px', text: msg }));
+    render();
+  }
+
+  // backup (standalone site only: progress lives in this browser)
+  function setupBackup() {
+    const box = document.getElementById('backup');
+    box.hidden = false;
+    const msg = document.getElementById('backup-msg');
+    document.getElementById('export').addEventListener('click', () => {
+      const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+      const a = h('a', { href: URL.createObjectURL(blob), download: 'ck-tracker-backup-' + today() + '.json' });
+      document.body.append(a); a.click(); a.remove();
+      msg.textContent = 'Backup downloaded.';
+    });
+    document.getElementById('import').addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files[0]; if (!file) return;
+      const r = new FileReader();
+      r.onload = () => {
+        try {
+          const data = JSON.parse(r.result);
+          if (!data || typeof data !== 'object' || !('items' in data)) throw new Error('bad');
+          state = norm(data); scheduleSave(); render();
+          msg.textContent = 'Backup restored.';
+        } catch (err) { msg.textContent = 'That file isn’t a tracker backup.'; }
+        e.target.value = '';
+      };
+      r.readAsText(file);
+    });
+  }
+
+  (async () => {
+    const c = window.claude;
+    if (!c || !c.use) { goOffline(null); setupBackup(); return; }
+    const [db, user] = await Promise.all([c.use('db'), c.use('user')]);
+    const uid = user ? await user.id() : null;
+    if (!db || !uid) { goOffline('Sign in on claude.ai to save your progress across devices. For now changes stay in this browser.'); return; }
+    ref = db.doc('data/users/' + uid + '/tracker');
+    let first = true;
+    ref.onSnapshot((snap) => {
+      const data = snap.exists ? snap.data() : null;
+      const json = data ? JSON.stringify(data) : null;
+      if (snap.metadata.hasPendingWrites) return;
+      if (json && json === lastJSON) { if (first) { first = false; setSave('', 'Saved'); } return; }
+      if (!first && (saving || document.getElementById('save').classList.contains('busy'))) return;
+      first = false;
+      state = norm(data ? JSON.parse(json) : null);
+      lastJSON = json;
+      setSave('', data ? 'Saved' : 'Ready');
+      render();
+      const sh = root.querySelector('.sheet'); if (sh && sh.refresh) sh.refresh();
+    }, (e) => { setSave('off', 'Sync stopped — reload the page'); });
+  })();
+})();
+</script>
+
+</body>
+</html>
