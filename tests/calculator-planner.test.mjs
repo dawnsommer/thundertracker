@@ -32,7 +32,9 @@ ok((await rowSc('nbme-11')).startsWith('244'), 'a typed score is shown as typed'
 // --- calculator panel
 ok(await p.isHidden('#calc'), 'calculator hidden until asked for');
 await p.click('#calc-btn');
-ok(await p.isVisible('#calc .calc') && await p.evaluate(() => document.activeElement.id) === 'calc-pct', 'calculator opens with % focused');
+// focus moves after the panel is built (a setTimeout), so wait for it rather than racing it
+const calcFocused = await p.waitForFunction(() => document.activeElement && document.activeElement.id === 'calc-pct', null, { timeout: 2000 }).then(() => true, () => false);
+ok(await p.isVisible('#calc .calc') && calcFocused, 'calculator opens with % focused');
 await p.fill('#calc-pct', '72');
 let out = await p.textContent('#calc .calc-out');
 ok(out.includes('≈ ' + nb(72)) && out.includes('fit to your 3 NBME forms'), 'estimate at 72%: ' + out.slice(0, 80));
