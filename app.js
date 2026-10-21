@@ -48,6 +48,7 @@
   const SYS_ST = ['Not started', 'Learning', 'Qbank done', 'Revised'];
   const TABS = ['overview', 'nbme', 'cms', 'systems', 'qbank', 'articles'];
   const PASS = 218;
+  const APP_VERSION = 6; // matches VERSION in sw.js and ?v= in index.html
   const KEY = 'ck-tracker';
 
   // ---------- small helpers ----------
@@ -2066,7 +2067,7 @@
     const keys = [['1 – 6', 'Switch tabs'], [',', 'Open settings'], ['t', 'Light / dark'], ['Esc', 'Close a panel, or leave settings'], ['← →', 'Move between tabs (when a tab is focused)']];
     const SECTIONS = [
       ['set-plan', 'Plan'], ['set-sync', 'Google sync'], ['set-look', 'Appearance'], ['set-qbanks', 'Qbanks'],
-      ['set-data', 'Backup & import'], ['set-keys', 'Shortcuts'], ['set-danger', 'Erase data'],
+      ['set-data', 'Backup & import'], ['set-keys', 'Shortcuts'], ['set-app', 'App version'], ['set-danger', 'Erase data'],
     ];
     const nav = h('nav', { class: 'set-nav', 'aria-label': 'Settings sections' }, SECTIONS.map(([id, label]) =>
       h('a', { href: '#settings', 'data-sec': id, onclick: (e) => { e.preventDefault(); const el = $(id); el.scrollIntoView({ block: 'start', behavior: 'smooth' }); el.focus({ preventScroll: true }); } }, label)));
@@ -2088,6 +2089,9 @@
         h('p', { class: 'hint', text: 'Exam Simulator import reads its progress backup (.zip) and fills in finished NBME, UWSA and CMS forms. You see what changes before anything is saved.' }),
         persistNote, h('div', { class: 'btnrow' }, persistBtn)),
       card('set-keys', 'Keyboard shortcuts', null, h('dl', { class: 'keys' }, keys.flatMap(([k, d]) => [h('dt', null, h('kbd', { text: k })), h('dd', { text: d })]))),
+      card('set-app', 'App version', null,
+        h('p', { class: 'hint', text: 'Version ' + APP_VERSION + '. The app checks for a new version each time it opens and shows “Reload” when one is ready. If this device still shows an old version, reload it here — your progress, your Google sign-in and ThunderShadow’s data on the same site are not touched.' }),
+        h('div', { class: 'btnrow' }, h('button', { class: 'btn', id: 'st-reload', onclick: reloadLatest }, 'Reload latest version'))),
       card('set-danger', 'Erase data', 'Erases every score, note, session and article tick in this browser — and in your Google account if you’re signed in. You can undo right after.',
         h('div', { class: 'btnrow' }, resetBtn)),
       h('p', { class: 'hint set-about' }, 'Thunder tracker · your data stays in this browser and, if you sign in, your own Google Drive. ',
@@ -2159,7 +2163,38 @@
   // re-render after midnight so countdowns and "today" stay right
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { if (!$('lg-date').value) $('lg-date').value = today(); render(); } });
 
+  // ---------- app updates ----------
+  // A new deploy installs a new service worker, which takes over straight away; offer a reload so this
+  // page picks up the new files. Returning to the app checks for a new version at most every 30 minutes.
   if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
-    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+    const hadController = !!navigator.serviceWorker.controller;
+    let offered = false, lastCheck = Date.now();
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController || offered) return;
+      offered = true;
+      if (saveTimer) flush();
+      const t = h('div', { class: 'toast' }, h('span', { text: 'Thunder tracker was updated.' }), h('button', { onclick: () => location.reload() }, 'Reload'));
+      $('toasts').replaceChildren(t);
+    });
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {}));
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible' || Date.now() - lastCheck < 30 * 60000) return;
+      lastCheck = Date.now();
+      navigator.serviceWorker.getRegistration().then((r) => r && r.update()).catch(() => {});
+    });
+  }
+  // Fetch every app file fresh and drop this app's offline copy, then reload. Only touches caches named
+  // ck-tracker-… and this app's own service worker: your data and ThunderShadow are left alone.
+  async function reloadLatest() {
+    if (saveTimer) flush();
+    toast('Fetching the latest version…');
+    try {
+      const files = ['./', 'index.html', 'styles.css', 'config.js', 'cloud.js', 'app.js', 'sw.js', 'manifest.webmanifest'];
+      await Promise.all(files.map((f) => fetch(f, { cache: 'reload' }).catch(() => {})));
+      if (window.caches) for (const k of await caches.keys()) if (k.startsWith('ck-tracker-')) await caches.delete(k);
+      const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
+      if (reg) await reg.unregister();
+    } catch (e) {}
+    location.reload();
   }
 })();

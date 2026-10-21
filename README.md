@@ -78,4 +78,6 @@ python3 -m http.server 8000
 | `sw.js` | Service worker for offline use (network-first, so new deploys show up straight away) |
 | `manifest.webmanifest`, `icons/` | Install metadata and app icons |
 
-The form catalog (`GROUPS` and `SUBJ` at the top of `app.js`) is where you update the default lists when new NBME or CMS forms come out. Bump `CACHE` in `sw.js` when you change the list of cached files.
+The form catalog (`GROUPS` and `SUBJ` at the top of `app.js`) is where you update the default lists when new NBME or CMS forms come out.
+
+**Releasing a change:** bump the version in three places together: `VERSION` in `sw.js`, the `?v=` on the four file links in `index.html`, and `APP_VERSION` in `app.js`. The service worker always revalidates app files with GitHub Pages, so a reload shows the new release (no waiting out the 10-minute browser cache), and open tabs get an "updated — Reload" notice. Settings → App version → **Reload latest version** refetches everything and clears only the tracker's own `ck-tracker-…` cache. Your progress, your Google sign-in and ThunderShadow's data on the same domain are left alone.
