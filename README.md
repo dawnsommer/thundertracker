@@ -4,9 +4,9 @@ A study tracker for USMLE Step 2 CK that runs in your browser. Everything you lo
 
 ## What it tracks
 
-- **Self-assessments**: NBME CCSSA Forms 6–16, UWSA 1–3 and Free 120 (2019, 2021, 2023). For each one you can log the 3-digit score, % correct, the date, notes, a review status (taken → reviewed → Anki cards made) and the systems you were weak in. You can add newer forms or releases, and hide the ones you won't take.
+- **Self-assessments**: NBME CCSSA Forms 6–16 (200 questions; Forms 6 and 8 have 184, Form 7 has 176), UWSA 1–3 and Free 120 (2019, 2021, 2023). For each one you can log the 3-digit score, % correct, the date, notes, a review status (taken → reviewed → Anki cards made) and the systems you were weak in. You can add newer forms or releases, and hide the ones you won't take.
   - **Score calculator** (the **Score calculator** button on the Assessments tab, hidden until you open it): turns your result (% correct, questions wrong or questions correct) into an estimated 3-digit score. Built-in conversions, all unofficial, live in `js/score-models.js`:
-    - **NBME 6–8** (184 questions): a legacy Excel calculator's formulas (no score past 91 wrong).
+    - **NBME 6–8** (184 questions; Form 7 has 176): a legacy Excel calculator's formulas (no score past 91 wrong).
     - **NBME 9–14**: NBMEScore.com's published per-form regressions. **NBME 15**: NBMEScore.com, plus the r/Step2 author's straight-line and curved fits.
     - **NBME 16**: NBMEcalc's chart (made for the equated % correct on the NBME report; with a self-counted % it's a rough guide).
     - **UWSA 1**: NBMEScore.com's anchors, or NBMECalculator.com's table. **UWSA 2**: NBMEScore.com's `280 − 0.85 × wrong`, or NBMECalculator.com's table (≈ `280 − 1.08 × wrong`).

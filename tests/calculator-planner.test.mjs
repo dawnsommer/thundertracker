@@ -54,6 +54,8 @@ await p.fill('#calc-pct', '92');
 ok((await out()).includes('only covers 50.5–100% correct, so it isn’t used here') && (await out()).includes('fit to your 3 NBME forms'), 'NBME 6 past 91 wrong: the Excel formula stops; your NBME fit is used, explained: ' + (await out()).slice(0, 90));
 await p.fill('#calc-pct', '185');
 ok((await out()).includes('whole number from 0 to 184'), 'count beyond the form is rejected');
+await p.selectOption('#calc-form', 'nbme-7'); await p.fill('#calc-pct', '26');
+ok((await out()).includes('≈ 245') && (await out()).includes('26 wrong of 176'), 'NBME 7 has 176 questions: 283.7 − 1.4992 × 26 = 244.72: ' + (await out()).slice(0, 60));
 // NBME 16: the chart only covers 50–90%; outside it, the next method is used and it says so
 await p.click('#calc-mode [data-mode="pct"]');
 await p.selectOption('#calc-form', 'nbme-16');
@@ -68,14 +70,14 @@ ok(JSON.stringify(await srcScores()) === '["212","194",""]' && (await p.textCont
 // choose a source for a form
 await p.selectOption('#calc-form', 'uwsa-1');
 await p.fill('#calc-pct', '75');
-await p.click('#calc-sources input[value="nbmecalculator"]');
+await p.click('#calc-sources .src-row:has(input[value="nbmecalculator"])');
 ok((await out()).includes('≈ 250') && (await rowSc('uwsa-1')).startsWith('≈250'), 'UWSA 1 switched to NBMECalculator.com: 292 − 1.05 × 40 = 250 (panel and row)');
 let s = await local();
 ok(s.conversions['uwsa-1'] && s.conversions['uwsa-1'].kind === 'builtin' && s.conversions['uwsa-1'].model === 'nbmecalculator', 'source choice saved (and synced)');
-await p.click('#calc-sources input[value="nbmescore"]');
+await p.click('#calc-sources .src-row:has(input[value="nbmescore"])');
 ok(!(await local()).conversions['uwsa-1'] && (await rowSc('uwsa-1')).startsWith('≈246'), 'back to the default: nothing stored');
 await p.selectOption('#calc-form', 'nbme-12');
-await p.click('#calc-sources input[value="none"]');
+await p.click('#calc-sources .src-row:has(input[value="none"])');
 ok((await rowSc('nbme-12')).startsWith('≈' + nb(70)), 'NBME 12 with no built-in: falls back to your NBME fit');
 // UWSA 3 has no published conversion
 await p.selectOption('#calc-form', 'uwsa-3');

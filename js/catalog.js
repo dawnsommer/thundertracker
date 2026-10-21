@@ -4,8 +4,8 @@ import { slug } from './util.js?v=11';
 
 // Self-assessments. `base` is the default list; newer releases can be added from the Assessments tab.
 export const GROUPS = [
-  { key: 'nbme', name: 'NBME CCSSA', short: 'NBME', qs: 200, qsFor: (n) => (n <= 8 ? 184 : 200), scaled: true, min: 1, max: 99,
-    desc: '200 questions in 4 blocks of 50 (Forms 6–8: 184) · log the 3-digit score and % correct',
+  { key: 'nbme', name: 'NBME CCSSA', short: 'NBME', qs: 200, qsFor: (n) => (n === 7 ? 176 : n <= 8 ? 184 : 200), scaled: true, min: 1, max: 99,
+    desc: '200 questions in 4 blocks of 50 (Forms 6 and 8: 184, Form 7: 176) · log the 3-digit score and % correct',
     base: [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16], old: (n) => n <= 8,
     label: (n) => 'Form ' + n, full: (n) => 'NBME ' + n, tag: (n) => 'N' + n, addHint: 'Form #' },
   { key: 'uwsa', name: 'UWorld Self-Assessment', short: 'UWSA', qs: 160, scaled: true, min: 1, max: 9,

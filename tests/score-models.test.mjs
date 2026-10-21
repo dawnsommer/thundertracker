@@ -24,6 +24,8 @@ for (const [id, mid, inp, want] of CASES) {
 ok(scoreAtPct(modelById('nbme-15', 'nbmescore'), 80, 200).score === 257, 'NBME 15 at 80% = 40 wrong → 257');
 // no conversion where none is published
 ok(['uwsa-3', 'f120-2019', 'f120-2023'].every((id) => !SCORE_MODELS[id]), 'UWSA 3, Free 120 (2019, 2023): no built-in');
-// the Excel calculator is only used for the retired 184-question forms
-ok(Object.entries(SCORE_MODELS).every(([id, fm]) => fm.models.some((m) => m.id === 'excel') === ['nbme-6', 'nbme-7', 'nbme-8'].includes(id) && (fm.qs === 184) === ['nbme-6', 'nbme-7', 'nbme-8'].includes(id)), 'Excel formulas only for NBME 6–8 (184 questions)');
+// the Excel calculator is only used for the retired forms: 6 and 8 have 184 questions, 7 has 176
+ok(Object.entries(SCORE_MODELS).every(([id, fm]) => fm.models.some((m) => m.id === 'excel') === ['nbme-6', 'nbme-7', 'nbme-8'].includes(id)), 'Excel formulas only for NBME 6–8');
+ok(SCORE_MODELS['nbme-6'].qs === 184 && SCORE_MODELS['nbme-7'].qs === 176 && SCORE_MODELS['nbme-8'].qs === 184, 'NBME 6 and 8: 184 questions, NBME 7: 176');
+ok(Object.entries(SCORE_MODELS).every(([id, fm]) => /^nbme-[678]$/.test(id) || fm.qs === { nbme: 200, uwsa: 160, f120: 120 }[id.split('-')[0]]), 'other forms: NBME 200, UWSA 160, Free 120 120');
 ok(Object.values(SCORE_MODELS).every((fm) => fm.models.every((m) => m.id === 'excel' || m.id === 'supplied' || /^https:\/\//.test(m.url))), 'every other model links its published source');

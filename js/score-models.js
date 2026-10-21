@@ -1,6 +1,7 @@
 // Built-in 3-digit score conversions, per form. All are unofficial: NBME and UWorld don't publish how
 // raw scores map to reported scores. Sources (reviewed Oct 2026):
-//   NBME 6–8    a legacy Excel calculator (score from questions wrong; nothing past 91 wrong)
+//   NBME 6–8    a legacy Excel calculator (score from questions wrong; nothing past 91 wrong). Forms 6 and 8
+//               have 184 questions, Form 7 has 176
 //   NBME 9–15   NBMEScore.com's published per-form regressions; NBME 15 also has the r/Step2 author's fits
 //   NBME 16     NBMEcalc's chart, made for the equated % correct (EPC) on the NBME report
 //   UWSA 1      NBMEScore.com's %→score anchors (50, 55 and 85% are the site's own extrapolations);
@@ -15,10 +16,10 @@
 
 const NBS = 'NBMEScore.com';
 const nbs = (slug) => 'https://nbmescore.com/' + slug + '/';
-const reg = (b, a, slug) => ({ id: 'nbmescore', src: NBS + ' regression', type: 'wrong', b, a, url: nbs(slug) });
+const reg = (b, a, slug) => ({ id: 'nbmescore', src: NBS + ' regression', short: 'NBMEScore', type: 'wrong', b, a, url: nbs(slug) });
 const EXCEL = 'Legacy Excel calculator';
-const excel = (b, a) => ({ id: 'excel', src: EXCEL, type: 'wrong', b, a, maxWrong: 91, decimals: true,
-  note: 'For the retired 184-question form; gives no score past 91 wrong.' });
+const excel = (b, a) => ({ id: 'excel', src: EXCEL, short: 'Excel', type: 'wrong', b, a, maxWrong: 91, decimals: true,
+  note: 'For the retired forms (176–184 questions); gives no score past 91 wrong.' });
 const NBME16 = [[50, 181], [52, 186], [54, 191], [56, 196], [58, 201], [60, 206], [62, 211], [64, 216], [66, 221], [68, 226], [70, 231],
   [72, 236], [74, 241], [76, 246], [78, 252], [80, 257], [82, 262], [84, 267], [86, 272], [88, 277], [90, 282]];
 const R15 = 'https://www.reddit.com/r/Step2/comments/1hzvyza/nbme_15_three_digit_score_calculator/';
@@ -26,7 +27,7 @@ const R15 = 'https://www.reddit.com/r/Step2/comments/1hzvyza/nbme_15_three_digit
 // Keyed by form id. The first model is the default; `qs` is the form's question count.
 export const SCORE_MODELS = {
   'nbme-6': { qs: 184, models: [excel(293.52, -2.4295)] },
-  'nbme-7': { qs: 184, models: [excel(283.7, -1.4992)] },
+  'nbme-7': { qs: 176, models: [excel(283.7, -1.4992)] },
   'nbme-8': { qs: 184, models: [excel(295.48, -2.1601)] },
   'nbme-9': { qs: 200, models: [reg(298.45, -1.09, 'nbme-9-score-calculator-step-2')] },
   'nbme-10': { qs: 200, models: [reg(300.18, -1.1, 'nbme-10-score-conversion')] },
@@ -36,29 +37,29 @@ export const SCORE_MODELS = {
   'nbme-14': { qs: 200, models: [reg(299.2, -1.08, 'nbme-14-step-2-ck-score-conversion')] },
   'nbme-15': { qs: 200, models: [
     reg(300.5, -1.1, 'nbme-15-step-2-ck-score-conversion'),
-    { id: 'reddit-linear', src: 'r/Step2 fit (straight line)', type: 'wrong', b: 301.1223, a: -1.1387, url: R15,
+    { id: 'reddit-linear', src: 'r/Step2 fit (straight line)', short: 'r/Step2 line', type: 'wrong', b: 301.1223, a: -1.1387, url: R15,
       note: 'Fitted to self-reported scores between 64% and 87% correct.' },
-    { id: 'reddit-curve', src: 'r/Step2 fit (curve)', type: 'wrong', b: 288.7849, a: -0.5766, q: -0.0059, url: R15,
+    { id: 'reddit-curve', src: 'r/Step2 fit (curve)', short: 'r/Step2 curve', type: 'wrong', b: 288.7849, a: -0.5766, q: -0.0059, url: R15,
       note: 'Fitted to self-reported scores between 64% and 87% correct.' },
   ] },
   'nbme-16': { qs: 200, models: [
-    { id: 'nbmecalc', src: 'NBMEcalc chart', type: 'chart', points: NBME16, url: 'https://nbmecalc.com/nbme-16-score-conversion',
+    { id: 'nbmecalc', src: 'NBMEcalc chart', short: 'NBMEcalc', type: 'chart', points: NBME16, url: 'https://nbmecalc.com/nbme-16-score-conversion',
       note: 'Made for the equated % correct (EPC) on your NBME report. With a % you counted yourself it’s only a rough guide.' },
   ] },
   'uwsa-1': { qs: 160, models: [
-    { id: 'nbmescore', src: NBS + ' anchors', type: 'chart', url: nbs('uwsa1-step-2-score-conversion'),
+    { id: 'nbmescore', src: NBS + ' anchors', short: 'NBMEScore', type: 'chart', url: nbs('uwsa1-step-2-score-conversion'),
       points: [[50, 204], [55, 210], [60, 215], [65, 225], [70, 236], [75, 246], [80, 255], [85, 263]],
       note: 'Observed between 60% and 80%; the 50, 55 and 85% points are the site’s own extrapolations.' },
-    { id: 'nbmecalculator', src: 'NBMECalculator.com table', type: 'wrong', b: 292, a: -1.05, clamp: [140, 300], url: 'https://nbmecalculator.com/step-2/uwsa-1/',
+    { id: 'nbmecalculator', src: 'NBMECalculator.com table', short: 'NBMECalculator', type: 'wrong', b: 292, a: -1.05, clamp: [140, 300], url: 'https://nbmecalculator.com/step-2/uwsa-1/',
       note: 'A straight line that reproduces the site’s table.' },
   ] },
   'uwsa-2': { qs: 160, models: [
-    { id: 'nbmescore', src: NBS + ' formula', type: 'wrong', b: 280, a: -0.85, clamp: [140, 300], url: nbs('uwsa-2-score-conversion') },
-    { id: 'nbmecalculator', src: 'NBMECalculator.com table', type: 'wrong', b: 280, a: -1.08, clamp: [140, 300], url: 'https://nbmecalculator.com/step-2/uwsa-2/',
+    { id: 'nbmescore', src: NBS + ' formula', short: 'NBMEScore', type: 'wrong', b: 280, a: -0.85, clamp: [140, 300], url: nbs('uwsa-2-score-conversion') },
+    { id: 'nbmecalculator', src: 'NBMECalculator.com table', short: 'NBMECalculator', type: 'wrong', b: 280, a: -1.08, clamp: [140, 300], url: 'https://nbmecalculator.com/step-2/uwsa-2/',
       note: 'A straight line that reproduces the site’s table.' },
   ] },
   'f120-2021': { qs: 120, models: [
-    { id: 'supplied', src: 'Supplied formula', type: 'pct', b: 166.17, a: 1.165, note: 'Only for the 2021 release.' },
+    { id: 'supplied', src: 'Supplied formula', short: 'Supplied', type: 'pct', b: 166.17, a: 1.165, note: 'Only for the 2021 release.' },
   ] },
 };
 

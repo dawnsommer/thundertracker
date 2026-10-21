@@ -172,20 +172,20 @@ function buildCalculator(box) {
     const facts = (Math.round(r.pct * 10) / 10) + '% · ' + (whole ? '' : '≈') + Math.round(w) + ' wrong of ' + f.qs;
     const skip = e && e.skipped ? e.skipped.model.src + ' only covers ' + e.skipped.range[0] + '–' + e.skipped.range[1] + '% correct' : '';
     if (!e || e.score == null) {
-      res.replaceChildren(h('div', { class: 'calc-score none' }, h('b', { text: '—' }), h('span', { class: 'calc-facts', text: facts })),
+      res.replaceChildren(h('div', { class: 'calc-line' }, h('div', { class: 'calc-score none' }, h('b', { text: '—' })), h('span', { class: 'calc-facts', text: facts })),
         h('p', { class: 'calc-how', text: skip ? skip + ' — no estimate here.'
           : (f.id ? 'No published conversion for ' + f.full + '. ' : 'Pick a form to use its published conversion. ') + 'Add your own under “Your conversions”, or log 3 ' + f.g.short + ' forms with a score and % for a fit to your own.' }));
       return;
     }
     const real = f.id ? scaledOf(f) : null;
     res.replaceChildren(
-      h('div', { class: 'calc-score' },
-        h('b', { class: band('score', e.score), text: '≈ ' + e.score }), e.range ? h('small', { text: '± ' + e.range }) : '',
+      h('div', { class: 'calc-line' },
+        h('div', { class: 'calc-score' }, h('b', { class: band('score', e.score), text: '≈ ' + e.score }), e.range ? h('small', { text: '± ' + e.range }) : ''),
+        scale(e.score),
         h('span', { class: 'calc-facts', text: facts })),
-      scale(e.score),
       h('p', { class: 'calc-how' }, 'From ' + e.how + (e.model && e.model.decimals ? ' (' + e.value.toFixed(2) + ')' : '') + '.',
-        skip ? ' ' + skip + ', so it isn’t used here.' : '', e.model && e.model.note ? h('span', { class: 'calc-note', text: ' ' + e.model.note }) : null),
-      real != null ? h('p', { class: 'calc-how', text: 'Your logged score: ' + real + (pctOf(f) != null ? ' at ' + fmtPct(pctOf(f)) : '') + '.' }) : '');
+        skip ? ' ' + skip + ', so it isn’t used here.' : '', e.model && e.model.note ? h('span', { class: 'calc-note', text: ' ' + e.model.note }) : '',
+        real != null ? ' Your logged score: ' + real + (pctOf(f) != null ? ' at ' + fmtPct(pctOf(f)) : '') + '.' : ''));
   };
 
   // every source for the chosen form, side by side; tap one to use it
@@ -195,26 +195,26 @@ function buildCalculator(box) {
     srcBox.hidden = false;
     const ok = r && r.pct != null, own = userConv(f.id), inUse = own ? 'own' : (builtinModel(f) || { id: 'none' }).id;
     const scores = [];
-    const row = (id, name, sub, val, url) => h('label', { class: 'src-row' + (inUse === id ? ' on' : '') },
+    // a pill per source: name and score; the formula is in its tooltip, the link opens the source
+    const row = (id, name, tip, val, url) => h('label', { class: 'src-row' + (inUse === id ? ' on' : ''), title: tip },
       h('input', { type: 'radio', name: 'calc-src', value: id, checked: inUse === id, onchange: () => { if (id !== 'own') { chooseSource(f, id); draw(); drawConvs(); } } }),
-      h('span', { class: 'src-nm' }, h('b', { text: name }), sub ? h('small', { text: sub }) : null),
-      h('span', { class: 'src-sc', text: val }),
-      url ? h('a', { href: url, target: '_blank', rel: 'noopener noreferrer', class: 'src-link', 'aria-label': 'Source: ' + name, title: url }, '↗') : h('span'));
+      h('span', { class: 'src-nm', text: name }), h('span', { class: 'src-sc', text: val }),
+      url ? h('a', { href: url, target: '_blank', rel: 'noopener noreferrer', class: 'src-link', 'aria-label': 'Source: ' + name }, '↗') : '');
     const rows = ms.map((m) => {
       const x = ok ? runAt(m, f, r.pct, r.wrong) : null;
       if (x && !x.error) scores.push(x.score);
-      return row(m.id, m.src, describeModel(m), !x ? '' : x.error ? x.range[0] + '–' + x.range[1] + '% only' : String(x.score), m.url);
+      return row(m.id, m.short, m.src + ': ' + describeModel(m), !x ? '' : x.error ? x.range[0] + '–' + x.range[1] + '%' : String(x.score), m.url);
     });
     if (own) {
       const v = ok ? clampScore(convert(own, r.pct)) : null;
       if (v != null) scores.push(v);
       rows.unshift(row('own', 'Your ' + convWord(own), describeConv(own) + (own.note ? ' · ' + own.note : ''), v != null ? String(v) : ''));
     }
-    rows.push(row('none', 'None', 'use your exam-wide conversion or your own fit', ''));
+    rows.push(row('none', 'None', 'Don’t use a built-in conversion: use your exam-wide conversion or your own fit', ''));
     const gap = scores.length > 1 ? Math.max(...scores) - Math.min(...scores) : 0;
-    srcBox.replaceChildren(h('div', { class: 'calc-sub' }, h('h4', { text: 'Sources for ' + f.full }), h('small', { text: 'unofficial · tap to choose' })),
+    srcBox.replaceChildren(h('span', { class: 'src-h', text: 'Source' }),
       h('div', { class: 'src-list', role: 'radiogroup', 'aria-label': 'Conversion for ' + f.full }, rows),
-      gap >= 10 ? h('p', { class: 'calc-warn', text: 'These sources differ by ' + gap + ' points. That’s disagreement between sources, not a confidence range.' }) : '');
+      gap >= 10 ? h('p', { class: 'calc-warn', text: 'Sources differ by ' + gap + ' points — disagreement, not a confidence range.' }) : '');
   };
 
   const drawFits = () => fits.replaceChildren(...GROUPS.filter((g) => g.scaled).map((g) => {
@@ -299,7 +299,7 @@ function buildCalculator(box) {
   }
 
   // where the built-in numbers come from
-  const about = h('details', { class: 'calc-more', id: 'calc-about' }, h('summary', { text: 'Where the built-in numbers come from' }),
+  const about = h('details', { class: 'calc-more', id: 'calc-about' }, h('summary', { text: 'About the sources' }),
     h('p', { class: 'hint', text: 'NBME and UWorld don’t publish how raw scores become 3-digit scores. These are third-party estimates — your real score report always wins. Nothing is extrapolated past a source’s range.' }),
     h('div', { class: 'about-list' }, Object.entries(SCORE_MODELS).map(([id, fm]) => {
       const f = allForms().find((x) => x.id === id);
@@ -307,7 +307,7 @@ function buildCalculator(box) {
         m.url ? h('a', { href: m.url, target: '_blank', rel: 'noopener noreferrer', text: m.src }) : m.src, i === 0 && fm.models.length > 1 ? ' (default)' : '', ' — ', h('code', { text: describeModel(m) }), m.note ? ' ' + m.note : ''))));
     })),
     h('p', { class: 'hint', text: 'No published conversion: UWSA 3, Free 120 (2019) and the latest Free 120. Step 2 CK passing score: 218 (since July 2025) — an estimate above it isn’t a pass prediction.' }));
-  const more = h('details', { class: 'calc-more', id: 'calc-more' }, h('summary', { text: 'Your conversions & your own fit' }),
+  const more = h('details', { class: 'calc-more', id: 'calc-more' }, h('summary', { text: 'Your conversions & fit' }),
     h('div', { class: 'calc-cols' }, convBox, h('div', null, h('div', { class: 'calc-sub' }, h('h4', { text: 'Fit to your own forms' })), fits)));
 
   formSel.addEventListener('change', () => {
@@ -317,13 +317,11 @@ function buildCalculator(box) {
   });
   numIn.addEventListener('input', draw);
   drawMode();
+  formSel.setAttribute('aria-label', 'Form');
   box.replaceChildren(h('div', { class: 'card calc' },
     h('div', { class: 'calc-top' },
-      h('div', null, h('h3', { text: 'Score calculator' }), h('p', { class: 'sub', text: 'Estimated 3-digit score from your result' })),
+      h('h3', { text: 'Score calculator' }), formSel, h('div', { class: 'calc-num' }, numIn, modeSeg),
       h('button', { class: 'x', 'aria-label': 'Close calculator', onclick: () => toggleCalculator(false) }, '×')),
-    h('div', { class: 'calc-in' },
-      h('div', { class: 'field' }, h('label', { for: 'calc-form', text: 'Form' }), formSel),
-      h('div', { class: 'field' }, h('label', { for: 'calc-pct', text: 'Your result' }), h('div', { class: 'calc-num' }, numIn, modeSeg))),
-    res, srcBox, more, about));
+    res, srcBox, h('div', { class: 'calc-foot' }, more, about)));
   drawFits(); drawConvs(); draw();
 }
