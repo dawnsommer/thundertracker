@@ -22,59 +22,108 @@ await p.evaluate(({ e }) => localStorage.setItem('ck-tracker', JSON.stringify({ 
   qbanks: [{ id: 'uworld', name: 'UWorld', bank: '3800', done: '94', unit: 'pct', acc: '65', finished: '2026-10-01', weak: ['sys-renal'] }] })), { e: d(30) });
 await p.reload();
 
-// --- estimates on rows (no conversions yet: fit to your own NBMEs)
+// --- estimates on rows: built-in published conversions first
 await p.click('#tab-nbme');
 const rowSc = (id) => p.textContent(`#tests [data-open="${id}"] .sc`);
-ok((await rowSc('nbme-12')).startsWith('≈' + nb(70)), 'NBME 12 (no score) shows ≈' + nb(70) + ' from your NBME fit: ' + await rowSc('nbme-12'));
-ok((await rowSc('f120-2021')) === '70%≈' + nb(70), 'Free 120 shows % and borrows the NBME fit for ≈score: ' + await rowSc('f120-2021'));
-ok((await rowSc('uwsa-1')).startsWith('—'), 'UWSA with no UWSA scores or conversion: no estimate');
+ok((await rowSc('nbme-12')).startsWith('≈235'), 'NBME 12 (no score): NBMEScore regression 300.18 − 1.09 × 60 wrong ≈ 235: ' + await rowSc('nbme-12'));
+ok((await rowSc('f120-2021')) === '70%≈248', 'Free 120 (2021): supplied formula 1.165 × 70 + 166.17 ≈ 248: ' + await rowSc('f120-2021'));
+ok((await rowSc('uwsa-1')).startsWith('≈246'), 'UWSA 1 at 75%: NBMEScore anchor 246: ' + await rowSc('uwsa-1'));
 ok((await rowSc('nbme-11')).startsWith('244'), 'a typed score is shown as typed');
+ok((await p.getAttribute('#tests [data-open="nbme-12"] .sc b', 'title')).includes('NBMEScore.com regression for NBME 12'), 'row says where the estimate came from');
 // --- calculator panel
 ok(await p.isHidden('#calc'), 'calculator hidden until asked for');
 await p.click('#calc-btn');
 // focus moves after the panel is built (a setTimeout), so wait for it rather than racing it
 const calcFocused = await p.waitForFunction(() => document.activeElement && document.activeElement.id === 'calc-pct', null, { timeout: 2000 }).then(() => true, () => false);
-ok(await p.isVisible('#calc .calc') && calcFocused, 'calculator opens with % focused');
-await p.fill('#calc-pct', '72');
-let out = await p.textContent('#calc .calc-out');
-ok(out.includes('≈ ' + nb(72)) && out.includes('fit to your 3 NBME forms'), 'estimate at 72%: ' + out.slice(0, 80));
-await p.fill('#calc-correct', '150'); await p.fill('#calc-total', '200');
-ok((await p.inputValue('#calc-pct')) === '75' && (await p.textContent('#calc .calc-out')).includes('≈ ' + nb(75)), 'questions correct → % → estimate');
+ok(await p.isVisible('#calc .calc') && calcFocused, 'calculator opens with the result box focused');
+ok((await p.inputValue('#calc-form')) === 'nbme-13', 'starts on your next untaken NBME');
+const out = () => p.textContent('#calc .calc-out');
+const srcScores = () => p.locator('#calc-sources .src-row .src-sc').allTextContents();
+await p.selectOption('#calc-form', 'nbme-15');
+await p.fill('#calc-pct', '80');
+ok((await out()).includes('≈ 257') && (await out()).includes('80% · 40 wrong of 200'), 'NBME 15 at 80% (40 wrong): NBMEScore 300.5 − 1.1 × 40 = 256.5 → 257: ' + (await out()).slice(0, 60));
+ok(JSON.stringify(await srcScores()) === '["257","256","256",""]', 'all NBME 15 sources side by side (site, r/Step2 line, r/Step2 curve, none): ' + JSON.stringify(await srcScores()));
+ok(await p.isHidden('#calc-sources .calc-warn'), 'no disagreement notice when sources agree');
+await p.click('#calc-mode [data-mode="wrong"]');
+ok((await p.inputValue('#calc-pct')) === '40' && (await out()).includes('≈ 257'), 'switching to “wrong” keeps the result (40 wrong)');
+// NBME 6–8: 184 questions, the legacy Excel formula, nothing past 91 wrong
+await p.selectOption('#calc-form', 'nbme-6');
+await p.fill('#calc-pct', '19');
+ok((await out()).includes('≈ 247') && (await out()).includes('(247.36)') && (await out()).includes('19 wrong of 184'), 'NBME 6, 19 wrong: 293.52 − 2.4295 × 19 = 247.36: ' + (await out()).slice(0, 90));
+await p.fill('#calc-pct', '92');
+ok((await out()).includes('only covers 50.5–100% correct, so it isn’t used here') && (await out()).includes('fit to your 3 NBME forms'), 'NBME 6 past 91 wrong: the Excel formula stops; your NBME fit is used, explained: ' + (await out()).slice(0, 90));
+await p.fill('#calc-pct', '185');
+ok((await out()).includes('whole number from 0 to 184'), 'count beyond the form is rejected');
+// NBME 16: the chart only covers 50–90%; outside it, the next method is used and it says so
+await p.click('#calc-mode [data-mode="pct"]');
+await p.selectOption('#calc-form', 'nbme-16');
+await p.fill('#calc-pct', '75');
+ok((await out()).includes('≈ 244') && (await out()).includes('EPC'), 'NBME 16 at 75%: chart 243.5 → 244, with the EPC caveat');
+await p.fill('#calc-pct', '95');
+ok((await out()).includes('≈ ' + nb(95)) && (await out()).includes('only covers 50–90% correct, so it isn’t used here'), 'NBME 16 at 95%: outside the chart → your NBME fit, explained');
+// UWSA 2: two sites that disagree
+await p.selectOption('#calc-form', 'uwsa-2');
+await p.fill('#calc-pct', '50');
+ok(JSON.stringify(await srcScores()) === '["212","194",""]' && (await p.textContent('#calc-sources .calc-warn')).includes('differ by 18 points'), 'UWSA 2 at 50%: 212 vs 194, disagreement flagged');
+// choose a source for a form
+await p.selectOption('#calc-form', 'uwsa-1');
+await p.fill('#calc-pct', '75');
+await p.click('#calc-sources input[value="nbmecalculator"]');
+ok((await out()).includes('≈ 250') && (await rowSc('uwsa-1')).startsWith('≈250'), 'UWSA 1 switched to NBMECalculator.com: 292 − 1.05 × 40 = 250 (panel and row)');
+let s = await local();
+ok(s.conversions['uwsa-1'] && s.conversions['uwsa-1'].kind === 'builtin' && s.conversions['uwsa-1'].model === 'nbmecalculator', 'source choice saved (and synced)');
+await p.click('#calc-sources input[value="nbmescore"]');
+ok(!(await local()).conversions['uwsa-1'] && (await rowSc('uwsa-1')).startsWith('≈246'), 'back to the default: nothing stored');
+await p.selectOption('#calc-form', 'nbme-12');
+await p.click('#calc-sources input[value="none"]');
+ok((await rowSc('nbme-12')).startsWith('≈' + nb(70)), 'NBME 12 with no built-in: falls back to your NBME fit');
+// UWSA 3 has no published conversion
+await p.selectOption('#calc-form', 'uwsa-3');
+await p.fill('#calc-pct', '70');
+ok((await out()).includes('No published conversion for UWSA 3') && await p.isHidden('#calc-sources'), 'UWSA 3: no built-in, says so');
+ok((await p.textContent('#calc-form option[value="uwsa-3"]')).includes('no built-in'), 'form list marks forms without one');
+// add a UWSA formula: covers UWSA 3
+await p.click('#calc-more summary');
 ok((await p.textContent('#calc .calc-fits')).includes('NBME: score ≈') && (await p.textContent('#calc .calc-fits')).includes('UWSA: 0 forms'), 'shows your own fits');
-// add a UWSA formula
 await p.click('#calc-add');
 await p.selectOption('#conv-target', 'uwsa');
 await p.fill('#conv-a', '1.5'); await p.fill('#conv-b', '135'); await p.fill('#conv-note', 'test formula');
 ok((await p.textContent('.conv-edit')).includes('70% → 240'), 'formula preview');
 await p.click('#conv-save');
-ok((await rowSc('uwsa-1')).startsWith('≈248'), 'UWSA 1 now estimated with your formula (1.5×75+135 ≈ 248): ' + await rowSc('uwsa-1'));
-// a table for one form beats the exam fit
+ok((await out()).includes('≈ 240') && (await out()).includes('your formula for UWSA'), 'UWSA 3 now estimated with your UWSA formula');
+ok((await rowSc('uwsa-1')).startsWith('≈246'), 'a form’s built-in still beats an exam-wide formula');
+// a table for one form beats everything
 await p.click('#calc-add');
 await p.selectOption('#conv-target', 'nbme-12');
 await p.click('.conv-edit .seg button:text("Table")');
 await p.fill('#conv-table', '60, 225\n80%, 260');
 await p.click('#conv-save');
 ok((await rowSc('nbme-12')).startsWith('≈243'), 'NBME 12 uses its own table (interpolated 243): ' + await rowSc('nbme-12'));
-ok((await p.locator('.conv-row').count()) === 2 && (await p.textContent('.calc-convs')).includes('test formula'), 'conversions listed with source');
-let s = await local();
+ok((await p.locator('.conv-row').count()) === 2 && (await p.textContent('.calc-convs')).includes('test formula'), 'conversions listed with source (source choices aren’t)');
+s = await local();
 ok(s.conversions.uwsa.kind === 'linear' && s.conversions['nbme-12'].points.length === 2, 'conversions saved (and synced like other data)');
+await p.selectOption('#calc-form', 'nbme-12');
+ok((await p.textContent('#calc-sources .src-row.on')).includes('Your table'), 'sources list shows your table in use');
 // bad input is rejected
 await p.click('#calc-add'); await p.fill('#conv-a', '1.5'); await p.click('#conv-save');
 ok((await p.textContent('.err-line')).includes('Enter both numbers'), 'incomplete formula rejected');
 await p.click('.conv-edit button:text("Cancel")');
 // remove + undo
 await p.click('.conv-row:has-text("NBME 12") >> text=Remove');
-ok((await rowSc('nbme-12')).startsWith('≈' + nb(70)), 'removing the table falls back to the fit');
+ok((await rowSc('nbme-12')).startsWith('≈235'), 'removing the table falls back to the built-in');
 await p.click('#toasts button');
 ok((await rowSc('nbme-12')).startsWith('≈243'), 'undo restores it');
 // editor shows the estimate and the gap to a typed score
 await p.click('#tests [data-open="nbme-11"]');
 const est11 = await p.textContent('.est-line');
-ok(est11.includes('Estimated from % correct: ≈' + nb(70)) && (/matches your score|your score is \d+ (higher|lower)/.test(est11)), 'editor: estimate vs typed score: ' + est11);
+ok(est11.includes('Estimated from % correct: ≈235') && est11.includes('your score is 9 higher'), 'editor: built-in estimate vs typed score: ' + est11);
 await p.fill('#ed-score', '250');
-ok(/your score is \d+ higher/.test(await p.textContent('.est-line')) && (await local()).items['nbme-11'].score === '250', 'typed score kept; gap shown');
+ok(/your score is 15 higher/.test(await p.textContent('.est-line')) && (await local()).items['nbme-11'].score === '250', 'typed score kept; gap shown');
 await p.keyboard.press('Escape');
-await p.screenshot({ path: S + '/calculator.png', fullPage: true });
+await p.selectOption('#calc-form', 'nbme-15'); await p.click('#calc-mode [data-mode="pct"]'); await p.fill('#calc-pct', '78');
+await p.locator('#calc').screenshot({ path: S + '/calculator.png' });
+await p.click('#calc-about summary');
+ok((await p.textContent('#calc-about')).includes('nbmescore.com') || (await p.locator('#calc-about a[href*="nbmescore.com"]').count()) > 5, 'source list links every published source');
 await p.click('#calc .x');
 ok(await p.isHidden('#calc'), 'calculator closes');
 

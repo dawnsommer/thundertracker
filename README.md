@@ -5,7 +5,14 @@ A study tracker for USMLE Step 2 CK that runs in your browser. Everything you lo
 ## What it tracks
 
 - **Self-assessments**: NBME CCSSA Forms 6–16, UWSA 1–3 and Free 120 (2019, 2021, 2023). For each one you can log the 3-digit score, % correct, the date, notes, a review status (taken → reviewed → Anki cards made) and the systems you were weak in. You can add newer forms or releases, and hide the ones you won't take.
-  - **Score calculator** (the **Score calculator** button on the Assessments tab, hidden until you open it): turns % correct into an estimated 3-digit score. It uses, in order, a conversion you've saved for that exact form, one for the whole exam type (a formula `score = a × % + b`, or a table of %→score points that it interpolates between), and otherwise a straight-line fit to your own forms where you logged both numbers (3 or more; Free 120 borrows your NBME fit). The app ships with no conversion tables: add the ones you trust (from Reddit, NBME conversion sheets, etc.) under **Conversions**, with a note on the source. A form with % correct but no score shows `≈score`. A score you type yourself is never changed; the editor shows how far it is from the estimate.
+  - **Score calculator** (the **Score calculator** button on the Assessments tab, hidden until you open it): turns your result (% correct, questions wrong or questions correct) into an estimated 3-digit score. Built-in conversions, all unofficial, live in `js/score-models.js`:
+    - **NBME 6–8** (184 questions): a legacy Excel calculator's formulas (no score past 91 wrong).
+    - **NBME 9–14**: NBMEScore.com's published per-form regressions. **NBME 15**: NBMEScore.com, plus the r/Step2 author's straight-line and curved fits.
+    - **NBME 16**: NBMEcalc's chart (made for the equated % correct on the NBME report; with a self-counted % it's a rough guide).
+    - **UWSA 1**: NBMEScore.com's anchors, or NBMECalculator.com's table. **UWSA 2**: NBMEScore.com's `280 − 0.85 × wrong`, or NBMECalculator.com's table (≈ `280 − 1.08 × wrong`).
+    - **Free 120 (2021)**: `1.165 × % + 166.17`. UWSA 3 and the other Free 120 releases have no published conversion.
+
+    For a chosen form the calculator lists every source side by side and flags when they differ by 10+ points; tap one to use it for that form (it syncs). Nothing is extrapolated past a source's range. An estimate comes from, in order: your own conversion for that form, the form's built-in source, your conversion for the exam type, then a straight-line fit to your own forms with both numbers (3 or more; Free 120 borrows your NBME fit). A form with % correct but no score shows `≈score`. A score you type yourself is never changed; the editor shows how far it is from the estimate.
   - **Planned dates**: **Plan dates** sets a date for each form you haven't taken (also in each form's editor). **Spread unplanned forms** spaces them out between tomorrow and two days before your test, skipping older forms and putting the Free 120s in your last week. **Add to calendar (.ics)** downloads the plan for Google Calendar, Apple Calendar or Outlook. Planned days show on the activity calendar and in Up next, and overdue ones are flagged.
 - **CMS forms**: all eight Clinical Mastery Series subjects, with % correct per form, a filter for older forms and an editable form list.
 - **Systems**: 17 systems. For each you can set a status and a confidence rating (1–5), mark resources done (Sketchy, UWorld, AMBOSS, Anki), record your UWorld % correct and keep notes. You can add your own topics and sort the list several ways.
@@ -75,7 +82,7 @@ python3 -m http.server 8000
 
 ### Tests
 
-Browser tests live in `tests/` and run in a real Chromium against the static files. They cover the app, Google sync and version history (against a stand-in Worker and Drive), the score calculator and planner, the printed summary (including a one-page check on Letter and A4), Exam Simulator import (with a made-up backup built by `tests/fixtures/sim-backup.mjs`), qbanks, articles, the weakness matrix, settings, app updates and sign-in errors.
+Browser tests live in `tests/` and run in a real Chromium against the static files. They cover the app, Google sync and version history (against a stand-in Worker and Drive), the built-in score conversions (`tests/score-models.test.mjs`, against their published expected values), the score calculator and planner, the printed summary (including a one-page check on Letter and A4), Exam Simulator import (with a made-up backup built by `tests/fixtures/sim-backup.mjs`), qbanks, articles, the weakness matrix, settings, app updates and sign-in errors.
 
 ```sh
 npm install
@@ -95,7 +102,7 @@ npm test -- sync core             # only tests whose file names start with these
 | `js/model.js`, `js/store.js`, `js/data.js` | Saved-data shape, normalising and sync merge; live state and saving; derived stats |
 | `js/shell.js`, `js/sheets.js` | Tabs and rendering; side panels |
 | `js/overview.js`, `js/assessments.js`, `js/cms.js`, `js/systems.js`, `js/qbank.js`, `js/articles.js`, `js/settings.js` | One module per page |
-| `js/calculator.js`, `js/planner.js`, `js/print.js` | Score calculator and estimates; planned dates and calendar file; one-page printed summary |
+| `js/score-models.js`, `js/calculator.js`, `js/planner.js`, `js/print.js` | Built-in score conversions; score calculator and estimates; planned dates and calendar file; one-page printed summary |
 | `js/sim-import.js`, `js/backup.js`, `js/updates.js` | Exam Simulator import; backup and CSV; app updates |
 | `js/config.js`, `js/cloud.js` | Public cloud settings; optional Google sign-in and Drive sync |
 | `sw.js` | Service worker for offline use |

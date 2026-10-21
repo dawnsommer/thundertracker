@@ -1,15 +1,16 @@
 // Estimated 3-digit scores from % correct, and the on-demand calculator on the Assessments tab.
-// No conversion is built in. An estimate comes from, in order: a conversion you saved for that form,
-// one you saved for its exam type (a formula "score = a × % + b" or a table you paste, e.g. from Reddit),
-// or a straight line fitted to your own forms that have both a score and a % correct.
+// An estimate comes from, in order: a conversion you saved for that form; the form's built-in conversion
+// (published, unofficial; see score-models.js; you pick which source, or none); one you saved for its
+// exam type; or a straight line fitted to your own forms that have both a score and a % correct.
 // A score you type in is never changed; the estimate is shown next to it.
 
-import { $, avg, fmtPct, h, num } from './util.js?v=10';
-import { GROUPS } from './catalog.js?v=10';
-import { normConversion } from './model.js?v=10';
-import { save, snapshot, state, toast, ui } from './store.js?v=10';
-import { allTests, band, pctOf, scaledOf, testForms } from './data.js?v=10';
-import { render } from './shell.js?v=10';
+import { $, avg, fmtPct, h, num } from './util.js?v=11';
+import { GROUPS } from './catalog.js?v=11';
+import { normConversion } from './model.js?v=11';
+import { save, snapshot, state, toast, ui } from './store.js?v=11';
+import { band, pctOf, scaledOf, taken, testForms } from './data.js?v=11';
+import { render } from './shell.js?v=11';
+import { describeModel, modelsFor, runModel, SCORE_MODELS, wrongAt } from './score-models.js?v=11';
 
 export function fitLine(points) {
   const n = points.length;
@@ -22,7 +23,7 @@ export function fitLine(points) {
   const resid = points.reduce((t, [x, y]) => t + (y - (a * x + b)) ** 2, 0);
   return { a, b, n, sd: n > 2 ? Math.sqrt(resid / (n - 2)) : null, r: syy ? sxy / Math.sqrt(sxx * syy) : 1, spread: Math.max(...points.map((p) => p[0])) - Math.min(...points.map((p) => p[0])) };
 }
-// Linear: a × % + b. Table: straight lines between points, continuing the end segments past the table.
+// Your own conversions. Linear: a × % + b. Table: straight lines between points, continuing the end segments.
 export function convert(conv, pct) {
   if (conv.kind === 'linear') return conv.a * pct + conv.b;
   const pts = conv.points;
@@ -43,22 +44,57 @@ export function personalFit(gkey) {
 }
 export const describeConv = (c) => (c.kind === 'linear' ? 'score = ' + +c.a.toFixed(3) + ' × % ' + (c.b < 0 ? '− ' : '+ ') + +Math.abs(c.b).toFixed(1) : 'table of ' + c.points.length + ' points');
 const groupOf = (key) => GROUPS.find((g) => g.key === key);
+const userConv = (key) => { const c = state.conversions[key]; return c && c.kind !== 'builtin' ? c : null; };
+const convWord = (c) => (c.kind === 'table' ? 'table' : 'formula');
 
-// Best available estimate for form f at pct % correct, or null.
-export function estimateScore(f, pct) {
-  if (pct == null || f.kind !== 'test') return null;
-  const own = state.conversions[f.id];
-  if (own) return { score: clampScore(convert(own, pct)), how: 'your ' + (own.kind === 'table' ? 'table' : 'formula') + ' for ' + f.full };
-  const exam = state.conversions[f.g.key];
-  if (exam) return { score: clampScore(convert(exam, pct)), how: 'your ' + (exam.kind === 'table' ? 'table' : 'formula') + ' for ' + f.g.short };
+// The built-in conversion form f uses: the source you picked, else the default; null if none (or you turned it off).
+export function builtinModel(f) {
+  const ms = f.id ? modelsFor(f.id) : [];
+  if (!ms.length) return null;
+  const c = state.conversions[f.id], pick = c && c.kind === 'builtin' ? c.model : '';
+  if (pick === 'none') return null;
+  return ms.find((m) => m.id === pick) || ms[0];
+}
+// One model at this result: wrong-count models use the exact number wrong when you entered one.
+const runAt = (m, f, pct, wrong) => runModel(m, m.type === 'wrong' ? (wrong != null ? wrong : wrongAt(pct, f.qs)) : pct, f.qs);
+
+// The estimate, plus `skipped` when the form's built-in source doesn't cover this result.
+function estimate(f, pct, wrong) {
+  const own = f.id && userConv(f.id);
+  if (own) return { score: clampScore(convert(own, pct)), how: 'your ' + convWord(own) + ' for ' + f.full, key: 'own' };
+  let skipped = null;
+  const m = builtinModel(f);
+  if (m) {
+    const r = runAt(m, f, pct, wrong);
+    if (!r.error) return { score: r.score, value: r.value, how: m.src + ' for ' + f.full, key: m.id, model: m };
+    skipped = { model: m, range: r.range };
+  }
+  const exam = userConv(f.g.key);
+  if (exam) return { score: clampScore(convert(exam, pct)), how: 'your ' + convWord(exam) + ' for ' + f.g.short, key: 'exam', skipped };
   // Free 120 has no 3-digit scores of its own, so it borrows the NBME fit
   for (const key of f.g.key === 'f120' ? ['f120', 'nbme'] : [f.g.key]) {
     const fit = personalFit(key);
-    if (fit) return { score: clampScore(fit.a * pct + fit.b), how: 'a fit to your ' + fit.n + ' ' + groupOf(key).short + ' forms', range: fit.sd != null ? Math.max(1, Math.round(fit.sd)) : null };
+    if (fit) return { score: clampScore(fit.a * pct + fit.b), how: 'a fit to your ' + fit.n + ' ' + groupOf(key).short + ' forms', key: 'fit', skipped, range: fit.sd != null ? Math.max(1, Math.round(fit.sd)) : null };
   }
-  return null;
+  return skipped ? { score: null, skipped } : null;
+}
+// Best available estimate for form f at pct % correct, or null.
+export function estimateScore(f, pct) {
+  if (pct == null || f.kind !== 'test') return null;
+  const e = estimate(f, pct, null);
+  return e && e.score != null ? e : null;
 }
 export const estText = (e) => '≈' + e.score + (e.range ? ' ± ' + e.range : '');
+
+// Use built-in source `mid` (or 'none') for form f. The default needs no entry; a saved conversion of your
+// own for the form is replaced (you can undo).
+function chooseSource(f, mid) {
+  const undo = snapshot(), had = userConv(f.id), def = modelsFor(f.id)[0].id;
+  if (mid === def) delete state.conversions[f.id]; else state.conversions[f.id] = { kind: 'builtin', model: mid };
+  save(); render();
+  const m = modelsFor(f.id).find((x) => x.id === mid);
+  toast((m ? f.full + ' now uses ' + m.src : f.full + ': no built-in conversion') + (had ? ' — your own conversion was replaced' : ''), undo);
+}
 
 // ---------- calculator panel ----------
 export function toggleCalculator(open) {
@@ -69,41 +105,118 @@ export function toggleCalculator(open) {
   if (ui.calcOpen) { buildCalculator(box); setTimeout(() => $('calc-pct').focus(), 0); } else box.replaceChildren();
 }
 
+const SCALE = [180, 290]; // the score bar's range
+const MODES = [['pct', '% correct'], ['wrong', 'wrong'], ['correct', 'correct']];
+const allForms = () => GROUPS.flatMap((g) => testForms(g, true));
+
 function buildCalculator(box) {
-  const examSel = h('select', { id: 'calc-exam', class: 'sel' }, GROUPS.map((g) => h('option', { value: g.key, text: g.name })));
-  const formSel = h('select', { id: 'calc-form', class: 'sel', 'aria-label': 'Form' });
-  const pctIn = h('input', { type: 'number', id: 'calc-pct', min: '0', max: '100', step: 'any', inputmode: 'decimal', placeholder: 'e.g. 72' });
-  const corIn = h('input', { type: 'number', id: 'calc-correct', min: '0', step: '1', inputmode: 'numeric', placeholder: 'correct', 'aria-label': 'Questions correct' });
-  const totIn = h('input', { type: 'number', id: 'calc-total', min: '1', step: '1', inputmode: 'numeric', placeholder: 'of', 'aria-label': 'Out of' });
-  const out = h('div', { class: 'calc-out', 'aria-live': 'polite' });
+  // form picker: "any form" per exam type, then each form
+  const formSel = h('select', { id: 'calc-form', class: 'sel' }, GROUPS.map((g) => h('optgroup', { label: g.name },
+    h('option', { value: g.key, text: 'Any ' + g.short + ' form' }), testForms(g, true).map((f) => h('option', { value: f.id, text: f.full + (SCORE_MODELS[f.id] ? '' : ' · no built-in') })))));
+  const firstOpen = allForms().find((f) => f.g.scaled && !f.old && !taken(f));
+  formSel.value = ui.calcForm || (firstOpen ? firstOpen.id : 'nbme');
+  if (!formSel.value) formSel.value = 'nbme';
+  let mode = ui.calcMode || 'pct';
+  const numIn = h('input', { type: 'number', id: 'calc-pct', min: '0', step: 'any', inputmode: 'decimal', 'aria-label': 'Result' });
+  const modeSeg = h('div', { class: 'seg mode', id: 'calc-mode', role: 'group', 'aria-label': 'Enter as' });
+  const res = h('div', { class: 'calc-out', 'aria-live': 'polite' });
+  const srcBox = h('div', { class: 'calc-src', id: 'calc-sources' });
   const fits = h('div', { class: 'calc-fits' });
   const convBox = h('div', { class: 'calc-convs' });
 
-  const drawForms = () => {
-    const g = groupOf(examSel.value);
-    formSel.replaceChildren(h('option', { value: '', text: 'Any ' + g.short + ' form' }), ...testForms(g, true).map((f) => h('option', { value: f.id, text: f.full })));
-    totIn.placeholder = 'of ' + g.qs;
+  const form = () => {
+    const v = formSel.value, g = groupOf(v);
+    return g ? { kind: 'test', id: '', g, full: g.short, qs: g.qs } : allForms().find((f) => f.id === v);
   };
-  const pctNow = () => {
-    const c = num(corIn.value), t = num(totIn.value) || groupOf(examSel.value).qs;
-    if (c != null && document.activeElement !== pctIn && (corIn.value !== '' )) return t ? c / t * 100 : null;
-    return num(pctIn.value);
+  // the entered result as % correct, plus the exact number wrong when you entered a count
+  const read = () => {
+    const f = form(), v = num(numIn.value);
+    if (v == null) return null;
+    if (mode === 'pct') return v >= 0 && v <= 100 ? { pct: v, wrong: null } : { bad: 'Enter a % between 0 and 100.' };
+    if (!(Number.isInteger(v) && v >= 0 && v <= f.qs)) return { bad: 'Enter a whole number from 0 to ' + f.qs + '.' };
+    const wrong = mode === 'wrong' ? v : f.qs - v;
+    return { pct: (f.qs - wrong) / f.qs * 100, wrong };
   };
-  const drawOut = () => {
-    const g = groupOf(examSel.value), p = pctNow();
-    const f = formSel.value ? testForms(g, true).find((x) => x.id === formSel.value) : { kind: 'test', id: '', g, full: g.short };
-    if (p == null || p < 0 || p > 100) { out.replaceChildren(h('p', { class: 'muted', text: 'Enter % correct (or questions correct) to estimate a 3-digit score.' })); return; }
-    const e = estimateScore(f, p);
-    if (!e) {
-      out.replaceChildren(h('p', { class: 'muted', text: fmtPct(p) + ' correct — no estimate yet. Add a conversion below (a formula or table you trust), or log 3 ' + g.short + ' forms with both a 3-digit score and % correct so the app can fit your own.' }));
+  const drawMode = () => {
+    modeSeg.replaceChildren(...MODES.map(([k, l]) => h('button', { 'aria-pressed': mode === k ? 'true' : 'false', 'data-mode': k, onclick: () => {
+      const before = read();
+      mode = k; ui.calcMode = k;
+      // keep the same result when switching how it's entered
+      if (before && before.pct != null) {
+        const f = form(), w = before.wrong != null ? before.wrong : wrongAt(before.pct, f.qs);
+        numIn.value = k === 'pct' ? String(Math.round(before.pct * 10) / 10) : String(Math.round(k === 'wrong' ? w : f.qs - w));
+      }
+      drawMode(); draw(); numIn.focus();
+    } }, l)));
+    numIn.placeholder = mode === 'pct' ? 'e.g. 74' : mode === 'wrong' ? 'e.g. 52' : 'e.g. 148';
+    numIn.max = mode === 'pct' ? '100' : String(form().qs);
+  };
+
+  const scale = (score) => {
+    const at = (v) => Math.max(0, Math.min(100, (v - SCALE[0]) / (SCALE[1] - SCALE[0]) * 100)) + '%';
+    const tgt = num(state.prefs.target);
+    return h('div', { class: 'calc-scale', 'aria-hidden': 'true' },
+      h('div', { class: 'track' }, h('b', { class: band('score', score), style: 'width:' + at(score) })),
+      h('i', { class: 'tick pass', style: 'left:' + at(218) }, h('span', { text: 'pass 218' })),
+      tgt ? h('i', { class: 'tick tgt', style: 'left:' + at(tgt) }, h('span', { text: 'target ' + tgt })) : null);
+  };
+
+  const draw = () => {
+    const f = form(), r = read();
+    ui.calcForm = formSel.value;
+    drawSources(f, r);
+    if (!r) { res.replaceChildren(h('p', { class: 'calc-empty', text: 'Enter your result to estimate a 3-digit score.' })); return; }
+    if (r.bad) { res.replaceChildren(h('p', { class: 'calc-empty', text: r.bad })); return; }
+    const e = estimate(f, r.pct, r.wrong);
+    const w = r.wrong != null ? r.wrong : wrongAt(r.pct, f.qs), whole = Math.abs(w - Math.round(w)) < 1e-6; // 80% of 200 → 39.999…
+    const facts = (Math.round(r.pct * 10) / 10) + '% · ' + (whole ? '' : '≈') + Math.round(w) + ' wrong of ' + f.qs;
+    const skip = e && e.skipped ? e.skipped.model.src + ' only covers ' + e.skipped.range[0] + '–' + e.skipped.range[1] + '% correct' : '';
+    if (!e || e.score == null) {
+      res.replaceChildren(h('div', { class: 'calc-score none' }, h('b', { text: '—' }), h('span', { class: 'calc-facts', text: facts })),
+        h('p', { class: 'calc-how', text: skip ? skip + ' — no estimate here.'
+          : (f.id ? 'No published conversion for ' + f.full + '. ' : 'Pick a form to use its published conversion. ') + 'Add your own under “Your conversions”, or log 3 ' + f.g.short + ' forms with a score and % for a fit to your own.' }));
       return;
     }
-    const kids = [h('div', { class: 'calc-big' }, h('span', { class: band('score', e.score), text: '≈ ' + e.score }), e.range ? h('small', { text: '± ' + e.range }) : null),
-      h('p', { class: 'hint', text: 'At ' + (Math.round(p * 10) / 10) + '% correct, from ' + e.how + '.' })];
     const real = f.id ? scaledOf(f) : null;
-    if (real != null) kids.push(h('p', { class: 'hint', text: 'You logged ' + real + ' for ' + f.full + (pctOf(f) != null ? ' at ' + fmtPct(pctOf(f)) : '') + '.' }));
-    out.replaceChildren(...kids);
+    res.replaceChildren(
+      h('div', { class: 'calc-score' },
+        h('b', { class: band('score', e.score), text: '≈ ' + e.score }), e.range ? h('small', { text: '± ' + e.range }) : '',
+        h('span', { class: 'calc-facts', text: facts })),
+      scale(e.score),
+      h('p', { class: 'calc-how' }, 'From ' + e.how + (e.model && e.model.decimals ? ' (' + e.value.toFixed(2) + ')' : '') + '.',
+        skip ? ' ' + skip + ', so it isn’t used here.' : '', e.model && e.model.note ? h('span', { class: 'calc-note', text: ' ' + e.model.note }) : null),
+      real != null ? h('p', { class: 'calc-how', text: 'Your logged score: ' + real + (pctOf(f) != null ? ' at ' + fmtPct(pctOf(f)) : '') + '.' }) : '');
   };
+
+  // every source for the chosen form, side by side; tap one to use it
+  const drawSources = (f, r) => {
+    const ms = f.id ? modelsFor(f.id) : [];
+    if (!ms.length) { srcBox.replaceChildren(); srcBox.hidden = true; return; }
+    srcBox.hidden = false;
+    const ok = r && r.pct != null, own = userConv(f.id), inUse = own ? 'own' : (builtinModel(f) || { id: 'none' }).id;
+    const scores = [];
+    const row = (id, name, sub, val, url) => h('label', { class: 'src-row' + (inUse === id ? ' on' : '') },
+      h('input', { type: 'radio', name: 'calc-src', value: id, checked: inUse === id, onchange: () => { if (id !== 'own') { chooseSource(f, id); draw(); drawConvs(); } } }),
+      h('span', { class: 'src-nm' }, h('b', { text: name }), sub ? h('small', { text: sub }) : null),
+      h('span', { class: 'src-sc', text: val }),
+      url ? h('a', { href: url, target: '_blank', rel: 'noopener noreferrer', class: 'src-link', 'aria-label': 'Source: ' + name, title: url }, '↗') : h('span'));
+    const rows = ms.map((m) => {
+      const x = ok ? runAt(m, f, r.pct, r.wrong) : null;
+      if (x && !x.error) scores.push(x.score);
+      return row(m.id, m.src, describeModel(m), !x ? '' : x.error ? x.range[0] + '–' + x.range[1] + '% only' : String(x.score), m.url);
+    });
+    if (own) {
+      const v = ok ? clampScore(convert(own, r.pct)) : null;
+      if (v != null) scores.push(v);
+      rows.unshift(row('own', 'Your ' + convWord(own), describeConv(own) + (own.note ? ' · ' + own.note : ''), v != null ? String(v) : ''));
+    }
+    rows.push(row('none', 'None', 'use your exam-wide conversion or your own fit', ''));
+    const gap = scores.length > 1 ? Math.max(...scores) - Math.min(...scores) : 0;
+    srcBox.replaceChildren(h('div', { class: 'calc-sub' }, h('h4', { text: 'Sources for ' + f.full }), h('small', { text: 'unofficial · tap to choose' })),
+      h('div', { class: 'src-list', role: 'radiogroup', 'aria-label': 'Conversion for ' + f.full }, rows),
+      gap >= 10 ? h('p', { class: 'calc-warn', text: 'These sources differ by ' + gap + ' points. That’s disagreement between sources, not a confidence range.' }) : '');
+  };
+
   const drawFits = () => fits.replaceChildren(...GROUPS.filter((g) => g.scaled).map((g) => {
     const fit = personalFit(g.key), n = ownPoints(g.key).length;
     return h('p', { class: 'hint' }, h('b', { text: g.short + ': ' }), fit
@@ -111,19 +224,19 @@ function buildCalculator(box) {
       : n + ' form' + (n === 1 ? '' : 's') + ' with both score and % — 3 needed (with a few % points between them) for your own fit.');
   }));
   const drawConvs = () => {
-    const entries = Object.entries(state.conversions).sort(([a], [b]) => a.localeCompare(b));
-    const nameOf = (key) => { const g = groupOf(key); if (g) return g.name + ' (all forms)'; const f = allTests().find((x) => x.id === key) || GROUPS.flatMap((x) => testForms(x, true)).find((x) => x.id === key); return f ? f.full : key; };
+    const entries = Object.entries(state.conversions).filter(([, c]) => c.kind !== 'builtin').sort(([a], [b]) => a.localeCompare(b));
+    const nameOf = (key) => { const g = groupOf(key); if (g) return g.name + ' (all forms)'; const f = allForms().find((x) => x.id === key); return f ? f.full : key; };
     convBox.replaceChildren(
-      h('div', { class: 'calc-h' }, h('h4', { text: 'Your conversions' }), h('button', { class: 'linkish', id: 'calc-add', onclick: () => editConv(null) }, '+ Add a conversion')),
+      h('div', { class: 'calc-sub' }, h('h4', { text: 'Your conversions' }), h('button', { class: 'linkish', id: 'calc-add', onclick: () => editConv(null) }, '+ Add')),
       entries.length ? h('div', { class: 'rows' }, entries.map(([key, c]) => h('div', { class: 'conv-row' },
         h('div', null, h('b', { text: nameOf(key) }), h('small', { text: describeConv(c) + (c.note ? ' · ' + c.note : '') })),
         h('button', { class: 'linkish', onclick: () => editConv(key) }, 'Edit'),
         h('button', { class: 'linkish', onclick: () => {
           const undo = snapshot();
-          delete state.conversions[key]; save(); drawConvs(); drawOut(); render();
+          delete state.conversions[key]; save(); drawConvs(); draw(); render();
           toast('Conversion removed', undo);
         } }, 'Remove'))))
-        : h('p', { class: 'hint', text: 'None yet. Paste a formula or table you trust (for example from a Reddit conversion post) for a whole exam type or one form; it’s used instead of the fit to your own forms.' }),
+        : h('p', { class: 'hint', text: 'None. A formula or table you add for one form is used instead of its built-in conversion; one for a whole exam type covers forms without one (like UWSA 3).' }),
       editor);
   };
 
@@ -133,23 +246,23 @@ function buildCalculator(box) {
     const cur = key ? state.conversions[key] : null;
     const target = h('select', { id: 'conv-target', class: 'sel' },
       GROUPS.map((g) => h('option', { value: g.key, text: g.name + ' — all forms' })),
-      GROUPS.flatMap((g) => testForms(g, true)).map((f) => h('option', { value: f.id, text: f.full + ' only' })));
-    target.value = key || examSel.value;
+      allForms().map((f) => h('option', { value: f.id, text: f.full + ' only' })));
+    target.value = key || (form().id || form().g.key);
     const kind = h('div', { class: 'seg mode', role: 'group', 'aria-label': 'Conversion type' });
     let k = cur ? cur.kind : 'linear';
     const aIn = h('input', { type: 'number', id: 'conv-a', step: 'any', placeholder: 'e.g. 1.7', value: cur && cur.kind === 'linear' ? String(cur.a) : '' });
     const bIn = h('input', { type: 'number', id: 'conv-b', step: 'any', placeholder: 'e.g. 120', value: cur && cur.kind === 'linear' ? String(cur.b) : '' });
-    const table = h('textarea', { id: 'conv-table', rows: '6', placeholder: 'One “% correct, score” per line, e.g.\n60, 228\n70, 245\n80, 262' });
+    const table = h('textarea', { id: 'conv-table', rows: '5', placeholder: 'One “% correct, score” per line, e.g.\n60, 228\n70, 245\n80, 262' });
     table.value = cur && cur.kind === 'table' ? cur.points.map((p) => p[0] + ', ' + p[1]).join('\n') : '';
-    const note = h('input', { type: 'text', id: 'conv-note', maxlength: '200', placeholder: 'Source, e.g. r/Step2 conversion post (optional)', value: cur ? cur.note : '' });
+    const note = h('input', { type: 'text', id: 'conv-note', maxlength: '200', placeholder: 'Source (optional)', value: cur ? cur.note : '' });
     const preview = h('p', { class: 'hint' }), err = h('p', { class: 'err-line', role: 'alert' });
-    const read = () => {
+    const readConv = () => {
       if (k === 'linear') return normConversion({ kind: 'linear', a: aIn.value, b: bIn.value, note: note.value });
       const points = table.value.split('\n').map((l) => l.split(/[,;\t ]+/).filter(Boolean).map((x) => x.replace('%', ''))).filter((p) => p.length >= 2).map((p) => [p[0], p[1]]);
       return normConversion({ kind: 'table', points, note: note.value });
     };
     const drawPreview = () => {
-      const c = read();
+      const c = readConv();
       err.textContent = '';
       preview.textContent = c ? describeConv(c) + ' · at 60% → ' + clampScore(convert(c, 60)) + ', 70% → ' + clampScore(convert(c, 70)) + ', 80% → ' + clampScore(convert(c, 80)) : '';
     };
@@ -164,6 +277,7 @@ function buildCalculator(box) {
     const fieldsBox = h('div');
     [aIn, bIn, table, note].forEach((x) => x.addEventListener('input', drawPreview));
     editor.hidden = false;
+    more.open = true;
     editor.replaceChildren(
       h('div', { class: 'two' }, h('div', { class: 'field' }, h('label', { for: 'conv-target', text: 'Use for' }), target), h('div', { class: 'field' }, h('span', { class: 'lab', text: 'Type' }), kind)),
       fieldsBox,
@@ -171,12 +285,12 @@ function buildCalculator(box) {
       preview, err,
       h('div', { class: 'btnrow' },
         h('button', { class: 'btn primary', id: 'conv-save', onclick: () => {
-          const c = read();
+          const c = readConv();
           if (!c) { err.textContent = k === 'linear' ? 'Enter both numbers, a and b.' : 'Enter at least two lines of “% correct, score”.'; return; }
           const undo = snapshot();
           if (key && key !== target.value) delete state.conversions[key];
           state.conversions[target.value] = c;
-          save(); editor.hidden = true; editor.replaceChildren(); drawConvs(); drawOut(); render();
+          save(); editor.hidden = true; editor.replaceChildren(); drawConvs(); draw(); render();
           toast('Conversion saved', undo);
         } }, 'Save conversion'),
         h('button', { class: 'btn ghost', onclick: () => { editor.hidden = true; editor.replaceChildren(); } }, 'Cancel')));
@@ -184,27 +298,32 @@ function buildCalculator(box) {
     setTimeout(() => (k === 'linear' ? aIn : table).focus(), 0);
   }
 
-  examSel.addEventListener('change', () => { drawForms(); drawOut(); });
+  // where the built-in numbers come from
+  const about = h('details', { class: 'calc-more', id: 'calc-about' }, h('summary', { text: 'Where the built-in numbers come from' }),
+    h('p', { class: 'hint', text: 'NBME and UWorld don’t publish how raw scores become 3-digit scores. These are third-party estimates — your real score report always wins. Nothing is extrapolated past a source’s range.' }),
+    h('div', { class: 'about-list' }, Object.entries(SCORE_MODELS).map(([id, fm]) => {
+      const f = allForms().find((x) => x.id === id);
+      return h('div', { class: 'about-row' }, h('b', { text: (f ? f.full : id) + ' · ' + fm.qs + ' Qs' }), h('div', null, fm.models.map((m, i) => h('p', null,
+        m.url ? h('a', { href: m.url, target: '_blank', rel: 'noopener noreferrer', text: m.src }) : m.src, i === 0 && fm.models.length > 1 ? ' (default)' : '', ' — ', h('code', { text: describeModel(m) }), m.note ? ' ' + m.note : ''))));
+    })),
+    h('p', { class: 'hint', text: 'No published conversion: UWSA 3, Free 120 (2019) and the latest Free 120. Step 2 CK passing score: 218 (since July 2025) — an estimate above it isn’t a pass prediction.' }));
+  const more = h('details', { class: 'calc-more', id: 'calc-more' }, h('summary', { text: 'Your conversions & your own fit' }),
+    h('div', { class: 'calc-cols' }, convBox, h('div', null, h('div', { class: 'calc-sub' }, h('h4', { text: 'Fit to your own forms' })), fits)));
+
   formSel.addEventListener('change', () => {
-    const f = formSel.value && testForms(groupOf(examSel.value), true).find((x) => x.id === formSel.value);
-    if (f && pctOf(f) != null && pctIn.value === '' && corIn.value === '') pctIn.value = String(pctOf(f));
-    drawOut();
+    const f = form();
+    if (f.id && pctOf(f) != null && numIn.value === '') { mode = 'pct'; ui.calcMode = 'pct'; numIn.value = String(pctOf(f)); }
+    drawMode(); draw();
   });
-  pctIn.addEventListener('input', () => { corIn.value = ''; drawOut(); });
-  [corIn, totIn].forEach((x) => x.addEventListener('input', () => {
-    const c = num(corIn.value), t = num(totIn.value) || groupOf(examSel.value).qs;
-    if (c != null && t) pctIn.value = String(Math.round(c / t * 1000) / 10);
-    drawOut();
-  }));
-  drawForms();
+  numIn.addEventListener('input', draw);
+  drawMode();
   box.replaceChildren(h('div', { class: 'card calc' },
-    h('div', { class: 'calc-h' }, h('h3', { text: 'Score calculator' }), h('button', { class: 'x', 'aria-label': 'Close calculator', onclick: () => toggleCalculator(false) }, '×')),
+    h('div', { class: 'calc-top' },
+      h('div', null, h('h3', { text: 'Score calculator' }), h('p', { class: 'sub', text: 'Estimated 3-digit score from your result' })),
+      h('button', { class: 'x', 'aria-label': 'Close calculator', onclick: () => toggleCalculator(false) }, '×')),
     h('div', { class: 'calc-in' },
-      h('div', { class: 'field' }, h('label', { for: 'calc-exam', text: 'Exam' }), examSel),
       h('div', { class: 'field' }, h('label', { for: 'calc-form', text: 'Form' }), formSel),
-      h('div', { class: 'field' }, h('label', { for: 'calc-pct', text: '% correct' }), pctIn),
-      h('div', { class: 'field' }, h('span', { class: 'lab', text: 'or questions correct' }), h('div', { class: 'calc-frac' }, corIn, h('span', { text: '/' }), totIn))),
-    out, h('div', { class: 'calc-cols' }, h('div', null, h('h4', { text: 'Fit to your own forms' }), fits), convBox),
-    h('p', { class: 'hint', text: 'Estimates are approximate. Official NBME and UWorld reports use their own scaling, so a score you type in always stays as you entered it.' })));
-  drawFits(); drawConvs(); drawOut();
+      h('div', { class: 'field' }, h('label', { for: 'calc-pct', text: 'Your result' }), h('div', { class: 'calc-num' }, numIn, modeSeg))),
+    res, srcBox, more, about));
+  drawFits(); drawConvs(); draw();
 }

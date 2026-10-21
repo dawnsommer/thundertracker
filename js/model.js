@@ -1,7 +1,7 @@
 // The saved data shape: normalising old saves and imported files, change stamps, and the record-by-record merge used by Google sync.
 
-import { arr, clone, ID_RE, inRange, int, ints, isDate, num, obj, safeUrl, stampOf, str, uid } from './util.js?v=10';
-import { GROUPS, MERGE, PASSES, QBANKS, SUBJ } from './catalog.js?v=10';
+import { arr, clone, ID_RE, inRange, int, ints, isDate, num, obj, safeUrl, stampOf, str, uid } from './util.js?v=11';
+import { GROUPS, MERGE, PASSES, QBANKS, SUBJ } from './catalog.js?v=11';
 
 export function normItem(x) {
   x = obj(x);
@@ -19,6 +19,8 @@ function weakPcts(x) {
 // form ('nbme-12'): a straight line (score = a × % + b) or a table of points to interpolate between.
 export function normConversion(x) {
   x = obj(x);
+  // which built-in conversion a form uses ('none' = don't use one); see score-models.js
+  if (x.kind === 'builtin') return typeof x.model === 'string' && /^[a-z0-9-]{1,40}$/.test(x.model) ? { kind: 'builtin', model: x.model, t: stampOf(x.t) } : null;
   const note = str(x.note, 200);
   if (x.kind === 'table') {
     const points = [...new Map(arr(x.points).map((p) => [num(arr(p)[0]), num(arr(p)[1])]).filter(([a, b]) => a != null && b != null && a >= 0 && a <= 100 && b >= 1 && b <= 300)).entries()]

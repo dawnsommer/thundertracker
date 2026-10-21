@@ -1,16 +1,16 @@
 // The Settings page.
 
-import { $, daysUntil, fmtDate, fmtLong, fmtN, fmtPct, h, isDate, plural } from './util.js?v=10';
-import { APP_VERSION } from './catalog.js?v=10';
-import { blank, norm, stampAll } from './model.js?v=10';
-import { applyTheme, cloud, save, setState, snapshot, state, toast, ui } from './store.js?v=10';
-import { qbStats } from './data.js?v=10';
-import { numField, refreshSheet } from './sheets.js?v=10';
-import { render, showTab } from './shell.js?v=10';
-import { openQbank } from './qbank.js?v=10';
-import { exportCsv, exportJson } from './backup.js?v=10';
-import { reloadLatest } from './updates.js?v=10';
-import { printSummary } from './print.js?v=10';
+import { $, daysUntil, fmtDate, fmtLong, fmtN, fmtPct, h, isDate, plural } from './util.js?v=11';
+import { APP_VERSION } from './catalog.js?v=11';
+import { blank, norm, stampAll } from './model.js?v=11';
+import { applyTheme, cloud, save, setState, snapshot, state, toast, ui } from './store.js?v=11';
+import { qbStats } from './data.js?v=11';
+import { numField, refreshSheet } from './sheets.js?v=11';
+import { render, showTab } from './shell.js?v=11';
+import { openQbank } from './qbank.js?v=11';
+import { exportCsv, exportJson } from './backup.js?v=11';
+import { reloadLatest } from './updates.js?v=11';
+import { printSummary } from './print.js?v=11';
 
 // Built once each time you open it; live parts redraw through settingsRefresh so typing isn't interrupted.
 export let settingsRefresh = null;

@@ -2,12 +2,12 @@
 // trend, CMS by subject, qbanks, recurring weak systems and articles. Built fresh right before printing
 // (the Print button, or the browser's own Print), and only shown on paper.
 
-import { $, avg, daysUntil, fmtDate, fmtK, fmtLong, fmtPct, h, nn, num, plural, today } from './util.js?v=10';
-import { FORM_ST, PASSES, SUBJ } from './catalog.js?v=10';
-import { item, state, sysItem } from './store.js?v=10';
-import { allArticles, allCms, allSystems, allTests, artItem, chrono, cmsForms, outlook, pctOf, qbStats, scaledOf, shortSys, taken, weakNames, weakPattern } from './data.js?v=10';
-import { estimateScore } from './calculator.js?v=10';
-import { plannedForms } from './planner.js?v=10';
+import { $, avg, daysUntil, fmtDate, fmtK, fmtLong, fmtPct, h, nn, num, plural, today } from './util.js?v=11';
+import { FORM_ST, PASSES, SUBJ } from './catalog.js?v=11';
+import { item, state, sysItem } from './store.js?v=11';
+import { allArticles, allCms, allSystems, allTests, artItem, chrono, cmsForms, outlook, pctOf, qbStats, scaledOf, shortSys, taken, weakNames, weakPattern } from './data.js?v=11';
+import { estimateScore } from './calculator.js?v=11';
+import { plannedForms } from './planner.js?v=11';
 
 const MAX_ROWS = 18; // assessments that fit on the page; the oldest drop off first
 

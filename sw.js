@@ -8,10 +8,10 @@
 // this worker only ever reads, writes and deletes caches named `ck-tracker-…`.
 //
 // Releasing: run `node tools/release.mjs` — it bumps VERSION here, every `?v=` and APP_VERSION together.
-const VERSION = 10;
+const VERSION = 11;
 const PREFIX = 'ck-tracker-';
 const CACHE = PREFIX + 'v' + VERSION;
-const SHELL = ['./', 'index.html', 'styles.css?v=10', 'js/articles.js?v=10', 'js/assessments.js?v=10', 'js/backup.js?v=10', 'js/calculator.js?v=10', 'js/catalog.js?v=10', 'js/cloud.js?v=10', 'js/cms.js?v=10', 'js/config.js?v=10', 'js/data.js?v=10', 'js/main.js?v=10', 'js/model.js?v=10', 'js/overview.js?v=10', 'js/planner.js?v=10', 'js/print.js?v=10', 'js/qbank.js?v=10', 'js/settings.js?v=10', 'js/sheets.js?v=10', 'js/shell.js?v=10', 'js/sim-import.js?v=10', 'js/store.js?v=10', 'js/systems.js?v=10', 'js/updates.js?v=10', 'js/util.js?v=10', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'];
+const SHELL = ['./', 'index.html', 'styles.css?v=11', 'js/articles.js?v=11', 'js/assessments.js?v=11', 'js/backup.js?v=11', 'js/calculator.js?v=11', 'js/catalog.js?v=11', 'js/cloud.js?v=11', 'js/cms.js?v=11', 'js/config.js?v=11', 'js/data.js?v=11', 'js/main.js?v=11', 'js/model.js?v=11', 'js/overview.js?v=11', 'js/planner.js?v=11', 'js/print.js?v=11', 'js/qbank.js?v=11', 'js/score-models.js?v=11', 'js/settings.js?v=11', 'js/sheets.js?v=11', 'js/shell.js?v=11', 'js/sim-import.js?v=11', 'js/store.js?v=11', 'js/systems.js?v=11', 'js/updates.js?v=11', 'js/util.js?v=11', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE)

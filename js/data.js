@@ -1,11 +1,11 @@
 // Derived views of the state: form lists, scores, qbank stats, weak-system patterns and articles.
 
-import { avg, dayNum, daysUntil, num, sum, today } from './util.js?v=10';
-import { ARTICLE_SECTIONS, GROUPS, SUBJ, SYSTEMS } from './catalog.js?v=10';
-import { item, save, state } from './store.js?v=10';
-import { render } from './shell.js?v=10';
-import { openForm } from './assessments.js?v=10';
-import { openQbank } from './qbank.js?v=10';
+import { avg, dayNum, daysUntil, num, sum, today } from './util.js?v=11';
+import { ARTICLE_SECTIONS, GROUPS, SUBJ, SYSTEMS } from './catalog.js?v=11';
+import { item, save, state } from './store.js?v=11';
+import { render } from './shell.js?v=11';
+import { openForm } from './assessments.js?v=11';
+import { openQbank } from './qbank.js?v=11';
 
 export function testForms(g, includeHidden) {
   const rm = new Set(state.removed);
@@ -13,7 +13,7 @@ export function testForms(g, includeHidden) {
   (state.extraAssess[g.key] || []).forEach((n) => ns.add(n));
   return [...ns].sort((a, b) => a - b).map((n) => {
     const id = g.key + '-' + n;
-    return { id, n, g, kind: 'test', label: g.label(n), full: g.full(n), tag: g.tag(n),
+    return { id, n, g, kind: 'test', label: g.label(n), full: g.full(n), tag: g.tag(n), qs: g.qsFor ? g.qsFor(n) : g.qs,
       old: !!(g.old && g.old(n)), extra: !g.base.includes(n), removed: rm.has(id) };
   }).filter((f) => includeHidden || !f.removed);
 }

@@ -1,13 +1,14 @@
 // The Assessments tab (NBME, UWSA, Free 120) and the assessment editor.
 
-import { $, avg, daysUntil, fmtDate, fmtPct, h, isDate, nn, num, plural, today } from './util.js?v=10';
-import { FORM_ST, GROUPS } from './catalog.js?v=10';
-import { item, save, snapshot, state, toast, ui } from './store.js?v=10';
-import { addForm, band, pctOf, scaledOf, taken, testForms, toggleRemove, weakNames } from './data.js?v=10';
-import { closeSheet, numField, openSheet, sheetHead, weakPicker } from './sheets.js?v=10';
-import { render } from './shell.js?v=10';
-import { statusPill } from './overview.js?v=10';
-import { estimateScore, estText, toggleCalculator } from './calculator.js?v=10';
+import { $, avg, daysUntil, fmtDate, fmtPct, h, isDate, nn, num, plural, today } from './util.js?v=11';
+import { FORM_ST, GROUPS } from './catalog.js?v=11';
+import { item, save, snapshot, state, toast, ui } from './store.js?v=11';
+import { addForm, band, pctOf, scaledOf, taken, testForms, toggleRemove, weakNames } from './data.js?v=11';
+import { closeSheet, numField, openSheet, sheetHead, weakPicker } from './sheets.js?v=11';
+import { render } from './shell.js?v=11';
+import { statusPill } from './overview.js?v=11';
+import { estimateScore, estText, toggleCalculator } from './calculator.js?v=11';
+import { modelsFor } from './score-models.js?v=11';
 
 export function renderTests() {
   $('tests').replaceChildren(...GROUPS.map((g) => {
@@ -64,7 +65,7 @@ export function renderTests() {
 }
 
 export function openForm(f) {
-  const isCms = f.kind === 'cms', scaled = !isCms && f.g.scaled, qs = isCms ? 50 : f.g.qs;
+  const isCms = f.kind === 'cms', scaled = !isCms && f.g.scaled, qs = isCms ? 50 : f.qs;
   const pctKey = isCms ? 'score' : 'pct';
   const cur = () => item(f.id);
   const patch = (p) => { state.items[f.id] = Object.assign({}, cur(), p); save(); render(); };
@@ -89,7 +90,7 @@ export function openForm(f) {
     // estimate from % correct; a score you typed stays as it is, and the difference is shown
     const e = !isCms && p != null && p >= 0 && p <= 100 ? estimateScore(f, p) : null;
     const real = scaled ? num(cur().score) : null;
-    estLine.textContent = !e ? (scaled && p != null ? 'No score estimate yet — add a conversion in the Score calculator on the Assessments tab.' : '')
+    estLine.textContent = !e ? (scaled && p != null ? (modelsFor(f.id).length ? 'No score estimate — ' + fmtPct(p) + ' is outside the published conversion’s range.' : 'No published conversion for ' + f.full + ' — add your own in the Score calculator.') : '')
       : 'Estimated from % correct: ' + estText(e) + ' (' + e.how + ')' + (real == null ? '.' : real === e.score ? ' — matches your score.'
         : ' — your score is ' + Math.abs(real - e.score) + (real > e.score ? ' higher.' : ' lower.'));
   };

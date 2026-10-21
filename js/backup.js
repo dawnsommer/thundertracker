@@ -1,14 +1,14 @@
 // Backup export/import and CSV export.
 
-import { $, h, today } from './util.js?v=10';
-import { FORM_ST, GROUPS, PASSES, SUBJ, SYS_ST } from './catalog.js?v=10';
-import { norm, stampAll } from './model.js?v=10';
-import { applyTheme, cloud, flush, item, save, setState, snapshot, state, sysItem, toast } from './store.js?v=10';
-import { allSystems, artItem, bankStats, cmsForms, testForms, weakNames } from './data.js?v=10';
-import { refreshSheet } from './sheets.js?v=10';
-import { render } from './shell.js?v=10';
-import { orderedSections } from './articles.js?v=10';
-import { importSimulator } from './sim-import.js?v=10';
+import { $, h, today } from './util.js?v=11';
+import { FORM_ST, GROUPS, PASSES, SUBJ, SYS_ST } from './catalog.js?v=11';
+import { norm, stampAll } from './model.js?v=11';
+import { applyTheme, cloud, flush, item, save, setState, snapshot, state, sysItem, toast } from './store.js?v=11';
+import { allSystems, artItem, bankStats, cmsForms, testForms, weakNames } from './data.js?v=11';
+import { refreshSheet } from './sheets.js?v=11';
+import { render } from './shell.js?v=11';
+import { orderedSections } from './articles.js?v=11';
+import { importSimulator } from './sim-import.js?v=11';
 
 export function download(name, text, type) {
   const url = URL.createObjectURL(new Blob([text], { type }));
@@ -28,7 +28,7 @@ export function exportCsv() {
   const rows = [['type', 'group', 'name', 'status', 'score_3digit', 'percent_correct', 'questions', 'date', 'notes', 'weak_systems']];
   GROUPS.forEach((g) => testForms(g, true).forEach((f) => {
     const it = item(f.id);
-    rows.push(['assessment', g.short, f.label, FORM_ST[it.status], g.scaled ? it.score : '', it.pct, g.qs, it.date, it.notes, weakNames(it.weak)]);
+    rows.push(['assessment', g.short, f.label, FORM_ST[it.status], g.scaled ? it.score : '', it.pct, f.qs, it.date, it.notes, weakNames(it.weak)]);
   }));
   SUBJ.forEach((s) => cmsForms(s, true, true).forEach((f) => {
     const it = item(f.id);
