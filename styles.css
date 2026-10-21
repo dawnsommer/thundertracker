@@ -456,6 +456,7 @@ footer a{color:inherit}
 .set-row > div:first-child{display:flex;flex-direction:column;min-width:0}
 .set-row small{color:var(--muted);font-size:.8rem}
 .set-list{display:flex;flex-direction:column}
+.hist{margin-top:10px;padding:4px 12px;border:1px solid var(--line);border-radius:12px}
 .set-more summary{cursor:pointer;font-size:.85rem;font-weight:600;color:var(--brand)}
 .set-more ul{margin:8px 0 0;padding-left:18px;font-size:.82rem;color:var(--muted);display:flex;flex-direction:column;gap:4px}
 .keys{display:grid;grid-template-columns:auto 1fr;gap:8px 16px;margin:0;align-items:center;font-size:.88rem}

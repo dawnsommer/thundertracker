@@ -1,8 +1,8 @@
 // The Settings page.
 
-import { $, daysUntil, fmtDate, fmtN, fmtPct, h, isDate, plural } from './util.js?v=9';
+import { $, daysUntil, fmtDate, fmtLong, fmtN, fmtPct, h, isDate, plural } from './util.js?v=9';
 import { APP_VERSION } from './catalog.js?v=9';
-import { blank, stampAll } from './model.js?v=9';
+import { blank, norm, stampAll } from './model.js?v=9';
 import { applyTheme, cloud, save, setState, snapshot, state, toast, ui } from './store.js?v=9';
 import { qbStats } from './data.js?v=9';
 import { numField, refreshSheet } from './sheets.js?v=9';
@@ -37,6 +37,36 @@ export function buildSettings() {
 
   // Google
   const gBox = h('div', { class: 'set-body', id: 'st-google', tabindex: '-1' });
+  // version history: kept outside drawGoogle so a redraw doesn't close the list
+  const histBox = h('div', { class: 'hist', id: 'st-history', hidden: true });
+  const restoreVersion = async (v, btn) => {
+    btn.disabled = true;
+    try {
+      const data = await cloud().getVersion(v.id);
+      const undo = snapshot();
+      const theme = state.prefs.theme;
+      setState(norm(data));
+      state.prefs.theme = theme;
+      stampAll(state, Date.now());
+      applyTheme(); save(); render(); refreshSheet();
+      toast('Restored your copy from ' + fmtDate(v.date) + ' — it replaces the copy in your Google account too', undo);
+    } catch (e) { toast(e.message); } finally { btn.disabled = false; }
+  };
+  const loadHistory = async () => {
+    histBox.hidden = false;
+    histBox.replaceChildren(h('p', { class: 'hint', text: 'Loading your saved copies…' }));
+    try {
+      const vs = await cloud().listVersions();
+      histBox.replaceChildren(
+        vs.length ? h('div', { class: 'set-list' }, vs.map((v) => {
+          const btn = h('button', { class: 'btn', 'data-version': v.id }, 'Restore');
+          btn.addEventListener('click', () => restoreVersion(v, btn));
+          return h('div', { class: 'set-row' },
+            h('div', null, h('b', { text: fmtLong(v.date) }), h('small', { text: v.size ? Math.max(1, Math.round(v.size / 1024)) + ' KB' : '' })), btn);
+        })) : h('p', { class: 'hint', text: 'No saved copies yet — the first one is saved with your next sync.' }),
+        h('p', { class: 'hint', text: 'A copy is saved in your Google Drive app folder once a day, the first time you sync; the last 10 are kept. Restoring replaces what’s here and in your Google account, and you can undo right after.' }));
+    } catch (e) { histBox.replaceChildren(h('p', { class: 'hint', text: e.message })); }
+  };
   const drawGoogle = () => {
     const c = cloud() && cloud().status();
     if (!c) { gBox.replaceChildren(h('p', { class: 'hint', text: 'Google sync couldn’t load. Reload the page to try again.' })); return; }
@@ -50,7 +80,10 @@ export function buildSettings() {
         c.connected
           ? h('button', { class: 'btn primary', disabled: busy, onclick: () => cloud().syncNow({ manual: true }).then(() => toast('Synced with Google')).catch((e) => toast(e.message)) }, busy ? 'Syncing…' : 'Sync now')
           : h('button', { class: 'btn primary', id: 'st-gconnect', disabled: busy || !c.canSignIn, onclick: signIn }, 'Sign in with Google'),
-        c.connected ? h('button', { class: 'btn ghost', onclick: () => cloud().disconnect().then(() => toast('Signed out of Google sync')) }, 'Sign out') : null),
+        c.connected ? h('button', { class: 'btn', id: 'st-history-btn', 'aria-expanded': histBox.hidden ? 'false' : 'true',
+          onclick: () => { if (histBox.hidden) loadHistory(); else histBox.hidden = true; drawGoogle(); } }, 'Version history') : null,
+        c.connected ? h('button', { class: 'btn ghost', onclick: () => cloud().disconnect().then(() => { histBox.hidden = true; toast('Signed out of Google sync'); }) }, 'Sign out') : null),
+      c.connected ? histBox : null,
       h('details', { class: 'set-more' }, h('summary', { text: 'When does it sync?' }),
         h('ul', null,
           h('li', { text: 'About 10 seconds after you stop editing (at most a minute after your first change), and right away when you leave the app.' }),

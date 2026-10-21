@@ -12,6 +12,7 @@
 //   return to it at most every 5 minutes. A check is one small file listing; download and upload
 //   happen only when something actually changed.
 // - Failures back off (30 s, 1, 2, 4… up to 15 minutes) instead of retrying in a loop.
+// - Once a day a dated copy is saved next to it (the last 10 are kept) so you can restore an older version.
 (() => {
   'use strict';
 
@@ -27,11 +28,14 @@
     dirty: 'thundertracker:cloud-dirty',
     device: 'thundertracker:cloud-device-id',
     token: 'thundertracker:cloud-token',
+    snap: 'thundertracker:cloud-last-history',
   };
   // ThunderShadow keeps its Worker session under this key on dawnsommer.github.io. It is only read,
   // to reuse an existing Google sign-in; this file never writes or clears it.
   const SHADOW_SESSION = 'cloudflareWorkerSession';
   const FILE_NAME = APP_ID + '-state.json';
+  // Version history: one dated copy a day, `thundertracker-history-YYYY-MM-DD.json`, last HISTORY_KEEP kept.
+  const HIST_PREFIX = APP_ID + '-history-', HISTORY_KEEP = 10;
   const DRIVE = 'https://www.googleapis.com/drive/v3';
   const UPLOAD = 'https://www.googleapis.com/upload/drive/v3';
   const DEBOUNCE_MS = 10000, MAX_WAIT_MS = 60000, CHECK_EVERY_MS = 5 * 60000, TOKEN_SKEW_MS = 60000, MAX_BACKOFF_MS = 15 * 60000;
@@ -93,7 +97,7 @@
   }
   function forget() {
     token = ''; tokenExp = 0;
-    [K.session, K.shared, K.account, K.last, K.sig, K.dirty, K.token].forEach((k) => put(k, ''));
+    [K.session, K.shared, K.account, K.last, K.sig, K.dirty, K.token, K.snap].forEach((k) => put(k, ''));
   }
   // The cached token is tied to the session it came from (by a short fingerprint, not the session itself).
   const fingerprint = (x) => { let h = 0; for (let i = 0; i < x.length; i++) h = (h * 31 + x.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
@@ -154,27 +158,60 @@
   }
   const sigOf = (f) => [f.id, f.modifiedTime || '', f.md5Checksum || ''].join(':');
 
-  async function findFile() {
+  // One listing returns the state file and the history copies (only this app's files).
+  async function listFiles() {
     const params = new URLSearchParams({
-      spaces: 'appDataFolder', q: "name = '" + FILE_NAME + "' and trashed = false", orderBy: 'modifiedTime desc',
-      pageSize: '10', fields: 'files(id,name,modifiedTime,md5Checksum,appProperties)',
+      spaces: 'appDataFolder', q: "(name = '" + FILE_NAME + "' or name contains '" + HIST_PREFIX + "') and trashed = false", orderBy: 'modifiedTime desc',
+      pageSize: '100', fields: 'files(id,name,modifiedTime,md5Checksum,size,appProperties)',
     });
     const body = await driveJson(DRIVE + '/files?' + params, {}, 'Reading Google Drive');
-    return (body.files || []).find((f) => !f.appProperties || !f.appProperties.appId || f.appProperties.appId === APP_ID) || null;
+    const mine = (body.files || []).filter((f) => !f.appProperties || !f.appProperties.appId || f.appProperties.appId === APP_ID);
+    return { state: mine.find((f) => f.name === FILE_NAME) || null, history: mine.filter((f) => f.name.startsWith(HIST_PREFIX)) };
+  }
+  async function removeFile(file) {
+    const res = await drive(DRIVE + '/files/' + encodeURIComponent(file.id), { method: 'DELETE' });
+    if (!res.ok && res.status !== 404) throw new Error('Deleting an old version failed (' + res.status + ').');
+  }
+  const localDay = () => { const t = new Date(); return new Date(t - t.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
+  const docOf = (state) => ({ app: APP_ID, kind: 'state', formatVersion: 1, updatedAt: new Date().toISOString(), device: deviceId(), state });
+  // Once a day after a good sync: save a dated copy and drop copies beyond the last HISTORY_KEEP.
+  // A problem here never fails the sync itself.
+  async function keepDailyCopy(history, state) {
+    const day = localDay();
+    if (get(K.snap) === day) return;
+    try {
+      const name = HIST_PREFIX + day + '.json';
+      if (!history.some((f) => f.name === name)) await upload(null, docOf(state), name, 'history');
+      const older = history.filter((f) => f.name !== name).sort((a, b) => b.name.localeCompare(a.name)).slice(HISTORY_KEEP - 1);
+      for (const f of older) await removeFile(f);
+      put(K.snap, day);
+    } catch (e) {}
+  }
+  // For Settings: your saved copies, newest first.
+  async function listVersions() {
+    if (!session()) throw new Error('Sign in with Google first.');
+    const { history } = await listFiles();
+    return history.map((f) => ({ id: f.id, date: f.name.slice(HIST_PREFIX.length, HIST_PREFIX.length + 10), size: Number(f.size) || 0, modifiedTime: f.modifiedTime }))
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }
+  async function getVersion(id) {
+    const doc = await download({ id });
+    if (!doc || doc.app !== APP_ID || !doc.state) throw new Error('That copy couldn’t be read.');
+    return doc.state;
   }
   async function download(file) {
     const res = await drive(DRIVE + '/files/' + encodeURIComponent(file.id) + '?alt=media');
     if (!res.ok) throw new Error('Downloading from Google Drive failed (' + res.status + ').');
     return res.json().catch(() => null);
   }
-  async function upload(file, doc) {
+  async function upload(file, doc, name = FILE_NAME, kind = 'state') {
     const fields = 'id,modifiedTime,md5Checksum';
     if (file) {
       return driveJson(UPLOAD + '/files/' + encodeURIComponent(file.id) + '?uploadType=media&fields=' + fields,
         { method: 'PATCH', headers: { 'Content-Type': 'application/json; charset=UTF-8' }, body: JSON.stringify(doc) }, 'Saving to Google Drive');
     }
     const boundary = 'thundertracker-' + deviceId().slice(0, 8) + Date.now().toString(36);
-    const meta = { name: FILE_NAME, parents: ['appDataFolder'], mimeType: 'application/json', appProperties: { appId: APP_ID, kind: 'state', formatVersion: '1' } };
+    const meta = { name, parents: ['appDataFolder'], mimeType: 'application/json', appProperties: { appId: APP_ID, kind, formatVersion: '1' } };
     const body = '--' + boundary + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify(meta) + '\r\n--' + boundary +
       '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify(doc) + '\r\n--' + boundary + '--';
     return driveJson(UPLOAD + '/files?uploadType=multipart&fields=' + fields,
@@ -193,7 +230,7 @@
       set('syncing', 'Syncing with your Google account…');
       app.flush();
       const dirtyAt = get(K.dirty), first = !get(K.last);
-      const file = await findFile();
+      const files = await listFiles(), file = files.state;
       const local = app.getState();
       let remote = null, merged = local;
       if (file && (first || sigOf(file) !== get(K.sig))) {
@@ -206,9 +243,10 @@
       if (!app.same(merged, local)) app.applyRemote(merged);
       let sigNow = file ? sigOf(file) : '';
       if (!file || first || dirtyAt || (remote && !app.same(merged, remote))) {
-        const saved = await upload(file, { app: APP_ID, kind: 'state', formatVersion: 1, updatedAt: new Date().toISOString(), device: deviceId(), state: merged });
+        const saved = await upload(file, docOf(merged));
         sigNow = sigOf(saved);
       }
+      await keepDailyCopy(files.history, merged);
       put(K.sig, sigNow);
       if (get(K.dirty) === dirtyAt) { put(K.dirty, ''); firstDirtyAt = 0; } else again = true;
       put(K.last, new Date().toISOString());
@@ -327,7 +365,7 @@
   }
 
   window.CKCloud = {
-    init, connect, disconnect, syncNow, markDirty, status, stats: () => Object.assign({}, stats),
+    init, connect, disconnect, syncNow, markDirty, status, listVersions, getVersion, stats: () => Object.assign({}, stats),
     subscribe: (fn) => { subs.add(fn); return () => subs.delete(fn); },
     justConnected: () => { const j = justConnected; justConnected = false; return j; },
   };

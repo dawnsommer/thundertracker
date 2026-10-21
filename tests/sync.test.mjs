@@ -6,7 +6,7 @@ const ok = (c, msg) => { console.log((c ? 'PASS ' : 'FAIL ') + msg); if (!c) pro
 const W = 'https://study-tools-auth-worker.summerofdawn20.workers.dev';
 // ---- mock Worker + Drive (shared between both "devices")
 const sessions = new Set(['sess-A', 'sess-B', 'shadow-sess']);
-const drive = new Map(); let mtime = 1000; const calls = [];
+const drive = new Map(); let mtime = 1000, fileSeq = 0; const calls = [];
 const put = (id, name, content, appProperties) => { mtime++; drive.set(id, { id, name, content, appProperties, modifiedTime: new Date(1.8e12 + mtime * 1000).toISOString(), md5Checksum: crypto.createHash('md5').update(content).digest('hex') }); return drive.get(id); };
 put('ts1', 'thundershadow-manifest.json', '{"app":"ThunderShadow"}', { appId: 'thundershadow', kind: 'manifest' });
 const meta = (f) => ({ id: f.id, name: f.name, modifiedTime: f.modifiedTime, md5Checksum: f.md5Checksum, appProperties: f.appProperties });
@@ -23,20 +23,22 @@ async function wire(ctx, tag) {
     { const a = (r.headers()['authorization'] || ''); if (!a.startsWith('Bearer tok-') || !sessions.has(a.slice(11))) return route.fulfill({ status: 401, json: {} }); }
     if (m === 'GET' && u.pathname === '/drive/v3/files') {
       calls.push(tag + ' list');
-      const q = u.searchParams.get('q'); const name = /name = '([^']+)'/.exec(q)[1];
+      const q = u.searchParams.get('q');
+      const eq = [...q.matchAll(/name = '([^']+)'/g)].map((x) => x[1]), pre = [...q.matchAll(/name contains '([^']+)'/g)].map((x) => x[1]);
       ok(u.searchParams.get('spaces') === 'appDataFolder', 'list scoped to appDataFolder');
-      return route.fulfill({ json: { files: [...drive.values()].filter((f) => f.name === name).map(meta) } });
+      return route.fulfill({ json: { files: [...drive.values()].filter((f) => eq.includes(f.name) || pre.some((x) => f.name.startsWith(x))).map(meta) } });
     }
     let mm;
     if (m === 'GET' && (mm = /^\/drive\/v3\/files\/([^/]+)$/.exec(u.pathname))) { calls.push(tag + ' get ' + mm[1]); return route.fulfill({ body: drive.get(mm[1]).content, contentType: 'application/json' }); }
     if (m === 'POST' && u.pathname === '/upload/drive/v3/files') {
       const body = r.postData(); const parts = body.split(/--thundertracker-[^\r\n-]+/).map((x) => x.split('\r\n\r\n')[1]).filter(Boolean).map((x) => x.replace(/\r\n$/, ''));
-      const md = JSON.parse(parts[0]); const id = 'f' + (drive.size + 1);
+      const md = JSON.parse(parts[0]); const id = 'f' + (++fileSeq);
       calls.push(tag + ' create ' + md.name);
       ok(md.parents[0] === 'appDataFolder' && md.appProperties.appId === 'thundertracker', 'created in appDataFolder with appId');
       return route.fulfill({ json: meta(put(id, md.name, parts[1], md.appProperties)) });
     }
     if (m === 'PATCH' && (mm = /^\/upload\/drive\/v3\/files\/([^/]+)$/.exec(u.pathname))) { calls.push(tag + ' patch ' + mm[1]); const f = drive.get(mm[1]); return route.fulfill({ json: meta(put(f.id, f.name, r.postData(), f.appProperties)) }); }
+    if (m === 'DELETE' && (mm = /^\/drive\/v3\/files\/([^/]+)$/.exec(u.pathname))) { calls.push(tag + ' delete ' + mm[1]); drive.delete(mm[1]); return route.fulfill({ status: 204, body: '' }); }
     calls.push(tag + ' UNEXPECTED ' + m + ' ' + u.pathname);
     return route.fulfill({ status: 400, json: {} });
   });
@@ -118,6 +120,32 @@ await pa.evaluate(() => window.CKCloud.syncNow());
 ok((await st(pa)).state === 'offline', 'offline state shown');
 await A.setOffline(false); await pa.evaluate(() => window.dispatchEvent(new Event('online'))); await pa.waitForTimeout(300); await idle(pa);
 ok(remote().items['nbme-12'] && remote().items['nbme-12'].score === '247', 'offline edit synced after reconnect');
+
+// version history: one dated copy a day across devices, older copies pruned to 10, restore + undo
+const hist = () => [...drive.values()].filter((f) => f.name.startsWith('thundertracker-history-'));
+ok(hist().length === 1 && /^thundertracker-history-\d{4}-\d{2}-\d{2}\.json$/.test(hist()[0].name), 'one dated copy for today across both devices: ' + hist().map((f) => f.name));
+for (let d = 1; d <= 11; d++) {
+  const day = '2020-01-' + String(d).padStart(2, '0');
+  put('old' + d, 'thundertracker-history-' + day + '.json', JSON.stringify({ app: 'thundertracker', kind: 'state', state: { v: 2, items: { 'nbme-9': { status: 1, score: String(200 + d) } }, log: [], prefs: {} } }), { appId: 'thundertracker', kind: 'history' });
+}
+await pa.evaluate(() => localStorage.removeItem('thundertracker:cloud-last-history'));
+await pa.evaluate(() => window.CKCloud.syncNow({ manual: true })); await idle(pa);
+ok(hist().length === 10 && !drive.has('old1') && !drive.has('old2') && drive.has('old3'), 'old copies pruned to the last 10 (' + hist().length + ')');
+const nDel = calls.filter((c) => c.startsWith('A delete')).length;
+await pa.evaluate(() => window.CKCloud.syncNow({ manual: true })); await idle(pa);
+ok(calls.filter((c) => c.startsWith('A delete')).length === nDel, 'pruning runs at most once a day');
+await pa.keyboard.press(','); await pa.click('#st-history-btn');
+await pa.waitForSelector('#st-history [data-version]');
+ok((await pa.locator('#st-history [data-version]').count()) === 10, 'Settings lists 10 saved copies');
+ok((await pa.locator('#st-history .set-row').last().textContent()).includes('2020'), 'oldest copy listed last');
+await pa.click('#st-history [data-version="old11"]'); await pa.waitForTimeout(500);
+ok((await local(pa)).items['nbme-9'].score === '211', 'restored the saved copy');
+ok((await pa.textContent('#toasts')).includes('Restored your copy'), 'restore toast shown');
+await pa.evaluate(() => window.CKCloud.syncNow({ manual: true })); await idle(pa);
+ok(remote().items['nbme-9'].score === '211' && !remote().items['nbme-12'], 'restore replaced the Drive copy');
+await pa.click('#toasts button'); await pa.waitForTimeout(400);
+await pa.evaluate(() => window.CKCloud.syncNow({ manual: true })); await idle(pa);
+ok((await local(pa)).items['nbme-9'].score === '236' && remote().items['nbme-9'].score === '236' && remote().items['nbme-12'], 'undo of restore brings everything back');
 
 // sign out A: worker /disconnect called, local data kept
 await pa.evaluate(() => window.CKCloud.disconnect());
