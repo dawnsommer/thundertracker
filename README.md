@@ -68,6 +68,19 @@ python3 -m http.server 8000
 # then visit http://localhost:8000
 ```
 
+### Tests
+
+Browser tests live in `tests/` and run in a real Chromium against the static files. They cover the app, Google sync (against a stand-in Worker and Drive), Exam Simulator import (with a made-up backup built by `tests/fixtures/sim-backup.mjs`), qbanks, articles, the weakness matrix, settings, app updates and sign-in errors.
+
+```sh
+npm install
+npx playwright install chromium   # once
+npm test                          # everything, about 2 minutes
+npm test -- sync core             # only tests whose file names start with these
+```
+
+`tests/run.mjs` starts the local servers the tests need and prints a summary; set `CHROMIUM_PATH` to use an existing Chromium. GitHub Actions runs the same suite on every push (`.github/workflows/tests.yml`).
+
 | File | Purpose |
 | --- | --- |
 | `index.html` | Page structure |
