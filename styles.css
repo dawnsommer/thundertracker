@@ -202,6 +202,7 @@ section.view{display:flex;flex-direction:column;gap:28px}
 .btn.primary{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
 .btn.ghost{background:none}
 .btn.danger{color:var(--bad)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
 .btnrow{display:flex;flex-wrap:wrap;gap:8px}
 
 /* editor sheet */
@@ -301,3 +302,27 @@ button.tag:hover{border-color:var(--muted);color:var(--ink)}
 footer{margin-top:40px;font-size:.78rem;color:var(--muted)}
 footer p{margin:0 0 8px}
 footer a{color:inherit}
+
+/* Google sync status */
+.gstat{margin:0;font-size:.88rem}
+.gstat.g-synced{color:var(--good)} .gstat.g-error,.gstat.g-expired{color:var(--bad)} .gstat.g-offline{color:var(--warn)}
+
+/* Exam Simulator import preview */
+.sim-opts{display:flex;flex-direction:column;gap:8px}
+.sim-opt{align-items:flex-start;color:var(--ink);font-size:.85rem}
+.sim-opt input{margin-top:2px;flex:none}
+.sim-list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;flex:none}
+.sim-list h3{font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:10px 12px 6px;background:var(--bg);border-top:1px solid var(--line)}
+.sim-list h3:first-child{border-top:0}
+.sim-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px 10px;align-items:center;padding:8px 12px;border-top:1px solid var(--line);font-size:.85rem}
+.sim-nm{min-width:0;display:flex;flex-direction:column}
+.sim-nm b{font-weight:600}
+.sim-nm small{font-size:.74rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis}
+.sim-nm small.sc-warn{color:var(--warn)}
+.sim-res{font-family:var(--f-mono);font-size:.74rem;color:var(--muted);text-align:right}
+.sim-badge{font-size:.7rem;font-weight:600;border-radius:999px;padding:1px 8px;white-space:nowrap;background:var(--s0);color:var(--s0-ink)}
+.sim-badge.new{background:var(--s2);color:var(--s2-ink)}
+.sim-badge.upd{background:var(--s1);color:var(--s1-ink)}
+.sim-badge.warn{background:var(--hl-soft);color:var(--ink)}
+@media (max-width:420px){.sim-row{grid-template-columns:minmax(0,1fr) auto}.sim-res{grid-column:1;grid-row:2;text-align:left}}
+.top-r .save{cursor:default}

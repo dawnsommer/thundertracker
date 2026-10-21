@@ -95,23 +95,24 @@
   const int = (x, lo, hi) => { const n = Math.round(Number(x)); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : lo; };
   const isDate = (x) => (typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x) && !isNaN(new Date(x + 'T00:00:00')) ? x : '');
   const inRange = (x, lo, hi) => { const v = num(x); return v != null && v >= lo && v <= hi ? String(v) : ''; };
+  const stampOf = (x) => { const n = Number(x); return Number.isFinite(n) && n > 0 ? Math.round(n) : 0; };
   const ints = (a, lo, hi) => [...new Set(arr(a).map(Number).filter((n) => Number.isInteger(n) && n >= lo && n <= hi))].sort((x, y) => x - y);
 
   function normItem(x) {
     x = obj(x);
-    return { status: int(x.status, 0, 3), score: str(x.score, 12), pct: str(x.pct, 12), date: isDate(x.date), notes: str(x.notes) };
+    return { status: int(x.status, 0, 3), score: str(x.score, 12), pct: str(x.pct, 12), date: isDate(x.date), notes: str(x.notes), t: stampOf(x.t) };
   }
   function normSys(x) {
     x = obj(x);
     return { status: int(x.status, 0, 3), conf: int(x.conf, 0, 5), notes: str(x.notes), uw: str(x.uw, 12),
-      tags: [...new Set(arr(x.tags).filter((t) => typeof t === 'string').map((t) => t.slice(0, 30)))] };
+      tags: [...new Set(arr(x.tags).filter((t) => typeof t === 'string').map((t) => t.slice(0, 30)))], t: stampOf(x.t) };
   }
   function normLog(x) {
     x = obj(x);
     const date = isDate(x.date), q = int(x.q, 0, 5000);
     if (!date || !q) return null;
     return { id: typeof x.id === 'string' && ID_RE.test(x.id) ? x.id : uid(), date, q, pct: inRange(x.pct, 0, 100),
-      src: SRC.includes(x.src) ? x.src : 'UWorld', note: str(x.note, 200) };
+      src: SRC.includes(x.src) ? x.src : 'UWorld', note: str(x.note, 200), t: stampOf(x.t) };
   }
   function migrate(sys) {
     for (const old in MERGE) {
@@ -120,14 +121,15 @@
       sys[to] = {
         status: Math.max(a.status, b.status), conf: Math.max(a.conf, b.conf), uw: b.uw || a.uw,
         notes: [b.notes, a.notes].filter(Boolean).join('\n'),
-        tags: [...new Set([...b.tags, ...a.tags])],
+        tags: [...new Set([...b.tags, ...a.tags])], t: Math.max(a.t, b.t),
       };
       delete sys[old];
     }
     return sys;
   }
 
-  const blank = () => ({ v: 2, items: {}, systems: {}, extraForms: {}, extraAssess: {}, extraSystems: [], removed: [], log: [],
+  // `base`, `deleted`, `lt` and `pt` exist for Google sync: see "change stamps + merge" below.
+  const blank = () => ({ v: 2, base: 0, deleted: {}, lt: 0, pt: 0, items: {}, systems: {}, extraForms: {}, extraAssess: {}, extraSystems: [], removed: [], log: [],
     prefs: { showOld: false, theme: 'system', examDate: '', target: '', bank: '', chart: 'score', sysSort: 'default', lastBackup: '' } });
 
   // Accepts v1 saves (the original single-file version) and v2.
@@ -142,10 +144,13 @@
     const extraAssess = {};
     for (const g of GROUPS) { const a = ints(obj(s.extraAssess)[g.key], g.min, g.max); if (a.length) extraAssess[g.key] = a; }
     const p = obj(s.prefs), b = blank().prefs;
+    const deleted = {};
+    for (const [k, t] of Object.entries(obj(s.deleted))) if (/^[ilsx]:[a-z0-9-]{1,48}$/i.test(k) && stampOf(t)) deleted[k] = stampOf(t);
     return {
-      v: 2, items, systems: migrate(sys), extraForms, extraAssess,
+      v: 2, base: stampOf(s.base), deleted, lt: stampOf(s.lt), pt: stampOf(s.pt),
+      items, systems: migrate(sys), extraForms, extraAssess,
       extraSystems: arr(s.extraSystems).filter((x) => x && typeof x.id === 'string' && ID_RE.test(x.id) && typeof x.name === 'string' && x.name.trim())
-        .map((x) => ({ id: x.id, name: x.name.trim().slice(0, 60) })),
+        .map((x) => ({ id: x.id, name: x.name.trim().slice(0, 60), t: stampOf(x.t) })),
       removed: [...new Set(arr(s.removed).filter((x) => typeof x === 'string' && ID_RE.test(x)))],
       log: arr(s.log).map(normLog).filter(Boolean),
       prefs: {
@@ -165,11 +170,23 @@
   let state = blank();
   const ui = { tab: 'overview', subj: 'all', st: 'all', addingFor: null, focusAdd: false, editForms: false, logAll: false };
   let saveTimer = null, storageOk = true, storageMsg = '';
+  let saved = blank(); // copy of what is in storage, used to stamp what changed
+  const cloud = () => window.CKCloud || null;
 
   const item = (id) => state.items[id] || { status: 0, score: '', pct: '', date: '', notes: '' };
   const sysItem = (id) => state.systems[id] || normSys(null);
 
-  const setSave = (cls, text) => { $('save').className = 'save ' + cls; $('save-t').textContent = text; };
+  // Header status: local save state first, then Google sync state when signed in.
+  let localSave = { cls: '', text: 'Saved on this device' };
+  const setSave = (cls, text) => { localSave = { cls, text }; paintStatus(); };
+  function paintStatus() {
+    const c = cloud() && cloud().status();
+    let { cls, text } = localSave;
+    if (c && c.connected && !cls && c.short) { cls = { syncing: 'busy', connecting: 'busy', error: 'off', offline: 'off', expired: 'off' }[c.state] || ''; text = c.short; }
+    $('save').className = 'save ' + cls;
+    $('save-t').textContent = text;
+    $('save').title = c && c.message ? c.message : '';
+  }
 
   function load() {
     let raw = null;
@@ -191,10 +208,13 @@
   }
   function flush() {
     clearTimeout(saveTimer); saveTimer = null;
+    const changed = stamp(state, saved, Date.now());
     try {
       localStorage.setItem(KEY, JSON.stringify(state));
+      saved = clone(state);
       storageOk = true;
       setSave('', 'Saved on this device');
+      if (changed && cloud()) cloud().markDirty();
     } catch (e) {
       storageOk = false;
       setSave('off', e && e.name === 'QuotaExceededError' ? 'Not saved — storage full' : 'Not saved — storage blocked');
@@ -208,13 +228,110 @@
   window.addEventListener('storage', (e) => {
     if (e.key !== KEY || !e.newValue || saveTimer) return;
     try { state = norm(JSON.parse(e.newValue)); } catch (err) { return; }
+    saved = clone(state);
     applyTheme(); render(); refreshSheet();
   });
+  // Write a state that came from elsewhere (Google) without re-stamping it as a local edit.
+  function persistQuiet() {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); saved = clone(state); } catch (e) {}
+  }
+
+  // ---------- change stamps + merge (for Google sync) ----------
+  // Each record carries `t`, the time of its last change, and deletions leave a tombstone in `deleted`.
+  // A full restore or erase bumps `base`: on merge, anything older than the newest base is dropped,
+  // so the restore wins on every device. Lists of added/hidden forms (`lt`) and the plan prefs (`pt`)
+  // merge as a unit, newest wins. Theme and other view prefs stay per device.
+  const SYNC_PREFS = ['examDate', 'target', 'bank', 'showOld'];
+  const clone = (x) => JSON.parse(JSON.stringify(x));
+  const sig = (r) => JSON.stringify(Object.keys(r).filter((k) => k !== 't').sort().map((k) => [k, r[k]]));
+  const listsSig = (s) => JSON.stringify([s.extraForms, s.extraAssess, s.removed]);
+  const prefsSig = (s) => JSON.stringify(SYNC_PREFS.map((k) => s.prefs[k]));
+  const byId = (a) => new Map(a.map((x) => [x.id, x]));
+  const records = (s) => [['i:', new Map(Object.entries(s.items))], ['s:', new Map(Object.entries(s.systems))], ['l:', byId(s.log)], ['x:', byId(s.extraSystems)]];
+
+  function stamp(next, prev, now) {
+    let changed = false;
+    const before = new Map(records(prev));
+    for (const [tag, cur] of records(next)) {
+      const old = before.get(tag);
+      for (const [id, r] of cur) {
+        const p = old.get(id);
+        if (!p || sig(p) !== sig(r)) { r.t = now; changed = true; } else r.t = Math.max(r.t || 0, p.t);
+      }
+      for (const id of old.keys()) if (!cur.has(id)) { next.deleted[tag + id] = now; changed = true; }
+    }
+    if (listsSig(next) !== listsSig(prev)) { next.lt = now; changed = true; }
+    if (prefsSig(next) !== prefsSig(prev)) { next.pt = now; changed = true; }
+    return changed;
+  }
+  // Mark the whole state as a fresh starting point (after import/erase).
+  function stampAll(s, now) {
+    for (const [, m] of records(s)) for (const r of m.values()) r.t = now;
+    s.base = s.lt = s.pt = now;
+    s.deleted = {};
+  }
+  // Order-independent comparison that ignores per-device prefs.
+  function canon(s) {
+    const sort = (v) => Array.isArray(v) ? v.map(sort) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sort(v[k])])) : v;
+    const c = Object.assign({}, s, { log: s.log.slice().sort((a, b) => a.id.localeCompare(b.id)), extraSystems: s.extraSystems.slice().sort((a, b) => a.id.localeCompare(b.id)),
+      prefs: Object.fromEntries(SYNC_PREFS.map((k) => [k, s.prefs[k]])) });
+    return JSON.stringify(sort(c));
+  }
+  const same = (a, b) => canon(a) === canon(b);
+  // `first`: this device's first sync, so keep everything from both sides (nothing is dropped by `base`).
+  function merge(a, b, opts) {
+    const first = !!(opts && opts.first);
+    const base = Math.max(a.base, b.base);
+    const keep = (r) => r && (first || r.t >= base) ? r : null;
+    const deleted = {};
+    for (const s of [a, b]) for (const [k, t] of Object.entries(s.deleted)) if ((first || t >= base) && !(deleted[k] >= t)) deleted[k] = t;
+    const pick = (x, y) => { x = keep(x); y = keep(y); return !x ? y : !y ? x : y.t > x.t ? y : x; };
+    const join = (tag, ma, mb) => {
+      const out = [];
+      for (const id of new Set([...ma.keys(), ...mb.keys()])) {
+        const r = pick(ma.get(id), mb.get(id));
+        if (r && !(deleted[tag + id] > r.t)) out.push([id, clone(r)]);
+      }
+      return out;
+    };
+    const out = clone(a);
+    out.base = base;
+    const ra = new Map(records(a)), rb = new Map(records(b));
+    out.items = Object.fromEntries(join('i:', ra.get('i:'), rb.get('i:')));
+    out.systems = Object.fromEntries(join('s:', ra.get('s:'), rb.get('s:')));
+    out.log = join('l:', ra.get('l:'), rb.get('l:')).map(([, r]) => r);
+    out.extraSystems = join('x:', ra.get('x:'), rb.get('x:')).map(([, r]) => r);
+    // Lists and plan prefs: newest wins. A tie (typically two devices whose data predates sync) keeps
+    // everything: lists are combined and empty plan fields are filled from the other side.
+    if (a.lt !== b.lt) {
+      const lw = b.lt > a.lt ? b : a;
+      Object.assign(out, { extraForms: clone(lw.extraForms), extraAssess: clone(lw.extraAssess), removed: clone(lw.removed), lt: lw.lt });
+    } else {
+      const union = (x, y) => { const o = clone(x); for (const k in y) o[k] = [...new Set([...(o[k] || []), ...y[k]])].sort((m, n) => m - n); return o; };
+      Object.assign(out, { extraForms: union(a.extraForms, b.extraForms), extraAssess: union(a.extraAssess, b.extraAssess), removed: [...new Set([...a.removed, ...b.removed])] });
+    }
+    if (a.pt !== b.pt) {
+      const pw = b.pt > a.pt ? b : a;
+      SYNC_PREFS.forEach((k) => (out.prefs[k] = pw.prefs[k]));
+      out.pt = pw.pt;
+    } else SYNC_PREFS.forEach((k) => { if (!out.prefs[k] && b.prefs[k]) out.prefs[k] = b.prefs[k]; });
+    // tombstones only need to outlive devices that haven't synced in a long while
+    const cutoff = Date.now() - 400 * 864e5;
+    out.deleted = Object.fromEntries(Object.entries(deleted).filter(([, t]) => t > cutoff));
+    if (first) for (const [, m] of records(out)) for (const r of m.values()) if (r.t < base) r.t = base;
+    return out;
+  }
 
   // Undo: capture the whole state before a destructive change.
   function snapshot() {
     const snap = JSON.stringify(state);
-    return () => { state = norm(JSON.parse(snap)); applyTheme(); save(); render(); refreshSheet(); };
+    return () => {
+      const before = state.base;
+      state = norm(JSON.parse(snap));
+      // undoing an import/erase is itself a fresh starting point
+      if (state.base !== before) stampAll(state, Date.now());
+      applyTheme(); save(); render(); refreshSheet();
+    };
   }
   function toast(msg, undo) {
     const t = h('div', { class: 'toast' }, h('span', { text: msg }));
@@ -231,7 +348,28 @@
       const dark = t === 'dark' || (t === 'system' && (m.getAttribute('media') || '').includes('dark'));
       m.setAttribute('content', dark ? '#0e131a' : '#f3f5f8');
     });
+    const b = $('theme-btn');
+    b.innerHTML = THEME_ICON[t];
+    const label = 'Theme: ' + { system: 'matches your device', light: 'light', dark: 'dark' }[t] + '. Tap to switch.';
+    b.setAttribute('aria-label', label);
+    b.title = label;
   }
+  const svgIcon = (body) => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + body + '</svg>';
+  const THEME_ICON = {
+    light: svgIcon('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'),
+    dark: svgIcon('<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>'),
+    system: svgIcon('<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/>'),
+  };
+  // From "match device", the first tap always flips what you see; the third returns to matching the device.
+  function cycleTheme() {
+    const sysDark = matchMedia('(prefers-color-scheme: dark)').matches;
+    const flip = sysDark ? 'light' : 'dark', same = sysDark ? 'dark' : 'light';
+    const t = state.prefs.theme;
+    state.prefs.theme = t === 'system' ? flip : t === flip ? same : 'system';
+    applyTheme(); save(); refreshSheet();
+    toast({ light: 'Light mode', dark: 'Dark mode', system: 'Theme matches your device' }[state.prefs.theme]);
+  }
+  $('theme-btn').addEventListener('click', cycleTheme);
 
   // ---------- forms ----------
   function testForms(g, includeHidden) {
@@ -424,12 +562,13 @@
     wel.hidden = !isEmpty();
     if (!wel.hidden) wel.replaceChildren(h('div', { class: 'card welcome' },
       h('h3', { text: 'Welcome to your Step 2 CK tracker' }),
-      h('p', { text: 'Everything you log stays in this browser — no account, nothing sent anywhere. Set your test date first, then tap any form to log it.' }),
+      h('p', { text: 'Everything you log is saved in this browser right away, and works offline. Set your test date first, then tap any form to log it.' }),
       h('div', { class: 'btnrow' },
         h('button', { class: 'btn primary', 'data-open': 'settings', onclick: () => openSettings('#st-exam') }, 'Set test date & target'),
-        h('button', { class: 'btn', onclick: () => $('import').click() }, 'Import a backup'),
-        h('button', { class: 'btn ghost', onclick: () => showTab('nbme', true) }, 'Log an NBME')),
-      h('p', { class: 'hint', text: 'Used an earlier version of this tracker? Import its backup file and your forms, systems and notes carry over.' })));
+        cloud() && cloud().status().canSignIn ? h('button', { class: 'btn', onclick: () => signIn() }, 'Sign in with Google') : null,
+        h('button', { class: 'btn', 'data-open': 'sim-import', onclick: () => $('sim-import').click() }, 'Import from Exam Simulator'),
+        h('button', { class: 'btn ghost', onclick: () => $('import').click() }, 'Import a backup')),
+      h('p', { class: 'hint', text: 'Signing in with Google keeps your progress in your Google account so it follows you to any device. Used the Step Exam Simulator? Import its progress backup and your NBME, UWSA and CMS results fill in automatically.' })));
 
     const tests = allTests(), cms = allCms(), sys = allSystems();
     const tTaken = tests.filter(taken), cTaken = cms.filter(taken);
@@ -891,7 +1030,7 @@
     ['hdr', 'main'].forEach((id) => $(id).removeAttribute('inert'));
     render();
     // return focus to whatever opened the panel
-    const back = document.querySelector('[data-open="' + CSS.escape(key) + '"]');
+    const back = [...document.querySelectorAll('[data-open="' + CSS.escape(key) + '"]')].find((el) => el.getClientRects().length);
     if (back) back.focus();
   }
   const refreshSheet = () => { if (sheetOpen && sheetOpen.refresh) sheetOpen.refresh(); };
@@ -1006,6 +1145,223 @@
     }, '#ed-sys-notes');
   }
 
+  // ---------- Exam Simulator import ----------
+  // Reads the Step Exam Simulator's progress backup (a .zip of <form>_progress_save.json files plus
+  // progress_metadata.json, or those JSON files picked directly) and fills in the matching tracker forms.
+  // It only adds: empty fields are filled, status is raised to at least "Taken", and nothing is
+  // overwritten unless you ask. Custom question sets can become qbank sessions.
+  const SIM_SUBJ = { IM: 'med', MED: 'med', SURG: 'surg', PEDS: 'peds', OBGYN: 'obgyn', PSYCH: 'psych', NEURO: 'neuro', FM: 'fm', EM: 'em' };
+
+  // Minimal zip reader: central directory + stored/deflate entries (what the simulator writes).
+  async function readZip(file) {
+    const buf = new Uint8Array(await file.arrayBuffer());
+    const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+    let end = -1;
+    for (let i = buf.length - 22; i >= Math.max(0, buf.length - 65557); i--) if (dv.getUint32(i, true) === 0x06054b50) { end = i; break; }
+    if (end < 0) throw new Error('That file isn’t a zip archive.');
+    const count = dv.getUint16(end + 10, true);
+    const entries = [];
+    for (let i = 0, q = dv.getUint32(end + 16, true); i < count; i++) {
+      if (dv.getUint32(q, true) !== 0x02014b50) throw new Error('The zip archive looks damaged.');
+      const nameLen = dv.getUint16(q + 28, true);
+      entries.push({ name: new TextDecoder().decode(buf.subarray(q + 46, q + 46 + nameLen)), method: dv.getUint16(q + 10, true),
+        size: dv.getUint32(q + 20, true), at: dv.getUint32(q + 42, true) });
+      q += 46 + nameLen + dv.getUint16(q + 30, true) + dv.getUint16(q + 32, true);
+    }
+    const read = async (en) => {
+      const start = en.at + 30 + dv.getUint16(en.at + 26, true) + dv.getUint16(en.at + 28, true);
+      const data = buf.subarray(start, start + en.size);
+      if (en.method === 0) return new TextDecoder().decode(data);
+      if (en.method !== 8) throw new Error('Unsupported compression in ' + en.name + '.');
+      if (typeof DecompressionStream === 'undefined') throw new Error('This browser can’t open zip files. Unzip the backup and pick the .json files inside instead.');
+      return new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text();
+    };
+    return { entries, read };
+  }
+
+  async function readSimFiles(files) {
+    const out = { docs: {}, scores: {}, suspended: new Set(), names: [] };
+    const take = (name, text) => {
+      let j = null;
+      try { j = JSON.parse(text); } catch (e) { return; }
+      const type = j && typeof j.fileType === 'string' ? j.fileType : '';
+      if (type === 'StepExamSimulatorProgressMetadata') arr(j.forms).forEach((f) => { if (f && typeof f.formId === 'string') out.scores[f.formId] = num(f.threeDigitScore); });
+      else if (/^StepExamSimulator.*ProgressBundle$/.test(type)) out.docs[str(j.formSlot, 60) || name] = j;
+    };
+    const suspendedId = (name) => (/([^/]+)_suspended_test\.json$/i.exec(name) || [])[1];
+    for (const f of files) {
+      out.names.push(f.name);
+      if (/\.zip$/i.test(f.name) || /zip/.test(f.type)) {
+        const z = await readZip(f);
+        for (const en of z.entries) {
+          if (!/\.json$/i.test(en.name) || /QBANK_MODE/i.test(en.name)) continue;
+          const sid = suspendedId(en.name);
+          if (sid) { out.suspended.add(sid); continue; }
+          take(en.name, await z.read(en));
+        }
+      } else {
+        const sid = suspendedId(f.name);
+        if (sid) out.suspended.add(sid); else take(f.name, await f.text());
+      }
+    }
+    return out;
+  }
+
+  // First finished attempt (first-pass performance); falls back to the current session.
+  function simResult(doc) {
+    const atts = arr(obj(doc.bundle).attempts).filter((a) => a && a.session);
+    const att = atts.find((a) => a.type === 'initial' && a.completedAt) || atts.find((a) => a.completedAt);
+    const ses = obj(att ? att.session : doc.session);
+    const res = arr(ses.results).filter((r) => r && Number(r.total) > 0);
+    const total = sum(res.map((r) => Number(r.total))), correct = sum(res.map((r) => Number(r.correct) || 0));
+    const blocks = arr(ses.blocks).length;
+    const done = total > 0 && (!!ses.completedAt || (blocks > 0 && res.length >= blocks));
+    const when = ses.completedAt || (res.length ? res[res.length - 1].completedAt : '') || ses.startedAt || '';
+    const d = new Date(when);
+    return { total, correct, done, partial: !done && res.length > 0, attempt: str(ses.attemptId || (att && att.attemptId), 60),
+      date: isNaN(d) ? '' : new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10),
+      title: str(ses.libraryFormName || ses.title || doc.formSlot, 80).replace(/\s+—\s+All Questions$/, ''), retakes: atts.filter((a) => a.type && a.type !== 'initial').length };
+  }
+  function simTarget(id, title) {
+    let m;
+    if ((m = /^N-?0*(\d{1,2})$/i.exec(id))) return { kind: 'test', g: GROUPS[0], n: +m[1] };
+    if ((m = /^UWSA-?0*(\d)$/i.exec(id))) return { kind: 'test', g: GROUPS[1], n: +m[1] };
+    if ((m = /^C-([A-Za-z]+)-0*(\d{1,2})$/.exec(id)) && SIM_SUBJ[m[1].toUpperCase()]) return { kind: 'cms', s: SUBJ.find((x) => x.key === SIM_SUBJ[m[1].toUpperCase()]), n: +m[2] };
+    if (/free\s*-?\s*120|^f-?120/i.test(id + ' ' + title) && (m = /(20[1-4]\d)/.exec(id + ' ' + title))) return { kind: 'test', g: GROUPS[2], n: +m[1] };
+    return null;
+  }
+  const slug = (x) => String(x).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+  function simPlan(src) {
+    const rows = [];
+    for (const id of new Set([...Object.keys(src.docs), ...src.suspended])) {
+      const r = src.docs[id] ? simResult(src.docs[id]) : null;
+      const row = { id, r, title: r ? r.title : id, score3: src.scores[id] != null && src.scores[id] >= 1 && src.scores[id] <= 300 ? Math.round(src.scores[id]) : null };
+      const tgt = simTarget(id, row.title);
+      if (!r || !r.done) Object.assign(row, { kind: 'skip', why: r && r.partial ? 'In progress' : 'Not finished', order: 3 });
+      else if (tgt) {
+        const fid = tgt.kind === 'cms' ? 'cms-' + tgt.s.key + '-' + tgt.n : tgt.g.key + '-' + tgt.n;
+        const name = tgt.kind === 'cms' ? tgt.s.name + ' Form ' + tgt.n : tgt.g.full(tgt.n);
+        Object.assign(row, { kind: 'form', tgt, fid, name, order: tgt.kind === 'cms' ? 1 + SUBJ.indexOf(tgt.s) / 100 : GROUPS.indexOf(tgt.g) / 100 });
+      } else Object.assign(row, { kind: 'qbank', logId: ('sim-' + slug(id).slice(0, 24) + '-' + slug(r.attempt).slice(-12)).replace(/-+$/, ''), order: 2 });
+      rows.push(row);
+    }
+    return rows.sort((a, b) => a.order - b.order || a.id.localeCompare(b.id, undefined, { numeric: true }));
+  }
+  // What importing one form row would change, given the current tracker state.
+  function simChange(row, overwrite) {
+    const { tgt, fid, r } = row, isCms = tgt.kind === 'cms', grp = isCms ? tgt.s : tgt.g;
+    const cur = item(fid), pctKey = isCms ? 'score' : 'pct';
+    const patch = {}, conflicts = [];
+    const want = (k, v, label, fmt) => {
+      if (v == null || v === '') return;
+      if (cur[k] === '') patch[k] = v;
+      else if (k === 'date' ? cur[k] !== v : num(cur[k]) !== num(v)) { conflicts.push(label + ': yours ' + fmt(cur[k]) + ', simulator ' + fmt(v)); if (overwrite) patch[k] = v; }
+    };
+    if (cur.status < 1) patch.status = 1;
+    want(pctKey, String(Math.round(r.correct / r.total * 1000) / 10), '% correct', (v) => fmtPct(num(v)));
+    if (!isCms && grp.scaled) want('score', row.score3 != null ? String(row.score3) : '', 'score', String);
+    want('date', r.date, 'date', fmtDate);
+    if (!cur.notes) patch.notes = 'Exam Simulator: ' + r.correct + '/' + r.total + ' correct' + (r.retakes ? ' (first attempt; ' + plural(r.retakes, 'retake') + ' not counted)' : '');
+    const listed = isCms ? tgt.n <= grp.latest || (state.extraForms[grp.key] || []).includes(tgt.n) : grp.base.includes(tgt.n) || (state.extraAssess[grp.key] || []).includes(tgt.n);
+    const hidden = state.removed.includes(fid);
+    const fresh = !cur.status && !cur.score && !cur.pct && !cur.date;
+    const changed = Object.keys(patch).some((k) => k !== 'notes') || (!!patch.notes && Object.keys(patch).length > 1) || !listed || hidden;
+    return { patch, conflicts, listed, hidden, changed, fresh };
+  }
+  function simLogEntry(row) {
+    return { id: row.logId, date: row.r.date || today(), q: Math.min(5000, row.r.total), pct: String(Math.round(row.r.correct / row.r.total * 1000) / 10), src: 'Other', note: ('Exam Simulator · ' + row.title).slice(0, 200), t: 0 };
+  }
+  function applySim(rows, opts) {
+    let nForms = 0, nLog = 0;
+    for (const row of rows) {
+      if (row.kind === 'form') {
+        const c = simChange(row, opts.overwrite);
+        if (!c.changed) continue;
+        const { tgt, fid } = row;
+        if (!c.listed) {
+          const list = tgt.kind === 'cms' ? state.extraForms : state.extraAssess, key = tgt.kind === 'cms' ? tgt.s.key : tgt.g.key;
+          list[key] = [...new Set([...(list[key] || []), tgt.n])].sort((a, b) => a - b);
+        }
+        if (c.hidden) state.removed = state.removed.filter((x) => x !== fid);
+        state.items[fid] = Object.assign({}, item(fid), c.patch);
+        nForms++;
+      } else if (row.kind === 'qbank' && opts.qbank && !state.log.some((e) => e.id === row.logId)) {
+        state.log.push(simLogEntry(row));
+        nLog++;
+      }
+    }
+    return { nForms, nLog };
+  }
+
+  async function importSimulator(files) {
+    if (!files || !files.length) return;
+    let src;
+    try { src = await readSimFiles([...files]); }
+    catch (e) { toast(e.message || 'Couldn’t read that file.'); return; }
+    const rows = simPlan(src);
+    if (!rows.length) { toast('No Exam Simulator progress found in that file.'); return; }
+    openSimSheet(rows, src.names.join(', '));
+  }
+  $('sim-import').addEventListener('change', () => { const inp = $('sim-import'), files = [...(inp.files || [])]; inp.value = ''; importSimulator(files); });
+  $('sim-btn').addEventListener('click', () => $('sim-import').click());
+
+  function openSimSheet(rows, fileName) {
+    const opts = { overwrite: false, qbank: true };
+    const forms = rows.filter((r) => r.kind === 'form'), sets = rows.filter((r) => r.kind === 'qbank'), skipped = rows.filter((r) => r.kind === 'skip');
+    const list = h('div', { class: 'sim-list' });
+    const go = h('button', { class: 'btn primary' });
+    const resultText = (row) => [row.r.correct + '/' + row.r.total, fmtPct(row.r.correct / row.r.total * 100), row.score3, fmtDate(row.r.date)].filter(Boolean).join(' · ');
+    const simRow = (name, sub, res, badge, cls, extra) => h('div', { class: 'sim-row' },
+      h('div', { class: 'sim-nm' }, h('b', { text: name }), sub ? h('small', { text: sub }) : null, extra ? h('small', { class: 'sc-warn', text: extra }) : null),
+      h('span', { class: 'sim-res', text: res }),
+      h('span', { class: 'sim-badge ' + cls, text: badge }));
+    const draw = () => {
+      let count = 0;
+      const formRows = forms.map((row) => {
+        const c = simChange(row, opts.overwrite);
+        if (c.changed) count++;
+        const badge = !c.changed ? (c.conflicts.length ? 'Kept yours' : 'Up to date') : c.fresh ? (!c.listed ? 'New form' : 'New') : 'Update';
+        const extra = c.conflicts.length ? c.conflicts.join(' · ') : !c.listed ? 'Adds ' + row.name + ' to your list' : c.hidden ? 'Unhides this form' : '';
+        return simRow(row.name, row.title !== row.name ? row.title : '', resultText(row), badge, c.changed ? (c.fresh ? 'new' : 'upd') : c.conflicts.length ? 'warn' : 'same', extra);
+      });
+      const setRows = sets.map((row) => {
+        const has = state.log.some((e) => e.id === row.logId);
+        if (opts.qbank && !has) count++;
+        return simRow(row.title, row.id, resultText(row), has ? 'Logged' : opts.qbank ? 'Qbank' : 'Skipped', has ? 'same' : opts.qbank ? 'new' : 'same');
+      });
+      const skipRows = skipped.map((row) => simRow(row.title, row.id, '', row.why, 'same'));
+      list.replaceChildren(...[
+        forms.length ? h('h3', { text: 'Assessments & CMS forms (' + forms.length + ')' }) : null, ...formRows,
+        sets.length ? h('h3', { text: 'Custom question sets (' + sets.length + ')' }) : null, ...setRows,
+        skipped.length ? h('h3', { text: 'Not imported (' + skipped.length + ')' }) : null, ...skipRows].filter(Boolean));
+      go.disabled = !count;
+      go.textContent = count ? 'Import ' + plural(count, 'change') : 'Nothing new to import';
+    };
+    const check = (label, key, hint) => {
+      const inp = h('input', { type: 'checkbox' });
+      inp.checked = opts[key];
+      inp.addEventListener('change', () => { opts[key] = inp.checked; draw(); });
+      return h('label', { class: 'switch sim-opt' }, inp, h('span', null, label, hint ? h('small', { class: 'muted', text: ' ' + hint }) : null));
+    };
+    go.addEventListener('click', () => {
+      const undo = snapshot();
+      const { nForms, nLog } = applySim(rows, opts);
+      save(); closeSheet();
+      toast('Imported ' + plural(nForms, 'form') + (nLog ? ' and ' + plural(nLog, 'qbank session') : '') + ' from the Exam Simulator', undo);
+    });
+    draw();
+    openSheet('sim-import', 'Import from Exam Simulator', [
+      sheetHead('Exam Simulator', 'Import progress'),
+      h('p', { class: 'hint', text: 'From ' + fileName + '. Finished forms fill in your tracker; empty fields are filled and nothing you entered is replaced unless you choose to. Scores use your first attempt.' }),
+      h('div', { class: 'sim-opts' },
+        check('Replace my values where they differ', 'overwrite'),
+        sets.length ? check('Log custom question sets as qbank sessions', 'qbank', '(“Other” qbank)') : null),
+      list,
+      h('div', { class: 'actions' }, go, h('button', { class: 'btn ghost', onclick: closeSheet }, 'Cancel')),
+    ], draw);
+  }
+
   // ---------- settings, backup ----------
   function download(name, text, type) {
     const url = URL.createObjectURL(new Blob([text], { type }));
@@ -1042,16 +1398,21 @@
   $('import').addEventListener('change', () => {
     const inp = $('import'), file = inp.files && inp.files[0];
     if (!file) return;
+    if (/\.zip$/i.test(file.name) || /zip/.test(file.type)) { inp.value = ''; importSimulator([file]); return; }
     const r = new FileReader();
     r.onload = () => {
       inp.value = '';
       let data = null;
       try { data = JSON.parse(r.result); } catch (e) {}
+      if (data && /^StepExamSimulator/.test(data.fileType || '')) { importSimulator([file]); return; }
       if (!data || typeof data !== 'object' || !('items' in data)) { toast('That file isn’t a tracker backup.'); return; }
       const undo = snapshot();
+      const theme = state.prefs.theme;
       state = norm(data);
+      state.prefs.theme = theme;
+      stampAll(state, Date.now());
       applyTheme(); save(); render(); refreshSheet();
-      toast('Backup restored', undo);
+      toast(cloud() && cloud().status().connected ? 'Backup restored — it replaces the copy in your Google account too' : 'Backup restored', undo);
     };
     r.readAsText(file);
   });
@@ -1097,25 +1458,50 @@
       const undo = snapshot();
       const theme = state.prefs.theme;
       state = blank(); state.prefs.theme = theme;
+      stampAll(state, Date.now());
       save(); closeSheet();
       toast('All data erased', undo);
     } }, 'Erase all data');
 
+    const gBox = h('div', { class: 'sect', id: 'st-google', tabindex: '-1' });
+    const drawGoogle = () => {
+      const c = cloud() && cloud().status();
+      if (!c) { gBox.replaceChildren(h('h3', { text: 'Google account' }), h('p', { class: 'hint', text: 'Google sync couldn’t load. Reload the page to try again.' })); return; }
+      const busy = c.state === 'syncing' || c.state === 'connecting';
+      const detail = [c.account ? 'Account: ' + c.account : '', c.shared ? 'using your ThunderShadow sign-in' : '',
+        c.lastSync ? 'last synced ' + new Date(c.lastSync).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : ''].filter(Boolean).join(' · ');
+      gBox.replaceChildren(...[
+        h('h3', { text: 'Google account' }),
+        h('p', { class: 'gstat g-' + c.state, text: c.message || (c.connected ? 'Signed in.' : 'Sign in with Google to keep your progress in your Google account and pick it up on any device.') }),
+        c.connected && detail ? h('p', { class: 'hint', text: detail.charAt(0).toUpperCase() + detail.slice(1) }) : null,
+        h('div', { class: 'btnrow' },
+          c.connected
+            ? h('button', { class: 'btn primary', disabled: busy, onclick: () => cloud().syncNow({ manual: true }).then(() => toast('Synced with Google')).catch((e) => toast(e.message)) }, busy ? 'Syncing…' : 'Sync now')
+            : h('button', { class: 'btn primary', id: 'st-gconnect', disabled: busy || !c.canSignIn, onclick: signIn }, 'Sign in with Google'),
+          c.connected ? h('button', { class: 'btn ghost', onclick: () => cloud().disconnect().then(() => toast('Signed out of Google sync')) }, 'Sign out') : null),
+        h('p', { class: 'hint', text: 'Stored in a private app folder in your Google Drive (it doesn’t show up in your Drive files), kept apart from ThunderShadow’s data. This browser keeps working offline and catches up when you’re back online.' }),
+        !c.connected && !c.canSignIn ? h('p', { class: 'hint', text: 'Google sign-in works on the published site: ' + c.returnUrl }) : null].filter(Boolean));
+    };
+    drawGoogle();
+
     openSheet('settings', 'Settings', [
-      sheetHead('Settings', 'Plan & backup'),
+      sheetHead('Settings', 'Plan, sync & backup'),
       h('div', { class: 'two' }, h('div', { class: 'field' }, h('label', { for: 'st-exam', text: 'Test date' }), examIn), target.field),
       h('div', { class: 'two' }, bank.field, h('div', { class: 'field' }, h('span', { class: 'lab', text: 'Theme' }), theme)),
       h('p', { class: 'hint', text: 'The test date drives the countdown, pace and score projection. The target adds a line to the score chart.' }),
+      gBox,
       h('div', { class: 'sect' },
-        h('h3', { text: 'Backup' }), backupNote,
+        h('h3', { text: 'Backup & import' }), backupNote,
         h('div', { class: 'btnrow' },
           h('button', { class: 'btn primary', id: 'st-export', onclick: exportJson }, 'Export backup'),
           h('button', { class: 'btn', onclick: exportCsv }, 'Export CSV'),
           h('button', { class: 'btn', onclick: () => $('import').click() }, 'Import backup')),
+        h('div', { class: 'btnrow' }, h('button', { class: 'btn', onclick: () => $('sim-import').click() }, 'Import from Exam Simulator')),
+        h('p', { class: 'hint', text: 'Exam Simulator import reads its progress backup (.zip) and fills in finished NBME, UWSA and CMS forms. You see what changes before anything is saved.' }),
         persistNote, h('div', { class: 'btnrow' }, persistBtn)),
       h('div', { class: 'sect' },
         h('h3', { text: 'Danger zone' }),
-        h('p', { class: 'hint', text: 'Erases every score, note and session in this browser. You can undo right after.' }),
+        h('p', { class: 'hint', text: 'Erases every score, note and session in this browser — and in your Google account if you’re signed in. You can undo right after.' }),
         h('div', { class: 'btnrow' }, resetBtn)),
       h('div', { class: 'actions' }, h('button', { class: 'btn primary', onclick: closeSheet }, 'Done')),
     ], () => {
@@ -1123,8 +1509,12 @@
       if (a !== examIn) examIn.value = p().examDate;
       if (a !== target.inp) target.inp.value = p().target;
       if (a !== bank.inp) bank.inp.value = p().bank;
-      drawTheme(); drawBackup();
+      drawTheme(); drawBackup(); drawGoogle();
     }, focus);
+  }
+  function signIn() {
+    if (!cloud()) return;
+    Promise.resolve(cloud().connect()).then(() => { if (cloud().status().connected) toast('Signed in with Google'); }).catch((e) => toast(e.message));
   }
   $('open-settings').addEventListener('click', () => openSettings());
   $('foot-settings').addEventListener('click', () => openSettings());
@@ -1137,15 +1527,34 @@
     if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
     if (e.key >= '1' && e.key <= String(TABS.length)) { showTab(TABS[Number(e.key) - 1], true); }
     else if (e.key === ',') { e.preventDefault(); openSettings(); }
+    else if (e.key === 't') cycleTheme();
   });
 
   // ---------- boot ----------
   state = load();
+  saved = clone(state);
   applyTheme();
   renderNotice();
   setSave(storageOk ? '' : 'off', storageOk ? 'Saved on this device' : 'Not saved — storage blocked');
   const hash = location.hash.slice(1);
   showTab(TABS.includes(hash) ? hash : 'overview');
+  if (cloud()) {
+    cloud().subscribe(() => { paintStatus(); refreshSheet(); });
+    cloud().init({
+      flush: () => { if (saveTimer) flush(); },
+      getState: () => clone(state),
+      norm, merge, same,
+      // Merge again with the live state so edits made while the sync was in flight are kept.
+      applyRemote: (next) => {
+        if (saveTimer) flush();
+        const m = merge(state, next);
+        if (same(m, state)) return;
+        state = m;
+        persistQuiet(); applyTheme(); render(); refreshSheet();
+      },
+    });
+    if (cloud().justConnected()) toast('Signed in with Google — syncing your progress');
+  }
   let rt;
   window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (ui.tab === 'overview') drawTrend(); }, 150); });
   // re-render after midnight so countdowns and "today" stay right

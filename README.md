@@ -1,6 +1,6 @@
 # Step 2 CK Tracker
 
-A study tracker for USMLE Step 2 CK that runs entirely in your browser. There's no account and no server: everything you log is saved on your device. You can install it as an app, and it works offline.
+A study tracker for USMLE Step 2 CK that runs in your browser. Everything you log is saved on your device first, so it works offline and installs as an app. You can also sign in with Google to keep your progress in your Google account and use it on every device.
 
 ## What it tracks
 
@@ -18,11 +18,31 @@ The overview page brings this together:
 - **Activity calendar** covering the last 20 weeks.
 - **"Up next" suggestions**: the next assessment to take, the pace you need, forms still to review, your weakest subject, low-confidence systems and a backup reminder.
 
+Use the moon/sun button in the header (or press `t`) to switch between light mode, dark mode and matching your device.
+
 ## Your data
 
-Progress is stored in your browser's `localStorage`. Use **Settings → Export backup** regularly. The backup is a JSON file that you can import on any device to move your progress there, or to restore it. **Export CSV** gives you a spreadsheet of everything.
+Progress is always saved in this browser first (`localStorage`, key `ck-tracker`).
 
-If you used the earlier single-file version, import its backup file. Your forms, systems and notes carry over.
+- **Google sync (optional).** Go to Settings → Google account → **Sign in with Google**. Your progress is saved to a private app folder in your Google Drive (`appDataFolder`, which doesn't appear in your Drive files) and kept in sync across your devices. It syncs a few seconds after each change, when the app opens or comes back into view, and when you reconnect after being offline. Each record carries a change timestamp, so edits made on two devices are merged rather than overwritten. Deletions carry over to your other devices, and restoring or erasing applies everywhere.
+- **Backups.** Settings → **Export backup** saves a JSON file you can import on any device. **Export CSV** gives you a spreadsheet. If you used the earlier single-file version, import its backup file and your forms, systems and notes carry over.
+- **Step Exam Simulator.** Settings → **Import from Exam Simulator** (also on the Assessments tab) reads the simulator's progress backup `.zip`. You can also pick the `*_progress_save.json` files directly. You see a preview before anything is saved.
+  - `N-xx` becomes an NBME form, `UWSAx` becomes a UWSA and `C-IM-03`-style IDs become CMS forms. % correct uses your first attempt, and the 3-digit score comes from `progress_metadata.json`.
+  - Your own values are kept unless you tick *Replace my values*. Unfinished tests are skipped.
+  - Custom question sets can be logged as qbank sessions.
+  - Importing the same file again changes nothing.
+
+### How Google sign-in works (same setup as ThunderShadow)
+
+Sign-in goes through the shared `study-tools-auth-worker` Cloudflare Worker. The page sends you to the Worker's `/oauth/start` with `app_id=thundertracker`, and the Worker returns you to the app with a session in `#cloud-auth=`. The page keeps only that session. It exchanges it at `/token` for a short-lived Google access token, which is held in memory only. Google refresh tokens and the client secret stay in the Worker. Public settings live in `config.js`; never put secrets there.
+
+The tracker shares ThunderShadow's Google OAuth client and Drive scope (`drive.appdata`), but never touches ThunderShadow's data:
+
+- **Drive file.** The tracker uses a single file, `thundertracker-state.json`, tagged `appId: thundertracker`. ThunderShadow only reads `thundershadow-*` files.
+- **Browser storage.** The tracker writes only `ck-tracker` and `thundertracker:*` keys.
+- **Shared sign-in.** If you're already signed in to ThunderShadow in the same browser (both apps are on `dawnsommer.github.io`), the tracker reuses that sign-in instead of asking again. It only reads ThunderShadow's `cloudflareWorkerSession`, never changes it, and signing out of the tracker doesn't sign ThunderShadow out.
+
+**One-time setup:** add `https://dawnsommer.github.io/thundertracker/` (and app ID `thundertracker`, if the Worker checks app IDs) to the Worker's allow-list, the same way ThunderShadow's return URL is listed. Until then, the tracker can still sync through an existing ThunderShadow sign-in in the same browser.
 
 ## Hosting on GitHub Pages
 
@@ -45,7 +65,9 @@ python3 -m http.server 8000
 | --- | --- |
 | `index.html` | Page structure |
 | `styles.css` | Styles: light and dark themes, phone layout |
-| `app.js` | All app logic: catalog, storage, rendering |
+| `app.js` | App logic: catalog, storage, sync merge, simulator import, rendering |
+| `cloud.js` | Optional Google sign-in (via the Worker) and Drive sync |
+| `config.js` | Public cloud settings: app ID, Worker URL, return URL, Drive scope |
 | `sw.js` | Service worker for offline use (network-first, so new deploys show up straight away) |
 | `manifest.webmanifest`, `icons/` | Install metadata and app icons |
 

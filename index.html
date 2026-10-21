@@ -22,6 +22,8 @@
   // Apply a saved light/dark choice before first paint.
   try { const t = (JSON.parse(localStorage.getItem('ck-tracker') || '{}').prefs || {}).theme; if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
 </script>
+<script src="config.js" defer></script>
+<script src="cloud.js" defer></script>
 <script src="app.js" defer></script>
 </head>
 <body>
@@ -36,6 +38,7 @@
       </div>
       <div class="top-r">
         <div class="save" id="save" role="status"><i></i><span id="save-t">Loading…</span></div>
+        <button class="icon-btn" id="theme-btn" aria-label="Theme" title="Theme"></button>
         <button class="icon-btn" id="open-settings" data-open="settings" aria-label="Settings and backup" title="Settings and backup">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
         </button>
@@ -94,12 +97,13 @@
   <section class="view" id="view-nbme" role="tabpanel" aria-labelledby="tab-nbme" hidden>
     <div class="sec-head">
       <div><h2>Self-assessments</h2><p class="sub">NBME, UWorld and Free 120. Tap a form to log its 3-digit score, % correct, date and review status.</p></div>
-      <div class="legend">
-        <span><i style="background:var(--s0)"></i>Not taken</span>
-        <span><i style="background:var(--s1)"></i>Taken</span>
-        <span><i style="background:var(--s2)"></i>Reviewed</span>
-        <span><i style="background:var(--s3)"></i>Anki made</span>
-      </div>
+      <button class="btn" id="sim-btn" data-open="sim-import" title="Import a progress backup (.zip) from the Step Exam Simulator">Import from Exam Simulator</button>
+    </div>
+    <div class="legend" style="margin-top:-18px">
+      <span><i style="background:var(--s0)"></i>Not taken</span>
+      <span><i style="background:var(--s1)"></i>Taken</span>
+      <span><i style="background:var(--s2)"></i>Reviewed</span>
+      <span><i style="background:var(--s3)"></i>Anki made</span>
     </div>
     <div id="tests"></div>
   </section>
@@ -162,14 +166,15 @@
   </section>
 
   <footer>
-    <p>Your progress is saved in this browser only — nothing is sent anywhere. Export a backup from <button class="linkish" data-open="settings" id="foot-settings">Settings</button> now and then, or to move to another device.</p>
+    <p>Your progress is saved in this browser first. Sign in with Google in <button class="linkish" data-open="settings" id="foot-settings">Settings</button> to keep it in your Google account and use it on any device, or export a backup file now and then.</p>
     <p>CMS form numbers reflect the latest forms reported in mid-2026 (Medicine &amp; OB/GYN to Form 10, Surgery, Pediatrics &amp; Neurology to 9, Psychiatry 8, Family Medicine 5, EM 3). Use “Add form” for a new release and “Edit list” to remove forms you won’t take.</p>
-    <p>Keyboard: <kbd>1</kbd>–<kbd>5</kbd> switch tabs · <kbd>,</kbd> settings · <kbd>Esc</kbd> closes a panel.</p>
+    <p>Keyboard: <kbd>1</kbd>–<kbd>5</kbd> switch tabs · <kbd>,</kbd> settings · <kbd>t</kbd> light/dark · <kbd>Esc</kbd> closes a panel.</p>
   </footer>
 </main>
 
 <div id="sheet-root"></div>
 <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
-<input type="file" id="import" accept="application/json,.json" hidden>
+<input type="file" id="import" accept="application/json,.json,application/zip,.zip" hidden>
+<input type="file" id="sim-import" accept=".zip,application/zip,.json,application/json" multiple hidden>
 </body>
 </html>
