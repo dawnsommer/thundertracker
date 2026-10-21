@@ -65,7 +65,9 @@ await p.click('[data-move="sec-nutrition:-1"]');
 let order = await p.locator('#art-list .art-sec h3').allTextContents();
 ok(order[0] === 'Recommended Extra Articles' && order[order.length - 1] === 'High-Yield Patient Safety & Quality Improvement', 'arrange: top/end moves: ' + order.map((x) => x.split(' ').slice(-1)).join(','));
 ok(order.indexOf('High-Yield Nutrition') === 3 && order.indexOf('High-Yield Biostatistics & Epidemiology') === 4, 'arrange: move up');
-ok(await p.evaluate(() => document.activeElement.dataset.move) === 'sec-nutrition:-1', 'focus stays on the move button');
+// focus returns after the re-render (a setTimeout), so wait for it rather than racing it
+const focused = await p.waitForFunction(() => document.activeElement && document.activeElement.dataset.move === 'sec-nutrition:-1', null, { timeout: 2000 }).then(() => true, () => false);
+ok(focused, 'focus stays on the move button');
 await p.click('#art-arrange');
 s = await local();
 ok(s.prefs.artOrder[0] === 'sec-extra', 'order saved (syncs)');
