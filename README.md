@@ -85,12 +85,17 @@ npm test -- sync core             # only tests whose file names start with these
 | --- | --- |
 | `index.html` | Page structure |
 | `styles.css` | Styles: light and dark themes, phone layout |
-| `app.js` | App logic: catalog, storage, sync merge, simulator import, rendering |
-| `cloud.js` | Optional Google sign-in (via the Worker) and Drive sync |
-| `config.js` | Public cloud settings: app ID, Worker URL, return URL, Drive scope |
-| `sw.js` | Service worker for offline use (network-first, so new deploys show up straight away) |
+| `js/main.js` | Entry point (an ES module): keyboard shortcuts and start-up; loads the rest |
+| `js/util.js`, `js/catalog.js` | Shared helpers; what the app tracks (forms, systems, qbanks, articles) |
+| `js/model.js`, `js/store.js`, `js/data.js` | Saved-data shape, normalising and sync merge; live state and saving; derived stats |
+| `js/shell.js`, `js/sheets.js` | Tabs and rendering; side panels |
+| `js/overview.js`, `js/assessments.js`, `js/cms.js`, `js/systems.js`, `js/qbank.js`, `js/articles.js`, `js/settings.js` | One module per page |
+| `js/sim-import.js`, `js/backup.js`, `js/updates.js` | Exam Simulator import; backup and CSV; app updates |
+| `js/config.js`, `js/cloud.js` | Public cloud settings; optional Google sign-in and Drive sync |
+| `sw.js` | Service worker for offline use |
 | `manifest.webmanifest`, `icons/` | Install metadata and app icons |
+| `tests/`, `tools/release.mjs` | Browser tests; version bump for releases |
 
 The form catalog (`GROUPS` and `SUBJ` at the top of `app.js`) is where you update the default lists when new NBME or CMS forms come out.
 
-**Releasing a change:** bump the version in three places together: `VERSION` in `sw.js`, the `?v=` on the four file links in `index.html`, and `APP_VERSION` in `app.js`. The service worker always revalidates app files with GitHub Pages, so a reload shows the new release (no waiting out the 10-minute browser cache), and open tabs get an "updated — Reload" notice. Settings → App version → **Reload latest version** refetches everything and clears only the tracker's own `ck-tracker-…` cache. Your progress, your Google sign-in and ThunderShadow's data on the same domain are left alone.
+**Releasing a change:** run `node tools/release.mjs`. It bumps `VERSION` in `sw.js`, `APP_VERSION` and every `?v=` (in `index.html`, `sw.js` and the imports between modules) together, and refreshes the offline file list. `npm test` checks that they all match. The service worker always revalidates app files with GitHub Pages, so a reload shows the new release (no waiting out the 10-minute browser cache), and open tabs get an "updated — Reload" notice. Settings → App version → **Reload latest version** refetches everything and clears only the tracker's own `ck-tracker-…` cache. Your progress, your Google sign-in and ThunderShadow's data on the same domain are left alone.

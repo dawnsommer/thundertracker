@@ -1,0 +1,174 @@
+// The Settings page.
+
+import { $, daysUntil, fmtDate, fmtN, fmtPct, h, isDate, plural } from './util.js?v=9';
+import { APP_VERSION } from './catalog.js?v=9';
+import { blank, stampAll } from './model.js?v=9';
+import { applyTheme, cloud, save, setState, snapshot, state, toast, ui } from './store.js?v=9';
+import { qbStats } from './data.js?v=9';
+import { numField, refreshSheet } from './sheets.js?v=9';
+import { render, showTab } from './shell.js?v=9';
+import { openQbank } from './qbank.js?v=9';
+import { exportCsv, exportJson } from './backup.js?v=9';
+import { reloadLatest } from './updates.js?v=9';
+
+// Built once each time you open it; live parts redraw through settingsRefresh so typing isn't interrupted.
+export let settingsRefresh = null;
+export function openSettings(focus) {
+  if (ui.tab !== 'settings') ui.prevTab = ui.tab;
+  ui.settingsFocus = focus || '';
+  showTab('settings', true);
+}
+export function buildSettings() {
+  const p = () => state.prefs;
+  const setPref = (k, v) => { state.prefs[k] = v; save(); render(); };
+  const card = (id, title, sub, ...kids) => h('section', { class: 'card set-card', id, 'aria-labelledby': id + '-h' },
+    h('h3', { id: id + '-h', text: title }), sub ? h('p', { class: 'sub', text: sub }) : null, ...kids);
+
+  // plan
+  const examIn = h('input', { type: 'date', id: 'st-exam', value: p().examDate });
+  examIn.addEventListener('change', () => setPref('examDate', isDate(examIn.value)));
+  const target = numField('st-target', 'Target score', { inputmode: 'numeric', step: '1', placeholder: 'e.g. 255', value: p().target }, 1, 300, true, (raw) => setPref('target', raw));
+  const planNote = h('p', { class: 'hint' });
+  const drawPlan = () => {
+    const ex = p().examDate, dl = ex ? daysUntil(ex) : null;
+    planNote.textContent = ex ? (dl > 0 ? plural(dl, 'day') + ' to go · ' : dl === 0 ? 'Test day is today · ' : 'Test date has passed · ') + 'drives the countdown, pace and score projection.'
+      : 'Set it to get a countdown, a pace for your remaining assessments and qbanks, and a projected score.';
+  };
+
+  // Google
+  const gBox = h('div', { class: 'set-body', id: 'st-google', tabindex: '-1' });
+  const drawGoogle = () => {
+    const c = cloud() && cloud().status();
+    if (!c) { gBox.replaceChildren(h('p', { class: 'hint', text: 'Google sync couldn’t load. Reload the page to try again.' })); return; }
+    const busy = c.state === 'syncing' || c.state === 'connecting';
+    const detail = [c.account ? 'Account: ' + c.account : '', c.shared ? 'using your ThunderShadow sign-in' : '',
+      c.lastSync ? 'last synced ' + new Date(c.lastSync).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '', c.pending ? 'changes waiting to sync' : ''].filter(Boolean).join(' · ');
+    gBox.replaceChildren(...[
+      h('p', { class: 'gstat g-' + c.state, text: c.message || (c.connected ? 'Signed in.' : 'Sign in with Google to keep your progress in your Google account and pick it up on any device.') }),
+      c.connected && detail ? h('p', { class: 'hint', text: detail.charAt(0).toUpperCase() + detail.slice(1) }) : null,
+      h('div', { class: 'btnrow' },
+        c.connected
+          ? h('button', { class: 'btn primary', disabled: busy, onclick: () => cloud().syncNow({ manual: true }).then(() => toast('Synced with Google')).catch((e) => toast(e.message)) }, busy ? 'Syncing…' : 'Sync now')
+          : h('button', { class: 'btn primary', id: 'st-gconnect', disabled: busy || !c.canSignIn, onclick: signIn }, 'Sign in with Google'),
+        c.connected ? h('button', { class: 'btn ghost', onclick: () => cloud().disconnect().then(() => toast('Signed out of Google sync')) }, 'Sign out') : null),
+      h('details', { class: 'set-more' }, h('summary', { text: 'When does it sync?' }),
+        h('ul', null,
+          h('li', { text: 'About 10 seconds after you stop editing (at most a minute after your first change), and right away when you leave the app.' }),
+          h('li', { text: 'When you open the app, and when you come back to it (at most every 5 minutes), it checks for changes from your other devices — a quick file check, with nothing downloaded unless something changed.' }),
+          h('li', { text: 'The sign-in service (the Cloudflare Worker) is only contacted to sign in or out and about once an hour while you’re using the app, when Google’s access pass expires.' }),
+          h('li', { text: 'If Google can’t be reached it waits longer between tries (30 seconds up to 15 minutes). Nothing is lost: everything stays saved on this device.' }))),
+      h('p', { class: 'hint', text: 'Stored in a private app folder in your Google Drive (it doesn’t show up in your Drive files), kept apart from ThunderShadow’s data.' }),
+      !c.connected && !c.canSignIn ? h('p', { class: 'hint', text: 'Google sign-in works on the published site: ' + c.returnUrl }) : null].filter(Boolean));
+  };
+
+  // appearance
+  const theme = h('div', { class: 'seg mode', role: 'group', 'aria-label': 'Theme' });
+  const drawTheme = () => theme.replaceChildren(...[['system', 'Match device'], ['light', 'Light'], ['dark', 'Dark']].map(([k, l]) =>
+    h('button', { 'aria-pressed': p().theme === k ? 'true' : 'false', onclick: () => { state.prefs.theme = k; applyTheme(); save(); drawTheme(); } }, l)));
+  const artView = h('div', { class: 'seg mode', role: 'group', 'aria-label': 'Articles layout' });
+  const drawArtView = () => artView.replaceChildren(...[['grid', 'Grid'], ['list', 'List']].map(([k, l]) =>
+    h('button', { 'aria-pressed': p().artView === k ? 'true' : 'false', onclick: () => { state.prefs.artView = k; save(); drawArtView(); } }, l)));
+
+  // qbanks
+  const qbList = h('div', { class: 'set-list' });
+  const drawQb = () => qbList.replaceChildren(...qbStats().banks.map((b) => h('div', { class: 'set-row' },
+    h('div', null, h('b', { text: b.qb.name }), h('small', { text: [b.bank ? fmtN(b.bank) + ' questions' : 'bank size not set', b.pctDone != null ? fmtPct(b.pctDone) + ' done' : '', b.acc != null ? fmtPct(b.acc) + ' correct' : '', b.finished ? 'finished ' + fmtDate(b.qb.finished) : ''].filter(Boolean).join(' · ') })),
+    h('button', { class: 'btn', 'data-open': 'qb-' + b.qb.id, onclick: () => openQbank(b.qb) }, 'Edit'))),
+    h('div', { class: 'btnrow' }, h('button', { class: 'btn ghost', 'data-open': 'qb-new', onclick: () => openQbank(null) }, '+ Add a qbank')));
+
+  // backup
+  const backupNote = h('p', { class: 'hint' });
+  const drawBackup = () => {
+    const lb = p().lastBackup;
+    backupNote.textContent = (lb ? 'Last backup ' + fmtDate(lb.slice(0, 10)) + '. ' : 'No backup file yet. ') + 'Backups are JSON files you can import on any device. CSV opens in Excel or Sheets.';
+  };
+  const persistNote = h('p', { class: 'hint' });
+  const persistBtn = h('button', { class: 'btn', hidden: true, onclick: async () => {
+    try { await navigator.storage.persist(); } catch (e) {}
+    checkPersist();
+  } }, 'Protect from clearing');
+  const checkPersist = async () => {
+    if (!navigator.storage || !navigator.storage.persisted) { persistNote.textContent = 'Your browser decides how long site data is kept — sign in with Google or export backups.'; return; }
+    const ok = await navigator.storage.persisted().catch(() => false);
+    persistNote.textContent = ok ? 'This browser has agreed to keep your data unless you clear it yourself.' : 'The browser may clear site data when space runs low. Ask it to keep your data, and sign in with Google or export backups.';
+    persistBtn.hidden = ok;
+  };
+  checkPersist();
+
+  // danger zone
+  let armTimer = null;
+  const resetBtn = h('button', { class: 'btn ghost danger', onclick: () => {
+    if (!resetBtn.dataset.arm) {
+      resetBtn.dataset.arm = '1'; resetBtn.textContent = 'Tap again to erase everything';
+      armTimer = setTimeout(() => { delete resetBtn.dataset.arm; resetBtn.textContent = 'Erase all data'; }, 4000);
+      return;
+    }
+    clearTimeout(armTimer);
+    delete resetBtn.dataset.arm; resetBtn.textContent = 'Erase all data';
+    const undo = snapshot();
+    const theme = state.prefs.theme;
+    setState(blank()); state.prefs.theme = theme;
+    stampAll(state, Date.now());
+    save(); render(); refreshSheet();
+    toast('All data erased', undo);
+  } }, 'Erase all data');
+
+  const keys = [['1 – 6', 'Switch tabs'], [',', 'Open settings'], ['t', 'Light / dark'], ['Esc', 'Close a panel, or leave settings'], ['← →', 'Move between tabs (when a tab is focused)']];
+  const SECTIONS = [
+    ['set-plan', 'Plan'], ['set-sync', 'Google sync'], ['set-look', 'Appearance'], ['set-qbanks', 'Qbanks'],
+    ['set-data', 'Backup & import'], ['set-keys', 'Shortcuts'], ['set-app', 'App version'], ['set-danger', 'Erase data'],
+  ];
+  const nav = h('nav', { class: 'set-nav', 'aria-label': 'Settings sections' }, SECTIONS.map(([id, label]) =>
+    h('a', { href: '#settings', 'data-sec': id, onclick: (e) => { e.preventDefault(); const el = $(id); el.scrollIntoView({ block: 'start', behavior: 'smooth' }); el.focus({ preventScroll: true }); } }, label)));
+
+  $('settings-body').replaceChildren(nav, h('div', { class: 'set-main' },
+    card('set-plan', 'Plan', 'Your test date and the score you’re aiming for.',
+      h('div', { class: 'two' }, h('div', { class: 'field' }, h('label', { for: 'st-exam', text: 'Test date' }), examIn), target.field), planNote),
+    card('set-sync', 'Google sync', null, gBox),
+    card('set-look', 'Appearance', 'Saved on this device only.',
+      h('div', { class: 'set-row' }, h('div', null, h('b', { text: 'Theme' }), h('small', { text: 'Or press t, or use the button in the header.' })), theme),
+      h('div', { class: 'set-row' }, h('div', null, h('b', { text: 'AMBOSS articles layout' }), h('small', { text: 'Grid fits more articles on screen.' })), artView)),
+    card('set-qbanks', 'Qbanks', 'Bank sizes and the progress you’d made before logging sessions here.', qbList),
+    card('set-data', 'Backup & import', null, backupNote,
+      h('div', { class: 'btnrow' },
+        h('button', { class: 'btn primary', id: 'st-export', onclick: exportJson }, 'Export backup'),
+        h('button', { class: 'btn', onclick: exportCsv }, 'Export CSV'),
+        h('button', { class: 'btn', onclick: () => $('import').click() }, 'Import backup')),
+      h('div', { class: 'btnrow' }, h('button', { class: 'btn', 'data-open': 'sim-import', onclick: () => $('sim-import').click() }, 'Import from Exam Simulator')),
+      h('p', { class: 'hint', text: 'Exam Simulator import reads its progress backup (.zip) and fills in finished NBME, UWSA and CMS forms. You see what changes before anything is saved.' }),
+      persistNote, h('div', { class: 'btnrow' }, persistBtn)),
+    card('set-keys', 'Keyboard shortcuts', null, h('dl', { class: 'keys' }, keys.flatMap(([k, d]) => [h('dt', null, h('kbd', { text: k })), h('dd', { text: d })]))),
+    card('set-app', 'App version', null,
+      h('p', { class: 'hint', text: 'Version ' + APP_VERSION + '. The app checks for a new version each time it opens and shows “Reload” when one is ready. If this device still shows an old version, reload it here — your progress, your Google sign-in and ThunderShadow’s data on the same site are not touched.' }),
+      h('div', { class: 'btnrow' }, h('button', { class: 'btn', id: 'st-reload', onclick: reloadLatest }, 'Reload latest version'))),
+    card('set-danger', 'Erase data', 'Erases every score, note, session and article tick in this browser — and in your Google account if you’re signed in. You can undo right after.',
+      h('div', { class: 'btnrow' }, resetBtn)),
+    h('p', { class: 'hint set-about' }, 'Thunder tracker · your data stays in this browser and, if you sign in, your own Google Drive. ',
+      h('a', { href: 'https://github.com/dawnsommer/thundertracker', target: '_blank', rel: 'noopener noreferrer', text: 'Source on GitHub' }))));
+  // make the section cards focus targets for the nav
+  SECTIONS.forEach(([id]) => $(id).setAttribute('tabindex', '-1'));
+
+  settingsRefresh = () => {
+    const a = document.activeElement;
+    if (a !== examIn) examIn.value = p().examDate;
+    if (a !== target.inp) target.inp.value = p().target;
+    drawPlan(); drawGoogle(); drawTheme(); drawArtView(); drawQb(); drawBackup();
+  };
+  settingsRefresh();
+  const f = ui.settingsFocus; ui.settingsFocus = '';
+  setTimeout(() => {
+    const el = f ? document.querySelector(f) : null;
+    if (el) { el.scrollIntoView({ block: 'center' }); el.focus(); } else $('settings-h').focus();
+  }, 0);
+}
+export function signIn() {
+  if (!cloud()) return;
+  Promise.resolve(cloud().connect()).then(() => { if (cloud().status().connected) toast('Signed in with Google'); })
+    .catch((e) => { if (e.refused) { toast('Google sign-in isn’t available yet — details in Settings'); if (ui.tab !== 'settings') openSettings('#st-google'); } else toast(e.message); });
+}
+export const leaveSettings = () => showTab(ui.prevTab && ui.prevTab !== 'settings' ? ui.prevTab : 'overview', true);
+$('open-settings').addEventListener('click', () => (ui.tab === 'settings' ? leaveSettings() : openSettings()));
+$('settings-back').addEventListener('click', leaveSettings);
+$('foot-settings').addEventListener('click', () => openSettings());
+
+export function setSettingsRefresh(f) { settingsRefresh = f; }
