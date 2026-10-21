@@ -122,7 +122,7 @@ export function openQbank(qb) {
   const finIn = h('input', { type: 'checkbox', id: 'qb-fin' });
   finIn.checked = !!cur().finished;
   const finDate = h('input', { type: 'date', id: 'qb-fin-date', value: cur().finished, 'aria-label': 'Finished on' });
-  const picker = weakPicker(() => cur().weak || [], (weak) => patch({ weak }));
+  const picker = weakPicker(() => cur().weak || [], (weak) => patch({ weak }), () => cur().weakPct || {}, (weakPct) => patch({ weakPct }));
   const finBox = h('div', { class: 'field qb-fin-box' });
   const drawFin = () => {
     const b = bankStats(cur()), fin = !!cur().finished;

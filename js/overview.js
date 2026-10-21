@@ -9,6 +9,7 @@ import { openForm } from './assessments.js?v=9';
 import { openSystem } from './systems.js?v=9';
 import { renderArtSummary } from './articles.js?v=9';
 import { openSettings, signIn } from './settings.js?v=9';
+import { inDays, openPlanner, plannedForms } from './planner.js?v=9';
 
 export function tile(label, big, small, frac, note) {
   return h('div', { class: 'tile' },
@@ -107,6 +108,10 @@ export function renderWeak(box) {
     return;
   }
   const recurring = rows.filter((r) => r.hits.length >= 2);
+  // optional % correct in a weak system: lower % = darker square (UWorld falls back to the system's UW %)
+  const pctFor = (src, sy) => num(src.pct[sy.id]) ?? (src.kind === 'qbank' && src.full.startsWith('UWorld') ? num(sysItem(sy.id).uw) : null);
+  const shade = (p) => (p == null ? '' : p < 55 ? ' sh3' : p < 65 ? ' sh2' : ' sh1');
+  const anyPct = rows.some((r) => r.hits.some((src) => pctFor(src, r.sy) != null));
   const shown = ui.weakAll ? rows : rows.slice(0, 10);
   const total = sources.length;
   const cols = 'grid-template-columns:minmax(7.5rem,9.5rem) repeat(' + sources.length + ',22px) 4.2rem';
@@ -120,8 +125,11 @@ export function renderWeak(box) {
     return h('button', { class: 'wm-row' + (n >= 2 ? ' rec' : ''), style: cols, 'data-open': r.sy.id, onclick: () => openSystem(r.sy),
       'aria-label': r.sy.name + ': weak ' + n + ' of ' + total + ' times — ' + r.hits.map((x) => x.full).join(', ') + (r.recent ? '. Weak recently.' : '') },
       h('span', { class: 'wm-name', title: r.sy.name }, shortSys(r.sy.name), h('small', { class: 'wm-n', text: n + '×' }), r.recent ? h('i', { class: 'wm-recent', title: 'Weak in one of your last two marked assessments' }) : null),
-      sources.map((src, i) => h('span', { class: 'wm-cell' + (hit.has(src.key) ? (src.kind === 'qbank' ? ' on qb' : ' on') : '') + (src.kind === 'qbank' && (i === 0 || sources[i - 1].kind !== 'qbank') ? ' first-qb' : ''),
-        title: hit.has(src.key) ? shortSys(r.sy.name) + ' weak · ' + src.full : '' })),
+      sources.map((src, i) => {
+        const on = hit.has(src.key), p = on ? pctFor(src, r.sy) : null;
+        return h('span', { class: 'wm-cell' + (on ? (src.kind === 'qbank' ? ' on qb' : ' on') + shade(p) : '') + (src.kind === 'qbank' && (i === 0 || sources[i - 1].kind !== 'qbank') ? ' first-qb' : ''),
+          title: on ? shortSys(r.sy.name) + ' weak · ' + src.full + (p != null ? ' · ' + fmtPct(p) + ' correct' : '') : '' }, p != null ? String(Math.round(p)) : null);
+      }),
       h('span', { class: 'wm-tot' }, h('b', { text: String(n) }), h('span', { class: 'wm-bar', 'aria-hidden': 'true' }, h('i', { style: 'width:' + (n / total * 100) + '%' }))));
   });
   box.replaceChildren(...[
@@ -136,6 +144,7 @@ export function renderWeak(box) {
       h('span', null, h('i', { class: 'wm-cell on' }), 'Weak in an assessment'),
       nBanks ? h('span', null, h('i', { class: 'wm-cell on qb' }), 'Weak in a qbank') : null,
       h('span', null, h('i', { class: 'wm-recent' }), 'Weak in your last 2 assessments'),
+      anyPct ? h('span', null, h('i', { class: 'wm-cell on sh1' }), h('i', { class: 'wm-cell on sh2' }), h('i', { class: 'wm-cell on sh3' }), 'Your % in that system (65+ · 55–64 · under 55)') : null,
       h('span', { text: 'Columns oldest → newest · tap a row for the system, a column for the form' })),
   ].filter(Boolean));
 }
@@ -144,8 +153,15 @@ export function renderNext(tests, cms, qb, dl) {
   const lis = [];
   const go = (text, fn, key) => h('button', { class: 'go', onclick: fn, 'data-open': key || null }, text);
   const left = tests.filter((f) => !taken(f) && !f.old);
-  const nextT = left.find((f) => f.g.key !== 'f120') || left[0];
-  if (nextT) lis.push(['Next', go('Take ' + nextT.full, () => openForm(nextT), nextT.id)]);
+  const planned = plannedForms(), overdue = planned.filter((f) => daysUntil(item(f.id).plan) < 0), upcoming = planned.find((f) => daysUntil(item(f.id).plan) >= 0);
+  if (overdue.length) lis.push(['Overdue', go(overdue.map((f) => f.full).join(', ') + ' — planned ' + fmtDate(item(overdue[0].id).plan) + '. Take it or pick a new date', () => openForm(overdue[0]), overdue[0].id)]);
+  if (upcoming) lis.push(['Planned', go(upcoming.full + ' ' + inDays(item(upcoming.id).plan) + ' (' + fmtLong(item(upcoming.id).plan) + ')', () => openForm(upcoming), upcoming.id)]);
+  else {
+    const nextT = left.find((f) => f.g.key !== 'f120') || left[0];
+    if (nextT) lis.push(['Next', go('Take ' + nextT.full, () => openForm(nextT), nextT.id)]);
+  }
+  const unplanned = left.filter((f) => !item(f.id).plan);
+  if (dl != null && dl > 3 && unplanned.length) lis.push(['Plan', go('Pick dates for ' + plural(unplanned.length, 'remaining assessment') + ' before test day', openPlanner, 'planner')]);
   if (dl != null && dl > 0 && left.length) {
     const every = dl / left.length;
     lis.push(['Pace', left.length + ' assessment' + (left.length > 1 ? 's' : '') + ' left in ' + plural(dl, 'day') +
@@ -287,10 +303,18 @@ export function renderHeat(box) {
   const weeks = 20, t = dayNum(today());
   const start = t - weekday(t) - (weeks - 1) * 7;
   const act = activityByDay();
+  // planned forms and test day: extend past this week (up to 8 weeks) to reach them
+  const plans = new Map();
+  plannedForms().forEach((f) => { const d = item(f.id).plan; if (!plans.has(d)) plans.set(d, []); plans.get(d).push(f.full); });
+  const ex = state.prefs.examDate;
+  const future = [...plans.keys(), ex].filter((d) => d && dayNum(d) > t).map(dayNum);
+  const ahead = future.length ? Math.max(0, Math.min(8, Math.ceil((Math.max(...future) - (start + weeks * 7) + 1) / 7))) : 0;
+  const futText = (ds) => fmtLong(ds) + ' — ' + [plans.has(ds) ? 'planned: ' + plans.get(ds).join(', ') : '', ds === ex ? 'test day' : ''].filter(Boolean).join(' · ');
+  const textFor = (ds) => (dayNum(ds) > t ? futText(ds) : dayText(ds, act.get(ds)));
   const cells = [], months = [];
   const tot = { days: 0, q: 0, tests: 0, cms: 0, sys: 0 };
   let prevMonth = null, lastActive = null;
-  for (let w = 0; w < weeks; w++) {
+  for (let w = 0; w < weeks + ahead; w++) {
     const mon = new Date((start + w * 7) * 864e5).getUTCMonth();
     // label each month at its first week; skip a leading partial month that would collide with the next label
     const nextMon = new Date((start + (w + 2) * 7) * 864e5).getUTCMonth();
@@ -300,7 +324,12 @@ export function renderHeat(box) {
     }
     for (let d = 0; d < 7; d++) {
       const n = start + w * 7 + d;
-      if (n > t) { cells.push(h('i', { class: 'hc fut' })); continue; }
+      if (n > t) {
+        const ds = fromDay(n), mark = plans.has(ds) || ds === ex;
+        cells.push(h('i', { class: 'hc fut' + (plans.has(ds) ? ' m-plan' : '') + (ds === ex ? ' m-test' : '') + (mark && ui.heatDay === ds ? ' sel' : ''),
+          'data-day': mark ? ds : null, title: mark ? futText(ds) : null }));
+        continue;
+      }
       const ds = fromDay(n), a = act.get(ds), q = a ? a.q : 0;
       if (a) {
         tot.days++; tot.q += q; tot.tests += a.tests.length; tot.cms += a.cms.length; tot.sys += a.sys.length;
@@ -312,8 +341,8 @@ export function renderHeat(box) {
     }
   }
   const shown = ui.heatDay && dayNum(ui.heatDay) >= start ? ui.heatDay : lastActive;
-  const detail = h('p', { class: 'heat-detail', 'aria-live': 'polite', text: shown ? dayText(shown, act.get(shown)) : 'Nothing logged in the last 20 weeks yet.' });
-  const cols = 'grid-template-columns:repeat(' + weeks + ',minmax(0,1fr))';
+  const detail = h('p', { class: 'heat-detail', 'aria-live': 'polite', text: shown ? textFor(shown) : 'Nothing logged in the last 20 weeks yet.' });
+  const cols = 'grid-template-columns:repeat(' + (weeks + ahead) + ',minmax(0,1fr))';
   const grid = h('div', { class: 'heat', style: cols, role: 'img', 'aria-label': 'Activity over the last ' + weeks + ' weeks: ' + plural(tot.days, 'active day') + ', ' + tot.q + ' qbank questions, ' +
     plural(tot.tests, 'self-assessment') + ', ' + plural(tot.cms, 'CMS form') + ', ' + plural(tot.sys, 'system update') }, cells);
   grid.addEventListener('click', (e) => {
@@ -321,7 +350,7 @@ export function renderHeat(box) {
     ui.heatDay = c.dataset.day;
     grid.querySelectorAll('.hc.sel').forEach((x) => x.classList.remove('sel'));
     c.classList.add('sel');
-    detail.textContent = dayText(ui.heatDay, act.get(ui.heatDay));
+    detail.textContent = textFor(ui.heatDay);
   });
   box.replaceChildren(
     h('div', { class: 'heat-wrap' },
@@ -332,7 +361,9 @@ export function renderHeat(box) {
       h('span', null, 'Qbank', [1, 2, 3, 4].map((l) => h('i', { class: 'hc l' + l }))),
       h('span', null, h('i', { class: 'hc m-ex' }), 'NBME / UWSA / Free 120'),
       h('span', null, h('i', { class: 'hc m-cms' }), 'CMS form'),
-      h('span', null, h('i', { class: 'hc m-sys' }), 'System update')),
+      h('span', null, h('i', { class: 'hc m-sys' }), 'System update'),
+      plans.size ? h('span', null, h('i', { class: 'hc fut m-plan' }), 'Planned') : null,
+      ex && ahead ? h('span', null, h('i', { class: 'hc fut m-test' }), 'Test day') : null),
     h('p', { class: 'heat-sum', text: [plural(tot.days, 'active day'), fmtN(tot.q) + ' questions', plural(tot.tests, 'assessment'), plural(tot.cms, 'CMS form'), plural(tot.sys, 'system update')].join(' · ') }));
 }
 

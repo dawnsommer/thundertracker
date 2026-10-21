@@ -7,13 +7,13 @@ import { refreshSheet } from './sheets.js?v=9';
 import { render, renderNotice } from './shell.js?v=9';
 
 export let state = blank();
-export const ui = { tab: 'overview', subj: 'all', st: 'all', addingFor: null, focusAdd: false, editForms: false, logAll: false, heatDay: '', weakAll: false, prevTab: 'overview', artArrange: false,
+export const ui = { tab: 'overview', subj: 'all', st: 'all', addingFor: null, focusAdd: false, editForms: false, logAll: false, heatDay: '', weakAll: false, prevTab: 'overview', artArrange: false, calcOpen: false,
   artF: 'all', artQ: '', artAdding: null, artNewSec: false, artRename: null, artJump: '' };
 export let saveTimer = null, storageOk = true, storageMsg = '';
 export let saved = blank(); // copy of what is in storage, used to stamp what changed
 export const cloud = () => window.CKCloud || null;
 
-export const item = (id) => state.items[id] || { status: 0, score: '', pct: '', date: '', notes: '', weak: [] };
+export const item = (id) => state.items[id] || { status: 0, score: '', pct: '', date: '', notes: '', weak: [], weakPct: {}, plan: '' };
 export const sysItem = (id) => state.systems[id] || normSys(null);
 
 // Header status: local save state first, then Google sync state when signed in.

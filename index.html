@@ -108,8 +108,13 @@
   <section class="view" id="view-nbme" role="tabpanel" aria-labelledby="tab-nbme" hidden>
     <div class="sec-head">
       <div><h2>Self-assessments</h2><p class="sub">NBME, UWorld and Free 120. Tap a form to log its 3-digit score, % correct, date and review status.</p></div>
-      <button class="btn" id="sim-btn" data-open="sim-import" title="Import a progress backup (.zip) from the Step Exam Simulator">Import from Exam Simulator</button>
+      <div class="btnrow">
+        <button class="btn" id="calc-btn" aria-expanded="false" aria-controls="calc">Score calculator</button>
+        <button class="btn" id="plan-btn" data-open="planner">Plan dates</button>
+        <button class="btn" id="sim-btn" data-open="sim-import" title="Import a progress backup (.zip) from the Step Exam Simulator">Import from Exam Simulator</button>
+      </div>
     </div>
+    <div id="calc" hidden></div>
     <div class="legend" style="margin-top:-18px">
       <span><i style="background:var(--s0)"></i>Not taken</span>
       <span><i style="background:var(--s1)"></i>Taken</span>

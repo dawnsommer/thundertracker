@@ -6,18 +6,39 @@ import { render } from './shell.js?v=9';
 import { settingsRefresh } from './settings.js?v=9';
 
 // Tap-to-toggle system chips, shared by assessments and qbanks.
-export function weakPicker(get, set) {
+// getPct/setPct (optional): the % correct you scored in each weak system, which shades the weakness matrix.
+export function weakPicker(get, set, getPct, setPct) {
+  const wrap = h('div', { class: 'weak-wrap' });
   const box = h('div', { class: 'tags weak-pick', role: 'group', 'aria-label': 'Weak systems' });
-  const draw = () => box.replaceChildren(...allSystems().map((sy) => {
-    const on = get().includes(sy.id);
-    return h('button', { class: 'tag' + (on ? ' on weak-on' : ''), 'aria-pressed': on ? 'true' : 'false', title: sy.name, onclick: () => {
-      const w = get().filter((x) => x !== sy.id);
-      set(on ? w : w.concat(sy.id));
-      draw();
-    } }, (on ? '✓ ' : '') + shortSys(sy.name));
-  }));
+  const pctBox = h('div', { class: 'weak-pcts' });
+  let showPct = !!(getPct && Object.keys(getPct()).length);
+  const draw = () => {
+    box.replaceChildren(...allSystems().map((sy) => {
+      const on = get().includes(sy.id);
+      return h('button', { class: 'tag' + (on ? ' on weak-on' : ''), 'aria-pressed': on ? 'true' : 'false', title: sy.name, onclick: () => {
+        const w = get().filter((x) => x !== sy.id);
+        set(on ? w : w.concat(sy.id));
+        draw();
+      } }, (on ? '✓ ' : '') + shortSys(sy.name));
+    }));
+    if (!getPct) return;
+    const sel = get().map((id) => allSystems().find((x) => x.id === id)).filter(Boolean);
+    if (!sel.length) { pctBox.replaceChildren(); return; }
+    if (!showPct) { pctBox.replaceChildren(h('button', { class: 'linkish', onclick: () => { showPct = true; draw(); } }, 'Add % correct per weak system (optional — shades the weakness matrix)')); return; }
+    pctBox.replaceChildren(h('p', { class: 'hint', text: '% correct in each weak system, from the score report (optional):' }),
+      h('div', { class: 'weak-pct-grid' }, sel.map((sy) => {
+        const inp = h('input', { type: 'number', min: '0', max: '100', step: 'any', inputmode: 'decimal', placeholder: '%', value: getPct()[sy.id] || '', 'aria-label': '% correct in ' + sy.name, 'data-weakpct': sy.id });
+        inp.addEventListener('input', () => {
+          const v = inp.value.trim(), n = Number(v), next = Object.assign({}, getPct());
+          if (v === '') delete next[sy.id]; else if (n >= 0 && n <= 100) next[sy.id] = v; else return;
+          setPct(next);
+        });
+        return h('label', { class: 'weak-pct' }, h('span', { text: shortSys(sy.name) }), inp);
+      })));
+  };
   draw();
-  return { box, draw };
+  wrap.append(box, pctBox);
+  return { box: wrap, draw };
 }
 export const root = $('sheet-root');
 export let sheetOpen = null;

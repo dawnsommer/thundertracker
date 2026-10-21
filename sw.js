@@ -11,7 +11,7 @@
 const VERSION = 9;
 const PREFIX = 'ck-tracker-';
 const CACHE = PREFIX + 'v' + VERSION;
-const SHELL = ['./', 'index.html', 'styles.css?v=9', 'js/articles.js?v=9', 'js/assessments.js?v=9', 'js/backup.js?v=9', 'js/catalog.js?v=9', 'js/cloud.js?v=9', 'js/cms.js?v=9', 'js/config.js?v=9', 'js/data.js?v=9', 'js/main.js?v=9', 'js/model.js?v=9', 'js/overview.js?v=9', 'js/qbank.js?v=9', 'js/settings.js?v=9', 'js/sheets.js?v=9', 'js/shell.js?v=9', 'js/sim-import.js?v=9', 'js/store.js?v=9', 'js/systems.js?v=9', 'js/updates.js?v=9', 'js/util.js?v=9', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'];
+const SHELL = ['./', 'index.html', 'styles.css?v=9', 'js/articles.js?v=9', 'js/assessments.js?v=9', 'js/backup.js?v=9', 'js/calculator.js?v=9', 'js/catalog.js?v=9', 'js/cloud.js?v=9', 'js/cms.js?v=9', 'js/config.js?v=9', 'js/data.js?v=9', 'js/main.js?v=9', 'js/model.js?v=9', 'js/overview.js?v=9', 'js/planner.js?v=9', 'js/qbank.js?v=9', 'js/settings.js?v=9', 'js/sheets.js?v=9', 'js/shell.js?v=9', 'js/sim-import.js?v=9', 'js/store.js?v=9', 'js/systems.js?v=9', 'js/updates.js?v=9', 'js/util.js?v=9', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE)

@@ -1,12 +1,32 @@
 // The saved data shape: normalising old saves and imported files, change stamps, and the record-by-record merge used by Google sync.
 
-import { arr, clone, ID_RE, inRange, int, ints, isDate, obj, safeUrl, stampOf, str, uid } from './util.js?v=9';
+import { arr, clone, ID_RE, inRange, int, ints, isDate, num, obj, safeUrl, stampOf, str, uid } from './util.js?v=9';
 import { GROUPS, MERGE, PASSES, QBANKS, SUBJ } from './catalog.js?v=9';
 
 export function normItem(x) {
   x = obj(x);
   return { status: int(x.status, 0, 3), score: str(x.score, 12), pct: str(x.pct, 12), date: isDate(x.date), notes: str(x.notes),
-    weak: [...new Set(arr(x.weak).filter((w) => typeof w === 'string' && ID_RE.test(w)))].slice(0, 60), t: stampOf(x.t) };
+    weak: weakList(x.weak), weakPct: weakPcts(x.weakPct), plan: isDate(x.plan), t: stampOf(x.t) };
+}
+// weak systems, and the optional % correct you scored in each (shades the weakness matrix)
+const weakList = (w) => [...new Set(arr(w).filter((x) => typeof x === 'string' && ID_RE.test(x)))].slice(0, 60);
+function weakPcts(x) {
+  const out = {};
+  for (const [id, v] of Object.entries(obj(x))) { const p = inRange(v, 0, 100); if (ID_RE.test(id) && p !== '') out[id] = p; }
+  return out;
+}
+// A saved conversion from % correct to a 3-digit score, for an exam type ('nbme', 'uwsa', 'f120') or one
+// form ('nbme-12'): a straight line (score = a × % + b) or a table of points to interpolate between.
+export function normConversion(x) {
+  x = obj(x);
+  const note = str(x.note, 200);
+  if (x.kind === 'table') {
+    const points = [...new Map(arr(x.points).map((p) => [num(arr(p)[0]), num(arr(p)[1])]).filter(([a, b]) => a != null && b != null && a >= 0 && a <= 100 && b >= 1 && b <= 300)).entries()]
+      .sort((a, b) => a[0] - b[0]).slice(0, 80);
+    return points.length >= 2 ? { kind: 'table', points, note, t: stampOf(x.t) } : null;
+  }
+  const a = num(x.a), b = num(x.b);
+  return a != null && b != null && Math.abs(a) < 20 && Math.abs(b) < 1000 ? { kind: 'linear', a, b, note, t: stampOf(x.t) } : null;
 }
 export function normSys(x) {
   x = obj(x);
@@ -19,10 +39,10 @@ export function normQbank(x) {
   if (typeof x.id !== 'string' || !ID_RE.test(x.id) || !name) return null;
   const unit = x.unit === 'pct' ? 'pct' : 'q';
   return { id: x.id, name, bank: inRange(x.bank, 1, 50000), done: inRange(x.done, 0, unit === 'pct' ? 100 : 50000), unit, acc: inRange(x.acc, 0, 100),
-    finished: isDate(x.finished), weak: [...new Set(arr(x.weak).filter((w) => typeof w === 'string' && ID_RE.test(w)))].slice(0, 60), t: stampOf(x.t) };
+    finished: isDate(x.finished), weak: weakList(x.weak), weakPct: weakPcts(x.weakPct), t: stampOf(x.t) };
 }
 // `finished` is the date you marked it done (you can stop before 100%); `weak` are its weak systems
-export const blankQbank = (d) => ({ id: d.id, name: d.name, bank: '', done: '', unit: 'q', acc: '', finished: '', weak: [], t: 0 });
+export const blankQbank = (d) => ({ id: d.id, name: d.name, bank: '', done: '', unit: 'q', acc: '', finished: '', weak: [], weakPct: {}, t: 0 });
 export function normArt(x) {
   x = obj(x);
   return { reads: int(x.reads, 0, PASSES), date: isDate(x.date), notes: str(x.notes), t: stampOf(x.t) };
@@ -50,7 +70,7 @@ export function migrate(sys) {
 
 // `base`, `deleted`, `lt` and `pt` exist for Google sync: see "change stamps + merge" below.
 export const blank = () => ({ v: 2, base: 0, deleted: {}, lt: 0, pt: 0, items: {}, systems: {}, extraForms: {}, extraAssess: {}, extraSystems: [], removed: [], log: [],
-  qbanks: QBANKS.map(blankQbank), articles: {}, artSections: [], artCustom: [],
+  qbanks: QBANKS.map(blankQbank), articles: {}, artSections: [], artCustom: [], conversions: {},
   prefs: { showOld: false, theme: 'system', examDate: '', target: '', bank: '', chart: 'score', sysSort: 'default', lastBackup: '',
     artOrder: [], artView: 'grid', artSort: 'checklist', artCollapsed: [] } });
 
@@ -67,7 +87,9 @@ export function norm(s) {
   for (const g of GROUPS) { const a = ints(obj(s.extraAssess)[g.key], g.min, g.max); if (a.length) extraAssess[g.key] = a; }
   const p = obj(s.prefs), b = blank().prefs;
   const deleted = {};
-  for (const [k, t] of Object.entries(obj(s.deleted))) if (/^[ilsxqacr]:[a-z0-9-]{1,48}$/i.test(k) && stampOf(t)) deleted[k] = stampOf(t);
+  for (const [k, t] of Object.entries(obj(s.deleted))) if (/^[ilsxqacrv]:[a-z0-9-]{1,48}$/i.test(k) && stampOf(t)) deleted[k] = stampOf(t);
+  const conversions = {};
+  for (const [id, x] of Object.entries(obj(s.conversions))) { const c = ID_RE.test(id) && normConversion(x); if (c) conversions[id] = c; }
   const qIn = arr(s.qbanks).map(normQbank).filter(Boolean);
   const qbanks = QBANKS.map((d) => Object.assign(qIn.find((x) => x.id === d.id) || blankQbank(d), { name: d.name }))
     .concat(qIn.filter((x) => !QBANKS.some((d) => d.id === x.id)));
@@ -85,7 +107,7 @@ export function norm(s) {
       .map((x) => ({ id: x.id, name: x.name.trim().slice(0, 60), t: stampOf(x.t) })),
     removed: [...new Set(arr(s.removed).filter((x) => typeof x === 'string' && ID_RE.test(x)))],
     log: arr(s.log).map(normLog).filter(Boolean),
-    qbanks, articles, artSections, artCustom,
+    qbanks, articles, artSections, artCustom, conversions,
     prefs: {
       showOld: !!p.showOld,
       theme: ['light', 'dark'].includes(p.theme) ? p.theme : b.theme,
@@ -113,7 +135,7 @@ export const listsSig = (s) => JSON.stringify([s.extraForms, s.extraAssess, s.re
 export const prefsSig = (s) => JSON.stringify(SYNC_PREFS.map((k) => s.prefs[k]));
 export const byId = (a) => new Map(a.map((x) => [x.id, x]));
 // [tombstone tag, state key, shape]: every record kind that syncs one by one
-export const REC = [['i:', 'items', 'map'], ['s:', 'systems', 'map'], ['l:', 'log', 'list'], ['x:', 'extraSystems', 'list'],
+export const REC = [['i:', 'items', 'map'], ['s:', 'systems', 'map'], ['l:', 'log', 'list'], ['x:', 'extraSystems', 'list'], ['v:', 'conversions', 'map'],
   ['q:', 'qbanks', 'list'], ['a:', 'articles', 'map'], ['c:', 'artSections', 'list'], ['r:', 'artCustom', 'list']];
 export const records = (s) => REC.map(([tag, key, shape]) => [tag, shape === 'map' ? new Map(Object.entries(s[key])) : byId(s[key])]);
 

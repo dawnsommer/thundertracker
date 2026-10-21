@@ -18,6 +18,8 @@ import './qbank.js?v=9';
 import './sim-import.js?v=9';
 import './backup.js?v=9';
 import './updates.js?v=9';
+import './calculator.js?v=9';
+import './planner.js?v=9';
 
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && sheetOpen) { closeSheet(); return; }

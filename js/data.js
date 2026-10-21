@@ -42,9 +42,9 @@ export function weakSources() {
   const order = (f) => item(f.id).date || '9999';
   const tests = allTests().filter((f) => item(f.id).weak.length)
     .sort((a, b) => order(a).localeCompare(order(b)) || ORDER(a) - ORDER(b))
-    .map((f) => ({ key: f.id, kind: 'test', tag: f.tag, full: f.full, date: item(f.id).date, weak: item(f.id).weak, open: () => openForm(f), g: f.g.key }));
+    .map((f) => ({ key: f.id, kind: 'test', tag: f.tag, full: f.full, date: item(f.id).date, weak: item(f.id).weak, pct: item(f.id).weakPct || {}, open: () => openForm(f), g: f.g.key }));
   const banks = state.qbanks.filter((q) => q.finished && q.weak.length)
-    .map((q) => ({ key: 'qb-' + q.id, kind: 'qbank', tag: qbAbbr(q.name), full: q.name + ' (qbank)', date: q.finished, weak: q.weak, open: () => openQbank(q) }));
+    .map((q) => ({ key: 'qb-' + q.id, kind: 'qbank', tag: qbAbbr(q.name), full: q.name + ' (qbank)', date: q.finished, weak: q.weak, pct: q.weakPct || {}, open: () => openQbank(q) }));
   return tests.concat(banks);
 }
 // Per system: where it came up weak. "Recent" = weak in one of your last two marked assessments.
