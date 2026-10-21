@@ -118,7 +118,8 @@
 
   function normItem(x) {
     x = obj(x);
-    return { status: int(x.status, 0, 3), score: str(x.score, 12), pct: str(x.pct, 12), date: isDate(x.date), notes: str(x.notes), t: stampOf(x.t) };
+    return { status: int(x.status, 0, 3), score: str(x.score, 12), pct: str(x.pct, 12), date: isDate(x.date), notes: str(x.notes),
+      weak: [...new Set(arr(x.weak).filter((w) => typeof w === 'string' && ID_RE.test(w)))].slice(0, 60), t: stampOf(x.t) };
   }
   function normSys(x) {
     x = obj(x);
@@ -162,7 +163,8 @@
   // `base`, `deleted`, `lt` and `pt` exist for Google sync: see "change stamps + merge" below.
   const blank = () => ({ v: 2, base: 0, deleted: {}, lt: 0, pt: 0, items: {}, systems: {}, extraForms: {}, extraAssess: {}, extraSystems: [], removed: [], log: [],
     qbanks: QBANKS.map(blankQbank), articles: {}, artSections: [], artCustom: [],
-    prefs: { showOld: false, theme: 'system', examDate: '', target: '', bank: '', chart: 'score', sysSort: 'default', lastBackup: '' } });
+    prefs: { showOld: false, theme: 'system', examDate: '', target: '', bank: '', chart: 'score', sysSort: 'default', lastBackup: '',
+      artOrder: [], artView: 'grid', artSort: 'checklist', artCollapsed: [] } });
 
   // Accepts v1 saves (the original single-file version) and v2.
   function norm(s) {
@@ -205,19 +207,23 @@
         chart: p.chart === 'pct' ? 'pct' : b.chart,
         sysSort: ['conf', 'status', 'uw', 'az'].includes(p.sysSort) ? p.sysSort : b.sysSort,
         lastBackup: typeof p.lastBackup === 'string' ? p.lastBackup.slice(0, 40) : '',
+        artOrder: [...new Set(arr(p.artOrder).filter((x) => typeof x === 'string' && ID_RE.test(x)))].slice(0, 200),
+        artView: p.artView === 'list' ? 'list' : 'grid',
+        artSort: ['least', 'most', 'recent', 'az'].includes(p.artSort) ? p.artSort : 'checklist',
+        artCollapsed: [...new Set(arr(p.artCollapsed).filter((x) => typeof x === 'string' && ID_RE.test(x)))].slice(0, 200),
       },
     };
   }
 
   // ---------- state + storage ----------
   let state = blank();
-  const ui = { tab: 'overview', subj: 'all', st: 'all', addingFor: null, focusAdd: false, editForms: false, logAll: false, heatDay: '',
-    artF: 'all', artQ: '', artAdding: null, artNewSec: false, artRename: null };
+  const ui = { tab: 'overview', subj: 'all', st: 'all', addingFor: null, focusAdd: false, editForms: false, logAll: false, heatDay: '', weakAll: false, prevTab: 'overview', artArrange: false,
+    artF: 'all', artQ: '', artAdding: null, artNewSec: false, artRename: null, artJump: '' };
   let saveTimer = null, storageOk = true, storageMsg = '';
   let saved = blank(); // copy of what is in storage, used to stamp what changed
   const cloud = () => window.CKCloud || null;
 
-  const item = (id) => state.items[id] || { status: 0, score: '', pct: '', date: '', notes: '' };
+  const item = (id) => state.items[id] || { status: 0, score: '', pct: '', date: '', notes: '', weak: [] };
   const sysItem = (id) => state.systems[id] || normSys(null);
 
   // Header status: local save state first, then Google sync state when signed in.
@@ -285,7 +291,7 @@
   // A full restore or erase bumps `base`: on merge, anything older than the newest base is dropped,
   // so the restore wins on every device. Lists of added/hidden forms (`lt`) and the plan prefs (`pt`)
   // merge as a unit, newest wins. Theme and other view prefs stay per device.
-  const SYNC_PREFS = ['examDate', 'target', 'bank', 'showOld'];
+  const SYNC_PREFS = ['examDate', 'target', 'bank', 'showOld', 'artOrder'];
   const clone = (x) => JSON.parse(JSON.stringify(x));
   const sig = (r) => JSON.stringify(Object.keys(r).filter((k) => k !== 't').sort().map((k) => [k, r[k]]));
   const listsSig = (s) => JSON.stringify([s.extraForms, s.extraAssess, s.removed]);
@@ -359,9 +365,9 @@
     }
     if (a.pt !== b.pt) {
       const pw = b.pt > a.pt ? b : a;
-      SYNC_PREFS.forEach((k) => (out.prefs[k] = pw.prefs[k]));
+      SYNC_PREFS.forEach((k) => (out.prefs[k] = clone(pw.prefs[k])));
       out.pt = pw.pt;
-    } else SYNC_PREFS.forEach((k) => { if (!out.prefs[k] && b.prefs[k]) out.prefs[k] = b.prefs[k]; });
+    } else SYNC_PREFS.forEach((k) => { if ((!out.prefs[k] || (Array.isArray(out.prefs[k]) && !out.prefs[k].length)) && b.prefs[k]) out.prefs[k] = clone(b.prefs[k]); });
     // tombstones only need to outlive devices that haven't synced in a long while
     const cutoff = Date.now() - 400 * 864e5;
     out.deleted = Object.fromEntries(Object.entries(deleted).filter(([, t]) => t > cutoff));
@@ -444,6 +450,19 @@
   const allTests = () => GROUPS.flatMap((g) => testForms(g));
   const allCms = () => SUBJ.flatMap((s) => cmsForms(s, state.prefs.showOld));
   const allSystems = () => SYSTEMS.concat(state.extraSystems);
+  // "Renal, Urology & Electrolytes" -> "Renal"
+  const shortSys = (name) => name.split(/,| &|:/)[0].trim();
+  const weakNames = (ids) => ids.map((id) => allSystems().find((x) => x.id === id)).filter(Boolean).map((x) => shortSys(x.name)).join(', ');
+  // Which systems you marked weak across self-assessments, most often first.
+  function weakPattern() {
+    const flagged = allTests().filter((f) => item(f.id).weak.length);
+    const by = new Map();
+    flagged.forEach((f) => item(f.id).weak.forEach((id) => { if (!by.has(id)) by.set(id, []); by.get(id).push(f); }));
+    const order = (f) => item(f.id).date || '9999';
+    const rows = [...by].map(([id, fs]) => ({ sy: allSystems().find((x) => x.id === id), fs: fs.sort((a, b) => order(a).localeCompare(order(b))) }))
+      .filter((r) => r.sy).sort((a, b) => b.fs.length - a.fs.length || a.sy.name.localeCompare(b.sy.name));
+    return { rows, flagged: flagged.length };
+  }
   const artItem = (id) => state.articles[id] || { reads: 0, date: '', notes: '', t: 0 };
   // Checklist sections first (with any articles you added to them), then your own sections.
   function artSections() {
@@ -574,16 +593,21 @@
   const isEmpty = () => !Object.keys(state.items).length && !Object.keys(state.systems).length && !state.log.length && !state.prefs.examDate;
 
   // ---------- tabs ----------
+  const VIEWS = TABS.concat('settings');
   function showTab(t, push) {
-    if (!TABS.includes(t)) t = 'overview';
+    if (!VIEWS.includes(t)) t = 'overview';
+    const entering = t === 'settings' && ui.tab !== 'settings';
+    if (t !== 'settings') settingsRefresh = null;
     ui.tab = t;
+    $('open-settings').setAttribute('aria-pressed', t === 'settings' ? 'true' : 'false');
     document.querySelectorAll('.tab').forEach((b) => {
       const on = b.dataset.tab === t;
       b.setAttribute('aria-selected', on ? 'true' : 'false');
-      b.tabIndex = on ? 0 : -1;
+      b.tabIndex = on || (t === 'settings' && b.dataset.tab === ui.prevTab) ? 0 : -1;
     });
     document.querySelectorAll('section.view').forEach((s) => (s.hidden = s.id !== 'view-' + t));
     if (push && location.hash !== '#' + t) try { history.pushState(null, '', '#' + t); } catch (e) {}
+    if (entering) { buildSettings(); window.scrollTo(0, 0); }
     render();
   }
   $('tabs').addEventListener('click', (e) => { const b = e.target.closest('.tab'); if (b) showTab(b.dataset.tab, true); });
@@ -599,6 +623,7 @@
   window.addEventListener('popstate', () => {
     const t = location.hash.slice(1) || 'overview';
     if (sheetOpen) closeSheet();
+    if (t === 'settings' && ui.tab !== 'settings') ui.prevTab = ui.tab;
     if (t !== ui.tab) showTab(t);
   });
 
@@ -611,6 +636,7 @@
     if (ui.tab === 'systems') renderSystems();
     if (ui.tab === 'qbank') renderQbank();
     if (ui.tab === 'articles') renderArticles();
+    if (ui.tab === 'settings' && settingsRefresh) settingsRefresh();
   }
   function renderNotice() {
     $('notice').replaceChildren(...(storageMsg ? [h('div', { class: 'banner', style: 'margin-bottom:20px', text: storageMsg })] : []));
@@ -710,6 +736,28 @@
 
     renderNext(tests, cms, qb, dl);
     renderHeat($('heat'));
+    renderWeak($('weak'));
+    renderArtSummary($('art-mini'), true);
+  }
+
+  // Bars of how many reviewed forms flagged each system; 2+ forms is a pattern.
+  function renderWeak(box) {
+    const { rows, flagged } = weakPattern();
+    if (!rows.length) {
+      box.replaceChildren(h('p', { class: 'sub', text: 'When you review an NBME, UWSA or Free 120, open it and tap the systems you were weak in. The ones that keep coming back show up here.' }),
+        h('button', { class: 'btn', style: 'margin-top:12px', onclick: () => showTab('nbme', true) }, 'Go to assessments'));
+      return;
+    }
+    const shown = ui.weakAll ? rows : rows.slice(0, 8);
+    box.replaceChildren(...[h('div', { class: 'sbars' }, shown.map((r) => {
+      const n = r.fs.length, rec = n >= 2;
+      return h('button', { class: 'sbar weakbar' + (rec ? ' rec' : ''), 'data-open': r.sy.id, onclick: () => openSystem(r.sy), title: r.sy.name + ': ' + r.fs.map((f) => f.full).join(', '),
+        'aria-label': r.sy.name + ' weak in ' + n + ' of ' + flagged + ' forms: ' + r.fs.map((f) => f.full).join(', ') },
+        h('span', { class: 'lbl', text: shortSys(r.sy.name) }),
+        h('span', { class: 'segbar', 'aria-hidden': 'true' }, h('span', { style: 'width:' + (n / flagged * 100) + '%;background:' + (rec ? 'var(--bad)' : 'var(--s1)') })),
+        h('span', { class: 'val' }, n + '/' + flagged, h('small', { text: ' ' + r.fs.map((f) => f.tag).join(' ') })));
+    })), rows.length > 8 ? h('button', { class: 'linkish', style: 'margin-top:10px', onclick: () => { ui.weakAll = !ui.weakAll; render(); } }, ui.weakAll ? 'Show fewer' : 'Show all ' + rows.length) : null,
+      h('p', { class: 'hint', style: 'margin-top:10px', text: 'Red = weak in 2 or more of the ' + plural(flagged, 'form') + ' you marked. Tap a system for its notes and status.' })].filter(Boolean));
   }
 
   function renderNext(tests, cms, qb, dl) {
@@ -727,6 +775,8 @@
     if (paced.length && dl != null && dl > 0) {
       lis.push(['Qbank', paced.map((b) => b.left > 0 ? b.qb.name + ' ' + fmtN(b.left) + ' left (~' + Math.ceil(b.left / dl) + '/day)' : b.qb.name + ' finished').join(' · ')]);
     }
+    const pattern = weakPattern().rows.filter((r) => r.fs.length >= 2);
+    if (pattern.length) lis.push(['Pattern', go(pattern.slice(0, 3).map((r) => shortSys(r.sy.name) + ' (' + r.fs.length + ' forms)').join(', ') + ' keep coming up weak', () => openSystem(pattern[0].sy), pattern[0].sy.id)]);
     const unread = allArticles().filter((a) => !artItem(a.id).reads);
     if (unread.length) lis.push(['Articles', go(unread.length + ' of ' + allArticles().length + ' AMBOSS articles not read yet — next: ' + unread[0].name, () => showTab('articles', true))]);
     const unrev = tests.concat(cms).filter((f) => item(f.id).status === 1);
@@ -738,7 +788,7 @@
     if (lowSys) lis.push(['Low conf.', go(lowSys.name + ' (' + sysItem(lowSys.id).conf + '/5)', () => openSystem(lowSys), lowSys.id)]);
     const notStarted = allSystems().filter((s) => sysItem(s.id).status === 0);
     if (notStarted.length) lis.push(['Systems', notStarted.length + ' not started yet, e.g. ' + notStarted.slice(0, 3).map((s) => s.name).join(', ')]);
-    if (!isEmpty()) {
+    if (!isEmpty() && !(cloud() && cloud().status().connected)) {
       const lb = state.prefs.lastBackup ? Math.floor((Date.now() - new Date(state.prefs.lastBackup)) / 864e5) : null;
       if (lb == null || lb >= 14) lis.push(['Backup', go(lb == null ? 'You haven’t exported a backup yet — keep one in case this browser’s data is cleared' : 'Last backup was ' + plural(lb, 'day') + ' ago', () => openSettings('#st-export'), 'settings')]);
     }
@@ -923,7 +973,8 @@
         return h('button', { class: 'row', 'data-open': f.id, onclick: () => openForm(f),
           'aria-label': f.full + ', ' + FORM_ST[it.status] + (s3 != null ? ', score ' + s3 : '') + (p != null ? ', ' + fmtPct(p) + ' correct' : '') },
           h('span', { class: 'nm' }, f.label, f.old ? h('span', { class: 'old', text: 'older' }) : null),
-          h('span', { style: 'min-width:0' }, statusPill(it.status, FORM_ST), it.notes ? h('span', { class: 'notes-p', text: it.notes }) : null),
+          h('span', { style: 'min-width:0' }, statusPill(it.status, FORM_ST),
+            it.weak.length || it.notes ? h('span', { class: 'notes-p' }, it.weak.length ? h('b', { class: 'weak-l', text: 'Weak: ' + weakNames(it.weak) }) : null, it.weak.length && it.notes ? ' · ' : '', it.notes || '') : null),
           h('span', { class: 'sc' + (main == null && p == null ? ' none' : '') },
             g.scaled ? h('b', { class: band('score', s3), text: s3 != null ? String(s3) : '—' }) : h('b', { text: p != null ? fmtPct(p) : '—' }),
             g.scaled && p != null ? h('small', { text: fmtPct(p) }) : null),
@@ -1059,13 +1110,16 @@
       setTimeout(() => $('add-sys')?.focus(), 0);
     };
     inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') add(); });
+    const weakIn = new Map(weakPattern().rows.map((r) => [r.sy.id, r.fs]));
     $('sys-rows').replaceChildren(...sortedSystems().map((sy) => {
       const it = sysItem(sy.id), uw = num(it.uw);
       return h('div', { class: 'sys' },
         h('div', { class: 'sys-main' },
           h('button', { class: 'nm', 'data-open': sy.id, onclick: () => openSystem(sy) }, sy.name, it.notes ? h('small', { text: it.notes }) : null),
           h('div', { class: 'tags' }, TAGS.filter((t) => t === 'Sketchy' || it.tags.includes(t)).map((t) => tagBtn(sy.id, t)),
-            uw != null ? h('span', { class: 'tag uw ' + band('cms', uw), title: 'UWorld % correct', text: 'UW ' + fmtPct(uw) }) : null)),
+            uw != null ? h('span', { class: 'tag uw ' + band('cms', uw), title: 'UWorld % correct', text: 'UW ' + fmtPct(uw) }) : null,
+            weakIn.get(sy.id) ? h('span', { class: 'tag weak-tag' + (weakIn.get(sy.id).length >= 2 ? ' rec' : ''), title: 'Marked weak on ' + weakIn.get(sy.id).map((f) => f.full).join(', '),
+              text: 'Weak in ' + plural(weakIn.get(sy.id).length, 'form') }) : null)),
         h('span', { class: 'conf', role: 'group', 'aria-label': 'Confidence for ' + sy.name },
           [1, 2, 3, 4, 5].map((n) => h('button', { class: it.conf >= n ? 'on' : '', 'aria-label': 'Confidence ' + n, 'aria-pressed': it.conf === n ? 'true' : 'false', title: 'Confidence ' + n + '/5', onclick: () => setSys(sy.id, { conf: it.conf === n ? 0 : n }) }))),
         h('span', { class: 'seg', role: 'group', 'aria-label': 'Status for ' + sy.name },
@@ -1104,26 +1158,116 @@
     if (ui.focusAdd) { ui.focusAdd = false; setTimeout(() => name.focus(), 0); }
     return h('div', { class: 'add-row art-add' }, name, url, h('button', { onclick: submit }, 'Add'), h('button', { class: 'ghost', onclick: () => { ui.artAdding = null; render(); } }, 'Done'));
   }
+  // Your section order (Arrange), with new sections at the end in the order they were added.
+  function orderedSections() {
+    const secs = artSections(), order = state.prefs.artOrder;
+    const pos = (id, i) => { const k = order.indexOf(id); return k < 0 ? 1e4 + i : k; };
+    return secs.map((sec, i) => [pos(sec.id, i), sec]).sort((x, y) => x[0] - y[0]).map(([, sec]) => sec);
+  }
+  function moveSection(id, to) {
+    const ids = orderedSections().map((x) => x.id), i = ids.indexOf(id);
+    const j = to === 'top' ? 0 : to === 'end' ? ids.length - 1 : Math.max(0, Math.min(ids.length - 1, i + to));
+    if (i === j) return;
+    ids.splice(j, 0, ids.splice(i, 1)[0]);
+    state.prefs.artOrder = ids;
+    save(); render();
+  }
+  const SORTS = {
+    least: (a, b) => artItem(a.id).reads - artItem(b.id).reads,
+    most: (a, b) => artItem(b.id).reads - artItem(a.id).reads,
+    recent: (a, b) => (artItem(b.id).date || '').localeCompare(artItem(a.id).date || ''),
+    az: (a, b) => a.name.localeCompare(b.name),
+  };
+  const sortArts = (list) => (SORTS[state.prefs.artSort] ? list.slice().sort(SORTS[state.prefs.artSort]) : list);
+  function toggleCollapsed(id, open) {
+    const set = new Set(state.prefs.artCollapsed);
+    if (open == null ? set.has(id) : open) set.delete(id); else set.add(id);
+    state.prefs.artCollapsed = [...set];
+    save(); render();
+  }
+
+  // Progress at a glance: totals, how many articles sit at each read-through count, and every section's bar.
+  function renderArtSummary(box, compact) {
+    const secs = orderedSections(), arts = secs.flatMap((x) => x.articles);
+    const reads = arts.map((a) => artItem(a.id).reads);
+    const read = reads.filter((r) => r > 0).length, passes = sum(reads), finished = reads.filter((r) => r >= PASSES).length;
+    const dist = Array.from({ length: PASSES + 1 }, (_, i) => reads.filter((r) => r === i).length);
+    const jump = (sec) => {
+      if (compact) { ui.artJump = sec.id; showTab('articles', true); return; }
+      toggleCollapsed(sec.id, true);
+      const el = $('art-' + sec.id); if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    };
+    const bars = h('div', { class: 'sbars art-bars' }, secs.map((sec) => {
+      const n = sec.articles.length, r = sec.articles.filter((a) => artItem(a.id).reads > 0).length;
+      return h('button', { class: 'sbar', onclick: () => jump(sec), 'aria-label': sec.name + ': ' + r + ' of ' + n + ' read' },
+        h('span', { class: 'lbl', text: sec.name.replace(/^High-Yield /, ''), title: sec.name }),
+        h('span', { class: 'segbar', 'aria-hidden': 'true' }, h('span', { style: 'width:' + (n ? r / n * 100 : 0) + '%;background:var(--s2)' })),
+        h('span', { class: 'val', text: r + '/' + n }));
+    }));
+    if (compact) {
+      box.replaceChildren(h('p', { class: 'art-mini-h' }, h('b', { text: read + '/' + arts.length }), ' read · ' + plural(passes, 'read-through') + (finished ? ' · ' + finished + ' done 5×' : '')), bars,
+        h('button', { class: 'btn', style: 'margin-top:12px', onclick: () => showTab('articles', true) }, 'Open articles'));
+      return;
+    }
+    const tones = ['var(--s0)', 'var(--s1)', 'color-mix(in srgb,var(--s1) 45%,var(--s2))', 'var(--s2)', 'color-mix(in srgb,var(--s2) 50%,var(--s3))', 'var(--s3)'];
+    box.replaceChildren(h('div', { class: 'card art-sum' },
+      h('div', { class: 'art-stats' },
+        h('div', null, h('div', { class: 'eyebrow', text: 'Read' }), h('div', { class: 'big' }, String(read), h('small', { text: 'of ' + arts.length })),
+          h('div', { class: 'meter' }, h('b', { style: 'width:' + (arts.length ? read / arts.length * 100 : 0) + '%' }))),
+        h('div', null, h('div', { class: 'eyebrow', text: 'Read-throughs' }), h('div', { class: 'big' }, String(passes), h('small', { text: 'of ' + arts.length * PASSES })),
+          h('div', { class: 'meter' }, h('b', { style: 'width:' + (arts.length ? passes / (arts.length * PASSES) * 100 : 0) + '%' }))),
+        h('div', null, h('div', { class: 'eyebrow', text: 'Done 5×' }), h('div', { class: 'big' }, String(finished), h('small', { text: 'articles' })),
+          h('div', { class: 'dist', role: 'img', 'aria-label': dist.map((c, i) => c + ' at ' + i).join(', ') + ' read-throughs' },
+            dist.map((c, i) => (c ? h('span', { style: 'flex:' + c + ';background:' + tones[i], title: c + ' article' + (c === 1 ? '' : 's') + ' read ' + i + '×' }) : null))),
+          h('div', { class: 'dist-l', 'aria-hidden': 'true' }, dist.map((c, i) => h('span', null, h('i', { style: 'background:' + tones[i] }), i + '×'))))),
+      bars));
+  }
+
+  function artCard(ar) {
+    const it = artItem(ar.id);
+    const link = h('a', { class: 'xs ext', href: artUrl(ar), target: '_blank', rel: 'noopener noreferrer', title: ar.url ? 'Open in AMBOSS' : 'Search AMBOSS for this article', 'aria-label': 'Open ' + ar.name + ' in AMBOSS' });
+    link.append(extIcon());
+    return h('div', { class: 'acard r' + it.reads + (it.reads >= PASSES ? ' done' : '') },
+      h('button', { class: 'ac-nm', 'data-open': ar.id, onclick: () => openArticle(ar), title: ar.name }, ar.name),
+      h('div', { class: 'ac-meta' }, ar.builtIn ? null : h('span', { class: 'old', text: 'added' }), it.date ? h('span', { text: fmtDate(it.date) }) : null, it.notes ? h('span', { class: 'ac-note', text: '✎', title: it.notes }) : null),
+      h('div', { class: 'ac-foot' }, passBoxes(ar), link));
+  }
+  function artRow(ar) {
+    const it = artItem(ar.id);
+    const link = h('a', { class: 'xs ext', href: artUrl(ar), target: '_blank', rel: 'noopener noreferrer', title: ar.url ? 'Open in AMBOSS' : 'Search AMBOSS for this article', 'aria-label': 'Open ' + ar.name + ' in AMBOSS' });
+    link.append(extIcon());
+    return h('div', { class: 'art' + (it.reads >= PASSES ? ' done' : '') },
+      h('button', { class: 'nm', 'data-open': ar.id, onclick: () => openArticle(ar) },
+        h('span', null, ar.name, ar.builtIn ? null : h('span', { class: 'old', text: 'added' })),
+        it.notes || it.date ? h('small', { text: [it.date ? 'last read ' + fmtDate(it.date) : '', it.notes].filter(Boolean).join(' · ') }) : null),
+      passBoxes(ar), link);
+  }
+
   function renderArticles() {
     const q = ui.artQ.trim().toLowerCase(), f = ui.artF, filtering = !!q || f !== 'all';
+    const P = state.prefs, grid = P.artView === 'grid', arrange = ui.artArrange;
     document.querySelectorAll('[data-af]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.af === f ? 'true' : 'false'));
-    const groups = artSections().map((sec) => {
+    document.querySelectorAll('#art-view button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.view === P.artView ? 'true' : 'false'));
+    $('art-sort').value = P.artSort;
+    $('art-arrange').setAttribute('aria-pressed', arrange ? 'true' : 'false');
+    $('art-arrange').textContent = arrange ? 'Done arranging' : 'Arrange sections';
+    const secs = orderedSections();
+    const allCollapsed = secs.every((x) => P.artCollapsed.includes(x.id));
+    $('art-collapse').textContent = allCollapsed ? 'Expand all' : 'Collapse all';
+    renderArtSummary($('art-summary'));
+    if (ui.artJump) {
+      const id = ui.artJump; ui.artJump = '';
+      if (P.artCollapsed.includes(id)) { P.artCollapsed = P.artCollapsed.filter((x) => x !== id); save(); }
+      setTimeout(() => { const el = $('art-' + id); if (el) el.scrollIntoView({ block: 'start' }); }, 0);
+    }
+
+    const groups = secs.map((sec, idx) => {
       const all = sec.articles;
       const read = all.filter((a) => artItem(a.id).reads > 0).length, passes = sum(all.map((a) => artItem(a.id).reads));
-      const shown = all.filter((a) => (f === 'all' || (f === 'unread' ? !artItem(a.id).reads : artItem(a.id).reads > 0)) && (!q || a.name.toLowerCase().includes(q)));
+      const shown = sortArts(all.filter((a) => (f === 'all' || (f === 'unread' ? !artItem(a.id).reads : artItem(a.id).reads > 0)) && (!q || a.name.toLowerCase().includes(q))));
       if (filtering && !shown.length) return null;
-      const rows = shown.map((ar) => {
-        const it = artItem(ar.id);
-        const link = h('a', { class: 'xs ext', href: artUrl(ar), target: '_blank', rel: 'noopener noreferrer', title: ar.url ? 'Open in AMBOSS' : 'Search AMBOSS for this article', 'aria-label': 'Open ' + ar.name + ' in AMBOSS' });
-        link.append(extIcon());
-        return h('div', { class: 'art' + (it.reads >= PASSES ? ' done' : '') },
-          h('button', { class: 'nm', 'data-open': ar.id, onclick: () => openArticle(ar) },
-            h('span', null, ar.name, ar.builtIn ? null : h('span', { class: 'old', text: 'added' })),
-            it.notes || it.date ? h('small', { text: [it.date ? 'last read ' + fmtDate(it.date) : '', it.notes].filter(Boolean).join(' · ') }) : null),
-          passBoxes(ar), link);
-      });
-      if (!filtering) rows.push(ui.artAdding === sec.id ? addArticleRow(sec)
-        : h('button', { class: 'add-link', onclick: () => { ui.artAdding = sec.id; ui.focusAdd = true; render(); } }, '+ Add an article'));
+      // filtering or searching always shows matches, even in collapsed sections
+      const collapsed = arrange || (!filtering && P.artCollapsed.includes(sec.id));
       let title = h('h3', { text: sec.name });
       if (ui.artRename === sec.id) {
         title = h('input', { type: 'text', class: 'sec-rename', value: sec.name, maxlength: '80', 'aria-label': 'Section name' });
@@ -1137,21 +1281,33 @@
         title.addEventListener('blur', done);
         setTimeout(() => { title.focus(); title.select(); }, 0);
       }
-      return h('div', { class: 'group' },
-        h('div', { class: 'subj-head' }, title,
-          h('span', { class: 'stat', text: read + '/' + all.length + ' read' + (passes ? ' · ' + plural(passes, 'read-through') : '') }),
-          sec.builtIn ? null : h('span', { class: 'sec-tools' },
-            h('button', { class: 'linkish', onclick: () => { ui.artRename = sec.id; render(); } }, 'Rename'),
-            h('button', { class: 'linkish', onclick: () => {
+      const mv = (to, label, sym, dis) => h('button', { class: 'mv', disabled: dis, 'data-move': sec.id + ':' + to, 'aria-label': label + ': ' + sec.name, title: label,
+        onclick: () => { moveSection(sec.id, to); setTimeout(() => { const b = document.querySelector('[data-move="' + CSS.escape(sec.id + ':' + to) + '"]:not(:disabled)'); if (b) b.focus(); }, 0); } }, sym);
+      const head = h('div', { class: 'subj-head art-head' },
+        arrange ? null : h('button', { class: 'chev', 'aria-expanded': collapsed ? 'false' : 'true', 'aria-label': (collapsed ? 'Expand ' : 'Collapse ') + sec.name, onclick: () => toggleCollapsed(sec.id) }, h('span', { 'aria-hidden': 'true', text: '▾' })),
+        title,
+        h('span', { class: 'stat', text: read + '/' + all.length + ' read' + (passes ? ' · ' + plural(passes, 'read-through') : '') }),
+        h('span', { class: 'meter sec-meter', 'aria-hidden': 'true' }, h('b', { style: 'width:' + (all.length ? read / all.length * 100 : 0) + '%' })),
+        arrange ? h('span', { class: 'sec-tools' }, mv('top', 'Move to top', '⤒', idx === 0), mv(-1, 'Move up', '↑', idx === 0), mv(1, 'Move down', '↓', idx === secs.length - 1), mv('end', 'Move to bottom', '⤓', idx === secs.length - 1))
+          : h('span', { class: 'sec-tools' },
+            grid && !filtering && ui.artAdding !== sec.id ? h('button', { class: 'linkish sec-add', onclick: () => { ui.artAdding = sec.id; ui.focusAdd = true; toggleCollapsed(sec.id, true); } }, '+ Add article') : null,
+            sec.builtIn ? null : h('button', { class: 'linkish', onclick: () => { ui.artRename = sec.id; render(); } }, 'Rename'),
+            sec.builtIn ? null : h('button', { class: 'linkish', onclick: () => {
               const undo = snapshot();
               state.artCustom = state.artCustom.filter((x) => x.sec !== sec.id);
               state.artSections = state.artSections.filter((x) => x.id !== sec.id);
               save(); render();
               toast(sec.name + ' removed', undo);
-            } }, 'Remove'))),
-        h('div', { class: 'rows' }, rows));
+            } }, 'Remove')));
+      if (collapsed) return h('div', { class: 'group art-sec collapsed', id: 'art-' + sec.id }, head);
+      // grid: "+ Add article" sits in the section header; list: as the last row
+      const add = filtering ? null : ui.artAdding === sec.id ? addArticleRow(sec)
+        : grid ? null : h('button', { class: 'add-link', onclick: () => { ui.artAdding = sec.id; ui.focusAdd = true; render(); } }, '+ Add an article');
+      const body = grid ? h('div', { class: 'acards' }, shown.map(artCard)) : h('div', { class: 'rows' }, shown.map(artRow), add);
+      return h('div', { class: 'group art-sec', id: 'art-' + sec.id }, head, shown.length || !grid ? body : null,
+        grid && add ? h('div', { class: 'rows', style: 'margin-top:8px' }, add) : null);
     }).filter(Boolean);
-    if (!filtering) groups.push(ui.artNewSec ? newSectionRow() : h('button', { class: 'add-chip art-newsec', onclick: () => { ui.artNewSec = true; render(); } }, '+ Add a section (for example a system, like Cardiology)'));
+    if (!filtering && !arrange) groups.push(ui.artNewSec ? newSectionRow() : h('button', { class: 'add-chip art-newsec', onclick: () => { ui.artNewSec = true; render(); } }, '+ Add a section (for example a system, like Cardiology)'));
     $('art-list').replaceChildren(...(groups.length ? groups : [h('p', { class: 'sub', text: 'No articles match.' })]));
   }
   function newSectionRow() {
@@ -1170,9 +1326,16 @@
     return h('div', { class: 'card add-row art-sec-form' }, inp, ideas, h('button', { onclick: submit }, 'Add section'), h('button', { class: 'ghost', onclick: () => { ui.artNewSec = false; render(); } }, 'Cancel'));
   }
   document.querySelectorAll('[data-af]').forEach((b) => b.addEventListener('click', () => { ui.artF = b.dataset.af; render(); }));
+  $('art-view').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { state.prefs.artView = b.dataset.view; save(); render(); } });
+  $('art-sort').addEventListener('change', (e) => { state.prefs.artSort = e.target.value; save(); render(); });
+  $('art-arrange').addEventListener('click', () => { ui.artArrange = !ui.artArrange; ui.artAdding = null; ui.artNewSec = false; render(); });
+  $('art-collapse').addEventListener('click', () => {
+    const ids = orderedSections().map((x) => x.id), all = ids.every((id) => state.prefs.artCollapsed.includes(id));
+    state.prefs.artCollapsed = all ? [] : ids; save(); render();
+  });
   $('art-search').addEventListener('input', (e) => { ui.artQ = e.target.value; render(); });
   $('art-add-sec').addEventListener('click', () => {
-    ui.artF = 'all'; ui.artQ = ''; $('art-search').value = ''; ui.artNewSec = true; render();
+    ui.artF = 'all'; ui.artQ = ''; $('art-search').value = ''; ui.artArrange = false; ui.artNewSec = true; render();
     $('art-list').lastElementChild.scrollIntoView({ block: 'center', behavior: 'smooth' });
   });
 
@@ -1397,7 +1560,7 @@
     const back = [...document.querySelectorAll('[data-open="' + CSS.escape(key) + '"]')].find((el) => el.getClientRects().length);
     if (back) back.focus();
   }
-  const refreshSheet = () => { if (sheetOpen && sheetOpen.refresh) sheetOpen.refresh(); };
+  const refreshSheet = () => { if (sheetOpen && sheetOpen.refresh) sheetOpen.refresh(); if (settingsRefresh) settingsRefresh(); };
   const sheetHead = (eyebrow, title) => h('div', { class: 'sheet-head' },
     h('div', null, h('div', { class: 'eyebrow', text: eyebrow }), h('h2', { text: title })),
     h('button', { class: 'x', 'aria-label': 'Close', onclick: closeSheet }, '×'));
@@ -1451,6 +1614,16 @@
     drawStep(); drawConv();
 
     const dateField = h('div', { class: 'field' }, h('label', { for: 'ed-date', text: 'Date taken' }), dateIn);
+    const weakBox = isCms ? null : h('div', { class: 'tags weak-pick', role: 'group', 'aria-label': 'Weak systems in this form' });
+    const drawWeak = () => weakBox && weakBox.replaceChildren(...allSystems().map((sy) => {
+      const on = cur().weak.includes(sy.id);
+      return h('button', { class: 'tag' + (on ? ' on weak-on' : ''), 'aria-pressed': on ? 'true' : 'false', title: sy.name, onclick: () => {
+        const w = cur().weak.filter((x) => x !== sy.id);
+        patch({ weak: on ? w : w.concat(sy.id) });
+        drawWeak();
+      } }, (on ? '✓ ' : '') + shortSys(sy.name));
+    }));
+    drawWeak();
     const clearBtn = h('button', { class: 'btn ghost danger', onclick: () => {
       const undo = snapshot();
       delete state.items[f.id]; save(); closeSheet();
@@ -1468,6 +1641,8 @@
       scaled ? h('div', { class: 'two' }, score.field, pct.field) : h('div', { class: 'two' }, pct.field, dateField),
       scaled ? h('div', { class: 'two' }, dateField, h('div')) : null,
       conv,
+      weakBox ? h('div', { class: 'field' }, h('span', { class: 'lab', text: 'Weak systems in this form' }), weakBox,
+        h('p', { class: 'hint', text: 'Tap the systems you missed most. Systems that keep coming up across forms show on the overview.' })) : null,
       h('div', { class: 'field' }, h('label', { for: 'ed-notes', text: 'Notes' }), notesIn),
       h('div', { class: 'actions' }, h('button', { class: 'btn primary', onclick: closeSheet }, 'Done'), clearBtn, rmBtn),
     ], () => {
@@ -1476,7 +1651,7 @@
       if (a !== pct.inp) pct.inp.value = cur()[pctKey];
       if (a !== dateIn) dateIn.value = cur().date;
       if (a !== notesIn) notesIn.value = cur().notes;
-      drawStep(); drawConv();
+      drawStep(); drawConv(); drawWeak();
     }, scaled ? '#ed-score' : '#ed-pct');
   }
 
@@ -1740,10 +1915,10 @@
   }
   function exportCsv() {
     const cell = (v) => { let s = v == null ? '' : String(v); if (/^[=+@\t\r]/.test(s)) s = "'" + s; return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-    const rows = [['type', 'group', 'name', 'status', 'score_3digit', 'percent_correct', 'questions', 'date', 'notes']];
+    const rows = [['type', 'group', 'name', 'status', 'score_3digit', 'percent_correct', 'questions', 'date', 'notes', 'weak_systems']];
     GROUPS.forEach((g) => testForms(g, true).forEach((f) => {
       const it = item(f.id);
-      rows.push(['assessment', g.short, f.label, FORM_ST[it.status], g.scaled ? it.score : '', it.pct, g.qs, it.date, it.notes]);
+      rows.push(['assessment', g.short, f.label, FORM_ST[it.status], g.scaled ? it.score : '', it.pct, g.qs, it.date, it.notes, weakNames(it.weak)]);
     }));
     SUBJ.forEach((s) => cmsForms(s, true, true).forEach((f) => {
       const it = item(f.id);
@@ -1756,7 +1931,7 @@
     state.qbanks.map(bankStats).forEach((b) => rows.push(['qbank-total', b.qb.name, b.bank ? 'bank of ' + b.bank : '', '', '', b.acc != null ? Math.round(b.acc * 10) / 10 : '',
       b.done != null ? b.done : '', '', b.pctDone != null ? Math.round(b.pctDone) + '% done' : '']));
     state.log.slice().sort((a, b) => a.date.localeCompare(b.date)).forEach((e) => rows.push(['qbank', e.src, '', '', '', e.pct, e.q, e.date, e.note]));
-    artSections().forEach((sec) => sec.articles.forEach((ar) => {
+    orderedSections().forEach((sec) => sec.articles.forEach((ar) => {
       const it = artItem(ar.id);
       rows.push(['article', sec.name, ar.name, it.reads + '/' + PASSES + ' read-throughs', '', '', '', it.date, it.notes]);
     }));
@@ -1785,35 +1960,92 @@
     r.readAsText(file);
   });
 
+  // ---------- settings page ----------
+  // Built once each time you open it; live parts redraw through settingsRefresh so typing isn't interrupted.
+  let settingsRefresh = null;
   function openSettings(focus) {
+    if (ui.tab !== 'settings') ui.prevTab = ui.tab;
+    ui.settingsFocus = focus || '';
+    showTab('settings', true);
+  }
+  function buildSettings() {
     const p = () => state.prefs;
     const setPref = (k, v) => { state.prefs[k] = v; save(); render(); };
-    const examIn = h('input', { type: 'date', id: 'st-exam', value: p().examDate, min: today() });
+    const card = (id, title, sub, ...kids) => h('section', { class: 'card set-card', id, 'aria-labelledby': id + '-h' },
+      h('h3', { id: id + '-h', text: title }), sub ? h('p', { class: 'sub', text: sub }) : null, ...kids);
+
+    // plan
+    const examIn = h('input', { type: 'date', id: 'st-exam', value: p().examDate });
     examIn.addEventListener('change', () => setPref('examDate', isDate(examIn.value)));
     const target = numField('st-target', 'Target score', { inputmode: 'numeric', step: '1', placeholder: 'e.g. 255', value: p().target }, 1, 300, true, (raw) => setPref('target', raw));
+    const planNote = h('p', { class: 'hint' });
+    const drawPlan = () => {
+      const ex = p().examDate, dl = ex ? daysUntil(ex) : null;
+      planNote.textContent = ex ? (dl > 0 ? plural(dl, 'day') + ' to go · ' : dl === 0 ? 'Test day is today · ' : 'Test date has passed · ') + 'drives the countdown, pace and score projection.'
+        : 'Set it to get a countdown, a pace for your remaining assessments and qbanks, and a projected score.';
+    };
+
+    // Google
+    const gBox = h('div', { class: 'set-body', id: 'st-google', tabindex: '-1' });
+    const drawGoogle = () => {
+      const c = cloud() && cloud().status();
+      if (!c) { gBox.replaceChildren(h('p', { class: 'hint', text: 'Google sync couldn’t load. Reload the page to try again.' })); return; }
+      const busy = c.state === 'syncing' || c.state === 'connecting';
+      const detail = [c.account ? 'Account: ' + c.account : '', c.shared ? 'using your ThunderShadow sign-in' : '',
+        c.lastSync ? 'last synced ' + new Date(c.lastSync).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '', c.pending ? 'changes waiting to sync' : ''].filter(Boolean).join(' · ');
+      gBox.replaceChildren(...[
+        h('p', { class: 'gstat g-' + c.state, text: c.message || (c.connected ? 'Signed in.' : 'Sign in with Google to keep your progress in your Google account and pick it up on any device.') }),
+        c.connected && detail ? h('p', { class: 'hint', text: detail.charAt(0).toUpperCase() + detail.slice(1) }) : null,
+        h('div', { class: 'btnrow' },
+          c.connected
+            ? h('button', { class: 'btn primary', disabled: busy, onclick: () => cloud().syncNow({ manual: true }).then(() => toast('Synced with Google')).catch((e) => toast(e.message)) }, busy ? 'Syncing…' : 'Sync now')
+            : h('button', { class: 'btn primary', id: 'st-gconnect', disabled: busy || !c.canSignIn, onclick: signIn }, 'Sign in with Google'),
+          c.connected ? h('button', { class: 'btn ghost', onclick: () => cloud().disconnect().then(() => toast('Signed out of Google sync')) }, 'Sign out') : null),
+        h('details', { class: 'set-more' }, h('summary', { text: 'When does it sync?' }),
+          h('ul', null,
+            h('li', { text: 'About 10 seconds after you stop editing (at most a minute after your first change), and right away when you leave the app.' }),
+            h('li', { text: 'When you open the app, and when you come back to it (at most every 5 minutes), it checks for changes from your other devices — a quick file check, with nothing downloaded unless something changed.' }),
+            h('li', { text: 'The sign-in service (the Cloudflare Worker) is only contacted to sign in or out and about once an hour while you’re using the app, when Google’s access pass expires.' }),
+            h('li', { text: 'If Google can’t be reached it waits longer between tries (30 seconds up to 15 minutes). Nothing is lost: everything stays saved on this device.' }))),
+        h('p', { class: 'hint', text: 'Stored in a private app folder in your Google Drive (it doesn’t show up in your Drive files), kept apart from ThunderShadow’s data.' }),
+        !c.connected && !c.canSignIn ? h('p', { class: 'hint', text: 'Google sign-in works on the published site: ' + c.returnUrl }) : null].filter(Boolean));
+    };
+
+    // appearance
     const theme = h('div', { class: 'seg mode', role: 'group', 'aria-label': 'Theme' });
-    const drawTheme = () => theme.replaceChildren(...[['system', 'System'], ['light', 'Light'], ['dark', 'Dark']].map(([k, l]) =>
+    const drawTheme = () => theme.replaceChildren(...[['system', 'Match device'], ['light', 'Light'], ['dark', 'Dark']].map(([k, l]) =>
       h('button', { 'aria-pressed': p().theme === k ? 'true' : 'false', onclick: () => { state.prefs.theme = k; applyTheme(); save(); drawTheme(); } }, l)));
-    drawTheme();
+    const artView = h('div', { class: 'seg mode', role: 'group', 'aria-label': 'Articles layout' });
+    const drawArtView = () => artView.replaceChildren(...[['grid', 'Grid'], ['list', 'List']].map(([k, l]) =>
+      h('button', { 'aria-pressed': p().artView === k ? 'true' : 'false', onclick: () => { state.prefs.artView = k; save(); drawArtView(); } }, l)));
+
+    // qbanks
+    const qbList = h('div', { class: 'set-list' });
+    const drawQb = () => qbList.replaceChildren(...qbStats().banks.map((b) => h('div', { class: 'set-row' },
+      h('div', null, h('b', { text: b.qb.name }), h('small', { text: [b.bank ? fmtN(b.bank) + ' questions' : 'bank size not set', b.pctDone != null ? fmtPct(b.pctDone) + ' done' : '', b.acc != null ? fmtPct(b.acc) + ' correct' : ''].filter(Boolean).join(' · ') })),
+      h('button', { class: 'btn', 'data-open': 'qb-' + b.qb.id, onclick: () => openQbank(b.qb) }, 'Edit'))),
+      h('div', { class: 'btnrow' }, h('button', { class: 'btn ghost', 'data-open': 'qb-new', onclick: () => openQbank(null) }, '+ Add a qbank')));
+
+    // backup
     const backupNote = h('p', { class: 'hint' });
     const drawBackup = () => {
       const lb = p().lastBackup;
-      backupNote.textContent = lb ? 'Last backup ' + fmtDate(lb.slice(0, 10)) + '. ' : 'No backup yet. ';
-      backupNote.textContent += 'Backups are JSON files you can import on any device. CSV opens in Excel or Sheets.';
+      backupNote.textContent = (lb ? 'Last backup ' + fmtDate(lb.slice(0, 10)) + '. ' : 'No backup file yet. ') + 'Backups are JSON files you can import on any device. CSV opens in Excel or Sheets.';
     };
-    drawBackup();
     const persistNote = h('p', { class: 'hint' });
     const persistBtn = h('button', { class: 'btn', hidden: true, onclick: async () => {
       try { await navigator.storage.persist(); } catch (e) {}
       checkPersist();
     } }, 'Protect from clearing');
     const checkPersist = async () => {
-      if (!navigator.storage || !navigator.storage.persisted) { persistNote.textContent = 'Your browser decides how long site data is kept — export backups regularly.'; return; }
+      if (!navigator.storage || !navigator.storage.persisted) { persistNote.textContent = 'Your browser decides how long site data is kept — sign in with Google or export backups.'; return; }
       const ok = await navigator.storage.persisted().catch(() => false);
-      persistNote.textContent = ok ? 'This browser has agreed to keep your data unless you clear it yourself.' : 'The browser may clear site data when space runs low. Ask it to keep your data, and export backups regularly.';
+      persistNote.textContent = ok ? 'This browser has agreed to keep your data unless you clear it yourself.' : 'The browser may clear site data when space runs low. Ask it to keep your data, and sign in with Google or export backups.';
       persistBtn.hidden = ok;
     };
     checkPersist();
+
+    // danger zone
     let armTimer = null;
     const resetBtn = h('button', { class: 'btn ghost danger', onclick: () => {
       if (!resetBtn.dataset.arm) {
@@ -1822,77 +2054,78 @@
         return;
       }
       clearTimeout(armTimer);
+      delete resetBtn.dataset.arm; resetBtn.textContent = 'Erase all data';
       const undo = snapshot();
       const theme = state.prefs.theme;
       state = blank(); state.prefs.theme = theme;
       stampAll(state, Date.now());
-      save(); closeSheet();
+      save(); render(); refreshSheet();
       toast('All data erased', undo);
     } }, 'Erase all data');
 
-    const gBox = h('div', { class: 'sect', id: 'st-google', tabindex: '-1' });
-    const drawGoogle = () => {
-      const c = cloud() && cloud().status();
-      if (!c) { gBox.replaceChildren(h('h3', { text: 'Google account' }), h('p', { class: 'hint', text: 'Google sync couldn’t load. Reload the page to try again.' })); return; }
-      const busy = c.state === 'syncing' || c.state === 'connecting';
-      const detail = [c.account ? 'Account: ' + c.account : '', c.shared ? 'using your ThunderShadow sign-in' : '',
-        c.lastSync ? 'last synced ' + new Date(c.lastSync).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : ''].filter(Boolean).join(' · ');
-      gBox.replaceChildren(...[
-        h('h3', { text: 'Google account' }),
-        h('p', { class: 'gstat g-' + c.state, text: c.message || (c.connected ? 'Signed in.' : 'Sign in with Google to keep your progress in your Google account and pick it up on any device.') }),
-        c.connected && detail ? h('p', { class: 'hint', text: detail.charAt(0).toUpperCase() + detail.slice(1) }) : null,
-        h('div', { class: 'btnrow' },
-          c.connected
-            ? h('button', { class: 'btn primary', disabled: busy, onclick: () => cloud().syncNow({ manual: true }).then(() => toast('Synced with Google')).catch((e) => toast(e.message)) }, busy ? 'Syncing…' : 'Sync now')
-            : h('button', { class: 'btn primary', id: 'st-gconnect', disabled: busy || !c.canSignIn, onclick: signIn }, 'Sign in with Google'),
-          c.connected ? h('button', { class: 'btn ghost', onclick: () => cloud().disconnect().then(() => toast('Signed out of Google sync')) }, 'Sign out') : null),
-        h('p', { class: 'hint', text: 'Stored in a private app folder in your Google Drive (it doesn’t show up in your Drive files), kept apart from ThunderShadow’s data. This browser keeps working offline and catches up when you’re back online.' }),
-        !c.connected && !c.canSignIn ? h('p', { class: 'hint', text: 'Google sign-in works on the published site: ' + c.returnUrl }) : null].filter(Boolean));
-    };
-    drawGoogle();
+    const keys = [['1 – 6', 'Switch tabs'], [',', 'Open settings'], ['t', 'Light / dark'], ['Esc', 'Close a panel, or leave settings'], ['← →', 'Move between tabs (when a tab is focused)']];
+    const SECTIONS = [
+      ['set-plan', 'Plan'], ['set-sync', 'Google sync'], ['set-look', 'Appearance'], ['set-qbanks', 'Qbanks'],
+      ['set-data', 'Backup & import'], ['set-keys', 'Shortcuts'], ['set-danger', 'Erase data'],
+    ];
+    const nav = h('nav', { class: 'set-nav', 'aria-label': 'Settings sections' }, SECTIONS.map(([id, label]) =>
+      h('a', { href: '#settings', 'data-sec': id, onclick: (e) => { e.preventDefault(); const el = $(id); el.scrollIntoView({ block: 'start', behavior: 'smooth' }); el.focus({ preventScroll: true }); } }, label)));
 
-    openSheet('settings', 'Settings', [
-      sheetHead('Settings', 'Plan, sync & backup'),
-      h('div', { class: 'two' }, h('div', { class: 'field' }, h('label', { for: 'st-exam', text: 'Test date' }), examIn), target.field),
-      h('div', { class: 'two' }, h('div', { class: 'field' }, h('span', { class: 'lab', text: 'Theme' }), theme), h('div')),
-      h('p', { class: 'hint', text: 'The test date drives the countdown, pace and score projection. The target adds a line to the score chart.' }),
-      gBox,
-      h('div', { class: 'sect' },
-        h('h3', { text: 'Backup & import' }), backupNote,
+    $('settings-body').replaceChildren(nav, h('div', { class: 'set-main' },
+      card('set-plan', 'Plan', 'Your test date and the score you’re aiming for.',
+        h('div', { class: 'two' }, h('div', { class: 'field' }, h('label', { for: 'st-exam', text: 'Test date' }), examIn), target.field), planNote),
+      card('set-sync', 'Google sync', null, gBox),
+      card('set-look', 'Appearance', 'Saved on this device only.',
+        h('div', { class: 'set-row' }, h('div', null, h('b', { text: 'Theme' }), h('small', { text: 'Or press t, or use the button in the header.' })), theme),
+        h('div', { class: 'set-row' }, h('div', null, h('b', { text: 'AMBOSS articles layout' }), h('small', { text: 'Grid fits more articles on screen.' })), artView)),
+      card('set-qbanks', 'Qbanks', 'Bank sizes and the progress you’d made before logging sessions here.', qbList),
+      card('set-data', 'Backup & import', null, backupNote,
         h('div', { class: 'btnrow' },
           h('button', { class: 'btn primary', id: 'st-export', onclick: exportJson }, 'Export backup'),
           h('button', { class: 'btn', onclick: exportCsv }, 'Export CSV'),
           h('button', { class: 'btn', onclick: () => $('import').click() }, 'Import backup')),
-        h('div', { class: 'btnrow' }, h('button', { class: 'btn', onclick: () => $('sim-import').click() }, 'Import from Exam Simulator')),
+        h('div', { class: 'btnrow' }, h('button', { class: 'btn', 'data-open': 'sim-import', onclick: () => $('sim-import').click() }, 'Import from Exam Simulator')),
         h('p', { class: 'hint', text: 'Exam Simulator import reads its progress backup (.zip) and fills in finished NBME, UWSA and CMS forms. You see what changes before anything is saved.' }),
         persistNote, h('div', { class: 'btnrow' }, persistBtn)),
-      h('div', { class: 'sect' },
-        h('h3', { text: 'Danger zone' }),
-        h('p', { class: 'hint', text: 'Erases every score, note and session in this browser — and in your Google account if you’re signed in. You can undo right after.' }),
+      card('set-keys', 'Keyboard shortcuts', null, h('dl', { class: 'keys' }, keys.flatMap(([k, d]) => [h('dt', null, h('kbd', { text: k })), h('dd', { text: d })]))),
+      card('set-danger', 'Erase data', 'Erases every score, note, session and article tick in this browser — and in your Google account if you’re signed in. You can undo right after.',
         h('div', { class: 'btnrow' }, resetBtn)),
-      h('div', { class: 'actions' }, h('button', { class: 'btn primary', onclick: closeSheet }, 'Done')),
-    ], () => {
+      h('p', { class: 'hint set-about' }, 'Thunder tracker · your data stays in this browser and, if you sign in, your own Google Drive. ',
+        h('a', { href: 'https://github.com/dawnsommer/thundertracker', target: '_blank', rel: 'noopener noreferrer', text: 'Source on GitHub' }))));
+    // make the section cards focus targets for the nav
+    SECTIONS.forEach(([id]) => $(id).setAttribute('tabindex', '-1'));
+
+    settingsRefresh = () => {
       const a = document.activeElement;
       if (a !== examIn) examIn.value = p().examDate;
       if (a !== target.inp) target.inp.value = p().target;
-      drawTheme(); drawBackup(); drawGoogle();
-    }, focus);
+      drawPlan(); drawGoogle(); drawTheme(); drawArtView(); drawQb(); drawBackup();
+    };
+    settingsRefresh();
+    const f = ui.settingsFocus; ui.settingsFocus = '';
+    setTimeout(() => {
+      const el = f ? document.querySelector(f) : null;
+      if (el) { el.scrollIntoView({ block: 'center' }); el.focus(); } else $('settings-h').focus();
+    }, 0);
   }
   function signIn() {
     if (!cloud()) return;
     Promise.resolve(cloud().connect()).then(() => { if (cloud().status().connected) toast('Signed in with Google'); }).catch((e) => toast(e.message));
   }
-  $('open-settings').addEventListener('click', () => openSettings());
+  const leaveSettings = () => showTab(ui.prevTab && ui.prevTab !== 'settings' ? ui.prevTab : 'overview', true);
+  $('open-settings').addEventListener('click', () => (ui.tab === 'settings' ? leaveSettings() : openSettings()));
+  $('settings-back').addEventListener('click', leaveSettings);
   $('foot-settings').addEventListener('click', () => openSettings());
 
   // ---------- keyboard ----------
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && sheetOpen) { closeSheet(); return; }
+    if (e.key === 'Escape' && ui.tab === 'settings' && !/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) { leaveSettings(); return; }
     if (sheetOpen || e.metaKey || e.ctrlKey || e.altKey) return;
     const t = e.target;
     if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
     if (e.key >= '1' && e.key <= String(TABS.length)) { showTab(TABS[Number(e.key) - 1], true); }
-    else if (e.key === ',') { e.preventDefault(); openSettings(); }
+    else if (e.key === ',') { e.preventDefault(); if (ui.tab !== 'settings') openSettings(); }
     else if (e.key === 't') cycleTheme();
   });
 
@@ -1903,7 +2136,7 @@
   renderNotice();
   setSave(storageOk ? '' : 'off', storageOk ? 'Saved on this device' : 'Not saved — storage blocked');
   const hash = location.hash.slice(1);
-  showTab(TABS.includes(hash) ? hash : 'overview');
+  showTab(VIEWS.includes(hash) ? hash : 'overview');
   if (cloud()) {
     cloud().subscribe(() => { paintStatus(); refreshSheet(); });
     cloud().init({

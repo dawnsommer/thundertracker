@@ -1,7 +1,17 @@
 // Optional Google sync. The tracker stays local-first: every change saves to this browser first and
 // syncs in the background. Sign-in goes through the shared Cloudflare Worker (it holds the Google
-// refresh token); this page only keeps the Worker session, and Google access tokens live in memory.
+// refresh token); this page keeps the Worker session and the current short-lived Google access token.
 // Data is one JSON file in the Drive appDataFolder, merged record by record (see merge() in app.js).
+//
+// Network use is kept to what's needed:
+// - The Worker is called only to sign in/out and when the access token (about an hour) runs out.
+//   The token is reused across reloads and tabs, so opening the app doesn't call the Worker.
+// - Edits are batched: a sync runs 10 s after you stop editing (at most 60 s after the first edit),
+//   and straight away when you leave the page.
+// - With no local edits, Drive is checked for other devices' changes when the app opens, and when you
+//   return to it at most every 5 minutes. A check is one small file listing; download and upload
+//   happen only when something actually changed.
+// - Failures back off (30 s, 1, 2, 4… up to 15 minutes) instead of retrying in a loop.
 (() => {
   'use strict';
 
@@ -16,6 +26,7 @@
     sig: 'thundertracker:cloud-remote-sig',
     dirty: 'thundertracker:cloud-dirty',
     device: 'thundertracker:cloud-device-id',
+    token: 'thundertracker:cloud-token',
   };
   // ThunderShadow keeps its Worker session under this key on dawnsommer.github.io. It is only read,
   // to reuse an existing Google sign-in; this file never writes or clears it.
@@ -23,7 +34,7 @@
   const FILE_NAME = APP_ID + '-state.json';
   const DRIVE = 'https://www.googleapis.com/drive/v3';
   const UPLOAD = 'https://www.googleapis.com/upload/drive/v3';
-  const DEBOUNCE_MS = 4000, FOREGROUND_MS = 60000, TOKEN_SKEW_MS = 60000;
+  const DEBOUNCE_MS = 10000, MAX_WAIT_MS = 60000, CHECK_EVERY_MS = 5 * 60000, TOKEN_SKEW_MS = 60000, MAX_BACKOFF_MS = 15 * 60000;
 
   const get = (k) => { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } };
   const put = (k, v) => { try { if (v) localStorage.setItem(k, v); else localStorage.removeItem(k); } catch (e) {} };
@@ -43,7 +54,9 @@
     if (session) { put(K.session, session); put(K.shared, ''); put(K.last, ''); put(K.sig, ''); justConnected = true; }
   })();
 
-  let app = null, token = '', tokenExp = 0, tokenP = null, syncP = null, again = false, timer = null, lastForeground = 0;
+  let app = null, token = '', tokenExp = 0, tokenP = null, syncP = null, again = false, timer = null;
+  let lastCheck = 0, firstDirtyAt = 0, failures = 0, retryAt = 0;
+  const stats = { workerCalls: 0, driveCalls: 0 };
   let st = { state: 'signedout', message: '' };
   const subs = new Set();
 
@@ -62,7 +75,7 @@
   function status() {
     return {
       configured: configured(), connected: !!session(), state: st.state, message: st.message, short: SHORT[st.state] || '',
-      account: get(K.account), lastSync: get(K.last), shared: get(K.shared) === '1', returnUrl: CFG.returnUrl,
+      account: get(K.account), lastSync: get(K.last), shared: get(K.shared) === '1', returnUrl: CFG.returnUrl, pending: !!get(K.dirty),
       canSignIn: configured() && (onSite() || !!get(SHADOW_SESSION)),
     };
   }
@@ -80,15 +93,26 @@
   }
   function forget() {
     token = ''; tokenExp = 0;
-    [K.session, K.shared, K.account, K.last, K.sig, K.dirty].forEach((k) => put(k, ''));
+    [K.session, K.shared, K.account, K.last, K.sig, K.dirty, K.token].forEach((k) => put(k, ''));
+  }
+  // The cached token is tied to the session it came from (by a short fingerprint, not the session itself).
+  const fingerprint = (x) => { let h = 0; for (let i = 0; i < x.length; i++) h = (h * 31 + x.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
+  function cachedToken() {
+    try {
+      const c = JSON.parse(get(K.token) || 'null');
+      if (c && c.f === fingerprint(session()) && c.exp > Date.now() + TOKEN_SKEW_MS && c.token) { token = c.token; tokenExp = c.exp; return true; }
+    } catch (e) {}
+    return false;
   }
 
   async function getToken(force) {
     if (!force && token && tokenExp > Date.now() + TOKEN_SKEW_MS) return token;
+    if (!force && cachedToken()) return token;
     if (tokenP) return tokenP;
     const s = session();
     if (!s) throw authError('Not signed in.');
     tokenP = (async () => {
+      stats.workerCalls++;
       const res = await timed(worker('/token'), { method: 'POST', headers: { Authorization: 'Bearer ' + s, Accept: 'application/json' }, cache: 'no-store' }, 15000);
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -106,6 +130,7 @@
       const secs = Number(body.expires_in ?? body.expiresIn ?? 3600);
       tokenExp = abs != null ? (typeof abs === 'number' ? (abs > 1e10 ? abs : abs * 1000) : Date.parse(abs)) : Date.now() + Math.max(60, secs || 3600) * 1000;
       if (!Number.isFinite(tokenExp)) tokenExp = Date.now() + 3e6;
+      put(K.token, JSON.stringify({ f: fingerprint(s), token, exp: tokenExp }));
       const email = String(body.email || body.account_email || body.accountEmail || (body.account && body.account.email) || '');
       if (email) put(K.account, email);
       return token;
@@ -116,8 +141,9 @@
   async function drive(url, opts = {}, retry = true) {
     const headers = new Headers(opts.headers || {});
     headers.set('Authorization', 'Bearer ' + await getToken());
+    stats.driveCalls++;
     const res = await timed(url, Object.assign({}, opts, { headers, cache: 'no-store' }), 20000);
-    if (res.status === 401 && retry) { token = ''; await getToken(true); return drive(url, opts, false); }
+    if (res.status === 401 && retry) { token = ''; put(K.token, ''); await getToken(true); return drive(url, opts, false); }
     return res;
   }
   async function driveJson(url, opts, what) {
@@ -184,26 +210,39 @@
         sigNow = sigOf(saved);
       }
       put(K.sig, sigNow);
-      if (get(K.dirty) === dirtyAt) put(K.dirty, ''); else again = true;
+      if (get(K.dirty) === dirtyAt) { put(K.dirty, ''); firstDirtyAt = 0; } else again = true;
       put(K.last, new Date().toISOString());
+      lastCheck = Date.now(); failures = 0; retryAt = 0;
       const acct = get(K.account);
       set('synced', 'Synced with your Google account' + (acct ? ' (' + acct + ')' : '') + '.');
     })().catch((e) => {
       if (!(e && e.auth)) {
         if (!navigator.onLine) set('offline', 'Offline — changes are saved on this device and will sync when you’re back online.');
-        else set('error', 'Couldn’t sync with Google — your progress is safe on this device. ' + ((e && e.message) || ''));
+        else {
+          // back off instead of hammering the Worker/Drive; edits stay queued locally
+          failures++;
+          const wait = Math.min(MAX_BACKOFF_MS, 30000 * 2 ** (failures - 1));
+          retryAt = Date.now() + wait;
+          set('error', 'Couldn’t sync with Google — your progress is safe on this device. Trying again in ' + (wait < 60000 ? Math.round(wait / 1000) + ' s' : Math.round(wait / 60000) + ' min') + '. ' + ((e && e.message) || ''));
+          if (get(K.dirty)) { clearTimeout(timer); timer = setTimeout(() => { timer = null; syncNow().catch(() => {}); }, wait); }
+        }
       }
       if (opts.manual) throw e;
     }).finally(() => {
       syncP = null;
-      if (again) { again = false; schedule(800); }
+      if (again) { again = false; schedule(); }
     });
     return syncP;
   }
-  function schedule(ms) {
-    clearTimeout(timer);
+  // Debounced: waits for a pause in editing, but never more than MAX_WAIT_MS after the first edit.
+  function schedule() {
     if (!session()) return;
-    timer = setTimeout(() => { timer = null; syncNow().catch(() => {}); }, ms == null ? DEBOUNCE_MS : ms);
+    clearTimeout(timer);
+    const now = Date.now();
+    if (!firstDirtyAt) firstDirtyAt = now;
+    // while backing off after a failure, wait for the retry time
+    const wait = Math.max(retryAt - now, 0, Math.min(DEBOUNCE_MS, firstDirtyAt + MAX_WAIT_MS - now));
+    timer = setTimeout(() => { timer = null; syncNow().catch(() => {}); }, wait);
   }
   function markDirty() {
     put(K.dirty, String(Date.now()));
@@ -245,25 +284,34 @@
       : 'Signed out on this device (the sign-in service couldn’t be reached).');
   }
 
+  // Opening or returning to the app: push pending edits, otherwise look for other devices' changes
+  // only if the last check is more than CHECK_EVERY_MS old (this also covers reloads and other tabs).
+  function lastSeen() { return Math.max(lastCheck, Date.parse(get(K.last)) || 0); }
   function foreground() {
-    if (!session() || !navigator.onLine) return;
-    if (get(K.dirty) || Date.now() - lastForeground > FOREGROUND_MS) { lastForeground = Date.now(); syncNow().catch(() => {}); }
+    if (!session() || !navigator.onLine || Date.now() < retryAt) return;
+    if (get(K.dirty) || Date.now() - lastSeen() > CHECK_EVERY_MS) syncNow().catch(() => {});
   }
 
   function init(api) {
     if (app) return;
     app = api;
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') foreground(); });
-    window.addEventListener('focus', foreground);
-    window.addEventListener('online', () => syncNow().catch(() => {}));
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') foreground();
+      // leaving the page: send pending edits now rather than waiting for the debounce
+      else if (get(K.dirty) && session() && navigator.onLine && !syncP) { app.flush(); syncNow().catch(() => {}); }
+    });
+    window.addEventListener('online', () => { failures = 0; retryAt = 0; if (get(K.dirty)) syncNow().catch(() => {}); else foreground(); });
     window.addEventListener('offline', () => { if (session()) set('offline', 'Offline — changes are saved on this device and will sync when you’re back online.'); });
     if (callbackError) set('error', 'Google sign-in didn’t finish: ' + callbackError);
-    else if (session()) { set('connecting', 'Restoring Google sync…'); lastForeground = Date.now(); syncNow().catch(() => {}); }
+    else if (session()) {
+      // opening the app checks Drive once; with a fresh cached token this doesn't call the Worker
+      set('connecting', 'Restoring Google sync…'); syncNow().catch(() => {});
+    }
     else set('signedout', '');
   }
 
   window.CKCloud = {
-    init, connect, disconnect, syncNow, markDirty, status,
+    init, connect, disconnect, syncNow, markDirty, status, stats: () => Object.assign({}, stats),
     subscribe: (fn) => { subs.add(fn); return () => subs.delete(fn); },
     justConnected: () => { const j = justConnected; justConnected = false; return j; },
   };

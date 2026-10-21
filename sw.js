@@ -1,7 +1,7 @@
 // Offline support. Never touches Google or the sign-in Worker: those requests go straight to the network.
 // App files are fetched network-first (so a new deploy shows up on the next load)
 // and fall back to the cache when offline; Google Fonts are cached after first use.
-const CACHE = 'ck-tracker-v4';
+const CACHE = 'ck-tracker-v5';
 const SHELL = ['./', 'index.html', 'styles.css', 'config.js', 'cloud.js', 'app.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {

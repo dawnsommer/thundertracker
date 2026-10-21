@@ -39,7 +39,7 @@
       <div class="top-r">
         <div class="save" id="save" role="status"><i></i><span id="save-t">Loading…</span></div>
         <button class="icon-btn" id="theme-btn" aria-label="Theme" title="Theme"></button>
-        <button class="icon-btn" id="open-settings" data-open="settings" aria-label="Settings and backup" title="Settings and backup">
+        <button class="icon-btn" id="open-settings" data-open="settings" aria-label="Settings" aria-pressed="false" title="Settings">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
         </button>
       </div>
@@ -91,6 +91,16 @@
       <div class="card">
         <div class="sec-head"><div><h3>Activity</h3><p class="sub">Last 20 weeks · tap a day to see what you did</p></div></div>
         <div id="heat"></div>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="sec-head"><div><h3>Recurring weak systems</h3><p class="sub">Systems you marked weak on your NBME, UWSA and Free 120 forms</p></div></div>
+        <div id="weak"></div>
+      </div>
+      <div class="card">
+        <div class="sec-head"><div><h3>AMBOSS articles</h3><p class="sub">Read at least once, by section</p></div></div>
+        <div id="art-mini"></div>
       </div>
     </div>
   </section>
@@ -172,14 +182,41 @@
       <div><h2>AMBOSS articles</h2><p class="sub">Tick a box each time you read an article, up to 5 read-throughs. Tap a title for notes and a link to AMBOSS.</p></div>
       <button class="btn" id="art-add-sec">+ Add a section</button>
     </div>
-    <div class="toolbar">
-      <span class="eyebrow" style="margin-right:2px">Show</span>
-      <button class="pill" data-af="all">All</button>
-      <button class="pill" data-af="unread">Not read</button>
-      <button class="pill" data-af="read">Read</button>
-      <input type="search" class="sel" id="art-search" placeholder="Search articles" aria-label="Search articles" style="margin-left:auto;min-width:0;flex:0 1 14rem">
+    <div id="art-summary"></div>
+    <div class="art-tools">
+      <div class="toolbar">
+        <span class="eyebrow" style="margin-right:2px">Show</span>
+        <button class="pill" data-af="all">All</button>
+        <button class="pill" data-af="unread">Not read</button>
+        <button class="pill" data-af="read">Read</button>
+        <input type="search" class="sel" id="art-search" placeholder="Search articles" aria-label="Search articles" style="margin-left:auto;min-width:0;flex:0 1 14rem">
+      </div>
+      <div class="toolbar">
+        <div class="seg mode" id="art-view" role="group" aria-label="Layout">
+          <button data-view="grid" aria-pressed="true">Grid</button>
+          <button data-view="list" aria-pressed="false">List</button>
+        </div>
+        <label class="switch">Sort
+          <select class="sel" id="art-sort">
+            <option value="checklist">Checklist order</option>
+            <option value="least">Fewest reads first</option>
+            <option value="most">Most reads first</option>
+            <option value="recent">Recently read</option>
+            <option value="az">A–Z</option>
+          </select>
+        </label>
+        <button class="pill" id="art-collapse">Collapse all</button>
+        <button class="pill" id="art-arrange" aria-pressed="false">Arrange sections</button>
+      </div>
     </div>
     <div id="art-list"></div>
+  </section>
+
+  <section class="view" id="view-settings" aria-labelledby="settings-h" hidden>
+    <div class="sec-head set-head">
+      <div><button class="linkish set-back" id="settings-back">← Back</button><h2 id="settings-h" tabindex="-1">Settings</h2><p class="sub">Plan, Google sync, appearance, qbanks and your data.</p></div>
+    </div>
+    <div class="settings" id="settings-body"></div>
   </section>
 
   <footer>
