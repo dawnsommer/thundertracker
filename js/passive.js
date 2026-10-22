@@ -4,10 +4,10 @@
 // can tell video-only from video + notes. You can add your own sections (another podcast, a topic) and
 // episodes under the Divine list.
 
-import { $, fmtDate, h, today, uid } from './util.js?v=15';
-import { save, snapshot, state, toast, ui } from './store.js?v=15';
-import { render } from './shell.js?v=15';
-import { DIP_ITEMS, DIP_SECTIONS, PHYSEO, PV_PASSES } from './passive-catalog.js?v=15';
+import { $, fmtDate, h, today, uid } from './util.js?v=16';
+import { save, snapshot, state, toast, ui } from './store.js?v=16';
+import { render } from './shell.js?v=16';
+import { DIP_ITEMS, DIP_SECTIONS, PHYSEO, PV_PASSES } from './passive-catalog.js?v=16';
 
 // The code only decides whether the tab shows; it's not a password (the app has no secrets).
 const CODE = '1afqyji';

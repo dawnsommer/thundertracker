@@ -1,14 +1,14 @@
 // The Assessments tab (NBME, UWSA, Free 120) and the assessment editor.
 
-import { $, avg, daysUntil, fmtDate, fmtPct, h, isDate, nn, num, today } from './util.js?v=15';
-import { FORM_ST, GROUPS } from './catalog.js?v=15';
-import { item, save, snapshot, state, toast, ui } from './store.js?v=15';
-import { addForm, band, pctOf, scaledOf, taken, testForms, toggleRemove, weakNames } from './data.js?v=15';
-import { closeSheet, numField, openSheet, sheetHead, weakPicker } from './sheets.js?v=15';
-import { render } from './shell.js?v=15';
-import { statusPill } from './overview.js?v=15';
-import { estimateScore, estText, toggleCalculator } from './calculator.js?v=15';
-import { modelsFor } from './score-models.js?v=15';
+import { $, avg, daysUntil, fmtDate, fmtPct, h, isDate, nn, num, today } from './util.js?v=16';
+import { FORM_ST, GROUPS } from './catalog.js?v=16';
+import { item, save, snapshot, state, toast, ui } from './store.js?v=16';
+import { addForm, band, pctOf, scaledOf, taken, testForms, toggleRemove, weakNames } from './data.js?v=16';
+import { closeSheet, numField, openSheet, sheetHead, weakPicker } from './sheets.js?v=16';
+import { render } from './shell.js?v=16';
+import { statusPill } from './overview.js?v=16';
+import { estimateScore, estText, toggleCalculator } from './calculator.js?v=16';
+import { modelsFor } from './score-models.js?v=16';
 
 export function renderTests() {
   const eb = $('edit-tests');
@@ -44,7 +44,9 @@ export function renderTests() {
         'aria-label': f.full + ', ' + FORM_ST[it.status] + (s3 != null ? ', score ' + s3 : '') + (p != null ? ', ' + fmtPct(p) + ' correct' : '') },
         h('span', { class: 'nm' }, f.label, f.old ? h('span', { class: 'old', text: 'older' }) : null),
         h('span', { style: 'min-width:0' }, statusPill(it.status, FORM_ST),
-          it.weak.length || it.notes ? h('span', { class: 'notes-p' }, it.weak.length ? h('b', { class: 'weak-l', text: 'Weak: ' + weakNames(it.weak) }) : null, it.weak.length && it.notes ? ' · ' : '', it.notes || '') : null),
+          // weak systems, then your notes on their own line
+          it.weak.length ? h('span', { class: 'notes-p' }, h('b', { class: 'weak-l', text: 'Weak: ' + weakNames(it.weak) })) : null,
+          it.notes ? h('span', { class: 'notes-p notes-t', title: it.notes, text: it.notes }) : null),
         h('span', { class: 'sc' + (main == null && p == null ? ' none' : '') },
           g.scaled && est ? h('b', { class: 'est', title: 'Estimated from % correct (' + est.how + ')', text: '≈' + est.score })
             : g.scaled ? h('b', { class: band('score', s3), text: s3 != null ? String(s3) : '—' }) : h('b', { text: p != null ? fmtPct(p) : '—' }),

@@ -32,6 +32,10 @@ ok((await p.textContent('#tests')).includes('AMBOSS Self-Assessment') && await p
 await p.click('#tests [data-open="asa-1"]');
 await p.fill('#ed-score', '241'); await p.fill('#ed-pct', '68'); await p.keyboard.press('Escape');
 ok((await local()).items['asa-1'].score === '241' && (await p.textContent('#tests [data-open="asa-1"] .sc')).startsWith('241'), 'AMBOSS SA score logged');
+await p.click('#tests [data-open="asa-1"]');
+await p.click('.weak-pick .tag:text-is("Renal")'); await p.fill('#ed-notes', 'Missed RTA questions'); await p.keyboard.press('Escape');
+const lines = await p.locator('#tests [data-open="asa-1"] .notes-p').allTextContents();
+ok(lines.length === 2 && lines[0] === 'Weak: Renal' && lines[1] === 'Missed RTA questions', 'row: weak systems, then notes on their own line: ' + JSON.stringify(lines));
 await p.click('#tab-overview'); await p.waitForTimeout(200);
 ok((await p.textContent('#trend-legend')).includes('AMBOSS SA'), 'shows in the score trend');
 

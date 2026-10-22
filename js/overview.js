@@ -1,15 +1,15 @@
 // The Overview tab: tiles, score trend, CMS bars, Up next, activity calendar and the weakness matrix.
 
-import { $, avg, dayNum, daysUntil, fmtDate, fmtK, fmtLong, fmtN, fmtPct, fromDay, h, monthShort, nn, num, plural, today, weekday } from './util.js?v=15';
-import { GROUPS, PASS, SUBJ, SYS_ST } from './catalog.js?v=15';
-import { cloud, item, save, state, sysItem, ui } from './store.js?v=15';
-import { allArticles, allCms, allSystems, allTests, artItem, band, cmsForms, isEmpty, outlook, pctOf, qbStats, scaledOf, shortSys, taken, trendPoints, weakPattern } from './data.js?v=15';
-import { render, showTab } from './shell.js?v=15';
-import { openForm } from './assessments.js?v=15';
-import { openSystem } from './systems.js?v=15';
-import { renderArtSummary } from './articles.js?v=15';
-import { openSettings, signIn } from './settings.js?v=15';
-import { inDays, openPlanner, plannedForms } from './planner.js?v=15';
+import { $, avg, dayNum, daysUntil, fmtDate, fmtK, fmtLong, fmtN, fmtPct, fromDay, h, monthShort, nn, num, plural, today, weekday } from './util.js?v=16';
+import { GROUPS, PASS, SUBJ, SYS_ST } from './catalog.js?v=16';
+import { cloud, item, save, state, sysItem, ui } from './store.js?v=16';
+import { allArticles, allCms, allSystems, allTests, artItem, band, cmsForms, isEmpty, outlook, pctOf, qbStats, scaledOf, shortSys, taken, trendPoints, weakPattern } from './data.js?v=16';
+import { render, showTab } from './shell.js?v=16';
+import { openForm } from './assessments.js?v=16';
+import { openSystem } from './systems.js?v=16';
+import { renderArtSummary } from './articles.js?v=16';
+import { openSettings, signIn } from './settings.js?v=16';
+import { inDays, openPlanner, plannedForms } from './planner.js?v=16';
 
 export function tile(label, big, small, frac, note) {
   return h('div', { class: 'tile' },
