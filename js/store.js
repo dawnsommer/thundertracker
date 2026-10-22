@@ -57,6 +57,8 @@ export function flush() {
     if (changed && cloud()) cloud().markDirty();
   } catch (e) {
     storageOk = false;
+    // still in memory: with Google sync on, it can still reach your account
+    if (changed && cloud()) cloud().markDirty();
     setSave('off', e && e.name === 'QuotaExceededError' ? 'Not saved — storage full' : 'Not saved — storage blocked');
     storageMsg = 'Changes can’t be saved in this browser right now. Export a backup from Settings so you don’t lose them.';
     renderNotice();

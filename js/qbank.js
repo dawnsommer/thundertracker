@@ -70,9 +70,15 @@ export function renderWeeks(box) {
 }
 (function setupLogForm() {
   const f = $('log-form'), date = $('lg-date'), q = $('lg-q'), pct = $('lg-pct'), src = $('lg-src'), note = $('lg-note'), err = $('lg-err');
-  date.value = today();
+  // the date fills in as today; if you didn't change it, it moves to the new day when you come back
+  // to the app (or log) after midnight
+  let auto = date.value = today();
+  const keepToday = () => { if (date.value === auto && auto !== today()) auto = date.value = today(); else if (!date.value) auto = date.value = today(); };
+  date.addEventListener('change', () => { auto = ''; });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') keepToday(); });
   f.addEventListener('submit', (e) => {
     e.preventDefault();
+    keepToday();
     const qn = Number(q.value), pn = pct.value === '' ? null : Number(pct.value);
     const problem = !isDate(date.value) ? 'Pick a date.' : !(Number.isInteger(qn) && qn >= 1 && qn <= 1000) ? 'Enter how many questions (1–1000).'
       : pn != null && !(pn >= 0 && pn <= 100) ? '% correct must be between 0 and 100.' : pct.validity.badInput ? '% correct must be a number.' : '';
@@ -172,6 +178,7 @@ export function openQbank(qb) {
     finBox,
     h('div', { class: 'actions' }, actions),
   ], () => {
+    if (!cur()) { closeSheet(); return; } // removed on another device while open
     const a = document.activeElement;
     if (a !== bank.inp) bank.inp.value = cur().bank;
     if (a !== done.inp) done.inp.value = cur().done;

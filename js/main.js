@@ -1,12 +1,12 @@
 // Entry point: keyboard shortcuts and start-up. Loads every other module.
 
-import { $, clone, today } from './util.js?v=14';
+import { clone } from './util.js?v=14';
 import { merge, norm, same } from './model.js?v=14';
 import { applyTheme, cloud, cycleTheme, flush, load, paintStatus, persistQuiet, saveTimer, setSave, setSaved, setState, state, storageOk, toast, ui } from './store.js?v=14';
 import { closeSheet, refreshSheet, sheetOpen } from './sheets.js?v=14';
 import { render, renderNotice, showTab, tabsNow, VIEWS } from './shell.js?v=14';
 import { drawTrend } from './overview.js?v=14';
-import { leaveSettings, openSettings } from './settings.js?v=14';
+import { leaveSettings, openSettings, settingsRefresh } from './settings.js?v=14';
 
 import './data.js?v=14';
 import './assessments.js?v=14';
@@ -43,7 +43,8 @@ setSave(storageOk ? '' : 'off', storageOk ? 'Saved on this device' : 'Not saved 
 export const hash = location.hash.slice(1);
 showTab(VIEWS.includes(hash) ? hash : 'overview');
 if (cloud()) {
-  cloud().subscribe(() => { paintStatus(); refreshSheet(); });
+  // only the header and the settings page show sync status; side sheets aren't redrawn for it
+  cloud().subscribe(() => { paintStatus(); if (settingsRefresh) settingsRefresh(); });
   cloud().init({
     flush: () => { if (saveTimer) flush(); },
     getState: () => clone(state),
@@ -62,4 +63,4 @@ if (cloud()) {
 export let rt;
 window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (ui.tab === 'overview') drawTrend(); }, 150); });
 // re-render after midnight so countdowns and "today" stay right
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { if (!$('lg-date').value) $('lg-date').value = today(); render(); } });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') render(); });

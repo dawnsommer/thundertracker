@@ -24,7 +24,14 @@ export function weakPicker(get, set, getPct, setPct) {
     if (!getPct) return;
     const sel = get().map((id) => allSystems().find((x) => x.id === id)).filter(Boolean);
     if (!sel.length) { pctBox.replaceChildren(); return; }
-    if (!showPct) { pctBox.replaceChildren(h('button', { class: 'linkish', onclick: () => { showPct = true; draw(); } }, 'Add % correct per weak system (optional — shades the weakness matrix)')); return; }
+    if (!showPct) { pctBox.dataset.key = ''; pctBox.replaceChildren(h('button', { class: 'linkish', onclick: () => { showPct = true; draw(); } }, 'Add % correct per weak system (optional — shades the weakness matrix)')); return; }
+    // same systems and you're typing in one: update the others in place, keep the focused box
+    const key = sel.map((sy) => sy.id).join();
+    if (pctBox.dataset.key === key && pctBox.contains(document.activeElement)) {
+      pctBox.querySelectorAll('[data-weakpct]').forEach((i) => { if (i !== document.activeElement) i.value = getPct()[i.dataset.weakpct] || ''; });
+      return;
+    }
+    pctBox.dataset.key = key;
     pctBox.replaceChildren(h('p', { class: 'hint', text: '% correct in each weak system, from the score report (optional):' }),
       h('div', { class: 'weak-pct-grid' }, sel.map((sy) => {
         const inp = h('input', { type: 'number', min: '0', max: '100', step: 'any', inputmode: 'decimal', placeholder: '%', value: getPct()[sy.id] || '', 'aria-label': '% correct in ' + sy.name, 'data-weakpct': sy.id });

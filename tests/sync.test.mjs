@@ -147,6 +147,15 @@ await pa.click('#toasts button'); await pa.waitForTimeout(400);
 await pa.evaluate(() => window.CKCloud.syncNow({ manual: true })); await idle(pa);
 ok((await local(pa)).items['nbme-9'].score === '236' && remote().items['nbme-9'].score === '236' && remote().items['nbme-12'], 'undo of restore brings everything back');
 
+// browser storage full: the edit can't be saved on the device, but still reaches Google
+await pa.keyboard.press('Escape').catch(() => {});
+await pa.evaluate(() => { window.__setItem = Storage.prototype.setItem; Storage.prototype.setItem = function () { throw new DOMException('full', 'QuotaExceededError'); }; });
+await pa.click('#tab-nbme'); await pa.click('#tests [data-open="nbme-13"]'); await pa.fill('#ed-score', '238'); await pa.keyboard.press('Escape'); await pa.waitForTimeout(500);
+ok((await pa.textContent('#save-t')).includes('storage full'), 'storage full shown: ' + await pa.textContent('#save-t'));
+await pa.evaluate(() => window.CKCloud.syncNow()); await idle(pa);
+ok(remote().items['nbme-13'] && remote().items['nbme-13'].score === '238', 'the edit still reached Google');
+await pa.evaluate(() => { Storage.prototype.setItem = window.__setItem; });
+
 // sign out A: worker /disconnect called, local data kept
 await pa.evaluate(() => window.CKCloud.disconnect());
 ok(calls.includes('A worker /disconnect') && !(await st(pa)).connected && (await local(pa)).items['nbme-12'], 'sign out keeps local data');

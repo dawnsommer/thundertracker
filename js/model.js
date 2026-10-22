@@ -207,18 +207,26 @@ export function merge(a, b, opts) {
   }
   // Lists and plan prefs: newest wins. A tie (typically two devices whose data predates sync) keeps
   // everything: lists are combined and empty plan fields are filled from the other side.
-  if (a.lt !== b.lt) {
+  // A device's first sync (a = this device, b = the account's copy) never lets one side's lists or plan
+  // replace the other's: a new phone where you only ticked "Show older forms" must not wipe the
+  // account's test date, target or added forms. Lists are combined; the account's plan fields win
+  // where they're set, this device fills the rest.
+  const empty = (v) => !v || (Array.isArray(v) && !v.length);
+  const union = (x, y) => { const o = clone(x); for (const k in y) o[k] = [...new Set([...(o[k] || []), ...y[k]])].sort((m, n) => m - n); return o; };
+  if (first || a.lt === b.lt) {
+    Object.assign(out, { extraForms: union(a.extraForms, b.extraForms), extraAssess: union(a.extraAssess, b.extraAssess), removed: [...new Set([...a.removed, ...b.removed])], lt: Math.max(a.lt, b.lt) });
+  } else {
     const lw = b.lt > a.lt ? b : a;
     Object.assign(out, { extraForms: clone(lw.extraForms), extraAssess: clone(lw.extraAssess), removed: clone(lw.removed), lt: lw.lt });
-  } else {
-    const union = (x, y) => { const o = clone(x); for (const k in y) o[k] = [...new Set([...(o[k] || []), ...y[k]])].sort((m, n) => m - n); return o; };
-    Object.assign(out, { extraForms: union(a.extraForms, b.extraForms), extraAssess: union(a.extraAssess, b.extraAssess), removed: [...new Set([...a.removed, ...b.removed])] });
   }
-  if (a.pt !== b.pt) {
+  if (first) {
+    SYNC_PREFS.forEach((k) => { if (!empty(b.prefs[k])) out.prefs[k] = clone(b.prefs[k]); });
+    out.pt = Math.max(a.pt, b.pt);
+  } else if (a.pt !== b.pt) {
     const pw = b.pt > a.pt ? b : a;
     SYNC_PREFS.forEach((k) => (out.prefs[k] = clone(pw.prefs[k])));
     out.pt = pw.pt;
-  } else SYNC_PREFS.forEach((k) => { if ((!out.prefs[k] || (Array.isArray(out.prefs[k]) && !out.prefs[k].length)) && b.prefs[k]) out.prefs[k] = clone(b.prefs[k]); });
+  } else SYNC_PREFS.forEach((k) => { if (empty(out.prefs[k]) && b.prefs[k]) out.prefs[k] = clone(b.prefs[k]); });
   // tombstones only need to outlive devices that haven't synced in a long while
   const cutoff = Date.now() - 400 * 864e5;
   out.deleted = Object.fromEntries(Object.entries(deleted).filter(([, t]) => t > cutoff));

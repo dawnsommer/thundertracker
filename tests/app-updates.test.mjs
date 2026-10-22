@@ -60,11 +60,17 @@ await ctx.setOffline(true); await p.reload(); await p.waitForTimeout(500);
 ok((await p.textContent('h1')).includes('NEW') && (await p.textContent('#ct-nbme')).trim().startsWith('1/'), 'works offline with the new version');
 await ctx.setOffline(false);
 // a very slow network: the cached page is used after 3 s instead of waiting
+edit('index.html', (t) => t.replace('NEW</h1>', 'NEW LATE</h1>')); // a change that arrives late
 await fetch(ORIGIN + '/__slow?ms=8000');
 const t0 = Date.now();
 await p.reload({ timeout: 15000 }); await p.waitForFunction(() => (document.getElementById('ct-nbme') || {}).textContent, null, { timeout: 15000 });
 const took = Date.now() - t0;
+ok(took < 6000 && (await p.textContent('h1')).includes('NEW') && !(await p.textContent('h1')).includes('LATE'), 'slow network: the cached page after ~3 s instead of waiting 8 s (' + took + ' ms)');
+await p.waitForTimeout(6500); // the slow page arrives now
+const cachedPage = await p.evaluate(async (v) => { const r = await (await caches.open('ck-tracker-v' + v)).match(location.href.split('#')[0]); return r ? r.text() : ''; }, N);
+ok(cachedPage.includes('NEW') && !cachedPage.includes('LATE'), 'a page that arrives late isn’t stored on its own (its files were never fetched)');
 await fetch(ORIGIN + '/__slow?ms=0');
-ok(took < 6000 && (await p.textContent('h1')).includes('NEW'), 'slow network: the cached page after ~3 s instead of waiting 8 s (' + took + ' ms)');
+await p.reload(); await p.waitForFunction(() => (document.getElementById('ct-nbme') || {}).textContent);
+ok((await p.textContent('h1')).includes('LATE'), 'the next normal load shows it');
 ok(errs.length === 0, 'no errors ' + JSON.stringify(errs));
 await b.close();

@@ -56,7 +56,11 @@ self.addEventListener('fetch', (e) => {
         return (await cache.match(req, { ignoreSearch: true })) || Response.error();
       }
     }
-    const net = fetch(req, { cache: 'no-cache' }).then((res) => { if (res.ok) cache.put(req, res.clone()); return res; });
+    // A page that arrives after the cached one was already served isn't stored: its new ?v= files weren't
+    // fetched, and an offline open would then pair the new page with old scripts. The new worker's install
+    // caches the new page together with its files.
+    let late = false;
+    const net = fetch(req, { cache: 'no-cache' }).then((res) => { if (res.ok && !late) cache.put(req, res.clone()); return res; });
     net.catch(() => {});
     const cached = async () => (await cache.match(req)) || (await cache.match(req, { ignoreSearch: true })) ||
       (req.mode === 'navigate' ? (await cache.match('index.html')) || (await cache.match('./')) : undefined);
@@ -64,7 +68,7 @@ self.addEventListener('fetch', (e) => {
       return await Promise.race([net, new Promise((resolve, reject) => setTimeout(() => reject(new Error('slow network')), 3000))]);
     } catch (err) {
       const hit = await cached();
-      if (hit) return hit;
+      if (hit) { late = true; return hit; }
       try { return await net; } catch (e2) { return Response.error(); }
     }
   })());

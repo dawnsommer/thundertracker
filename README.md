@@ -83,7 +83,7 @@ python3 -m http.server 8000
 
 ### Tests
 
-Browser tests live in `tests/` and run in a real Chromium against the static files. They cover the app, Google sync and version history (against a stand-in Worker and Drive), the built-in score conversions (`tests/score-models.test.mjs`, against their published expected values), the score calculator and planner, the printed summary (including a one-page check on Letter and A4), Exam Simulator import (with a made-up backup built by `tests/fixtures/sim-backup.mjs`), qbanks, articles, the weakness matrix, settings, app updates and sign-in errors.
+Browser tests live in `tests/` and run in a real Chromium against the static files. They cover the app, Google sync and version history (against a stand-in Worker and Drive), the sync merge on its own (`tests/merge.test.mjs`), the service worker's caching (repeat loads, deploys, slow networks), fixes found in reviews (`tests/regressions.test.mjs`), the built-in score conversions (`tests/score-models.test.mjs`, against their published expected values), the score calculator and planner, the printed summary (including a one-page check on Letter and A4), Exam Simulator import (with a made-up backup built by `tests/fixtures/sim-backup.mjs`), qbanks, articles, the weakness matrix, settings, app updates and sign-in errors.
 
 ```sh
 npm install

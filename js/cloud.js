@@ -42,6 +42,11 @@
 
   const get = (k) => { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } };
   const put = (k, v) => { try { if (v) localStorage.setItem(k, v); else localStorage.removeItem(k); } catch (e) {} };
+  // "changes waiting to sync" is also kept in memory: with browser storage full, the flag can't be
+  // written, but the edits are still in memory and should still reach Google.
+  let memDirty = '';
+  const dirty = () => get(K.dirty) || memDirty;
+  const setDirty = (v) => { memDirty = v; put(K.dirty, v); };
 
   let justConnected = false, callbackError = '';
   // The Worker sends the browser back to returnUrl#cloud-auth=<session>. Take it out of the address
@@ -79,7 +84,7 @@
   function status() {
     return {
       configured: configured(), connected: !!session(), state: st.state, message: st.message, short: SHORT[st.state] || '',
-      account: get(K.account), lastSync: get(K.last), shared: get(K.shared) === '1', returnUrl: CFG.returnUrl, pending: !!get(K.dirty),
+      account: get(K.account), lastSync: get(K.last), shared: get(K.shared) === '1', returnUrl: CFG.returnUrl, pending: !!dirty(),
       canSignIn: configured() && (onSite() || !!get(SHADOW_SESSION)),
     };
   }
@@ -98,6 +103,7 @@
   function forget() {
     token = ''; tokenExp = 0;
     [K.session, K.shared, K.account, K.last, K.sig, K.dirty, K.token, K.snap].forEach((k) => put(k, ''));
+    memDirty = '';
   }
   // The cached token is tied to the session it came from (by a short fingerprint, not the session itself).
   const fingerprint = (x) => { let h = 0; for (let i = 0; i < x.length; i++) h = (h * 31 + x.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
@@ -229,7 +235,7 @@
     syncP = (async () => {
       set('syncing', 'Syncing with your Google account…');
       app.flush();
-      const dirtyAt = get(K.dirty), first = !get(K.last);
+      const dirtyAt = dirty(), first = !get(K.last);
       const files = await listFiles(), file = files.state;
       const local = app.getState();
       let remote = null, merged = local;
@@ -248,7 +254,7 @@
       }
       await keepDailyCopy(files.history, merged);
       put(K.sig, sigNow);
-      if (get(K.dirty) === dirtyAt) { put(K.dirty, ''); firstDirtyAt = 0; } else again = true;
+      if (dirty() === dirtyAt) { setDirty(''); firstDirtyAt = 0; } else again = true;
       put(K.last, new Date().toISOString());
       lastCheck = Date.now(); failures = 0; retryAt = 0;
       const acct = get(K.account);
@@ -262,7 +268,7 @@
           const wait = Math.min(MAX_BACKOFF_MS, 30000 * 2 ** (failures - 1));
           retryAt = Date.now() + wait;
           set('error', 'Couldn’t sync with Google — your progress is safe on this device. Trying again in ' + (wait < 60000 ? Math.round(wait / 1000) + ' s' : Math.round(wait / 60000) + ' min') + '. ' + ((e && e.message) || ''));
-          if (get(K.dirty)) { clearTimeout(timer); timer = setTimeout(() => { timer = null; syncNow().catch(() => {}); }, wait); }
+          if (dirty()) { clearTimeout(timer); timer = setTimeout(() => { timer = null; syncNow().catch(() => {}); }, wait); }
         }
       }
       if (opts.manual) throw e;
@@ -283,7 +289,7 @@
     timer = setTimeout(() => { timer = null; syncNow().catch(() => {}); }, wait);
   }
   function markDirty() {
-    put(K.dirty, String(Date.now()));
+    setDirty(String(Date.now()));
     schedule();
   }
 
@@ -343,7 +349,7 @@
   function lastSeen() { return Math.max(lastCheck, Date.parse(get(K.last)) || 0); }
   function foreground() {
     if (!session() || !navigator.onLine || Date.now() < retryAt) return;
-    if (get(K.dirty) || Date.now() - lastSeen() > CHECK_EVERY_MS) syncNow().catch(() => {});
+    if (dirty() || Date.now() - lastSeen() > CHECK_EVERY_MS) syncNow().catch(() => {});
   }
 
   function init(api) {
@@ -352,9 +358,9 @@
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') foreground();
       // leaving the page: send pending edits now rather than waiting for the debounce
-      else if (get(K.dirty) && session() && navigator.onLine && !syncP) { app.flush(); syncNow().catch(() => {}); }
+      else if (dirty() && session() && navigator.onLine && !syncP) { app.flush(); syncNow().catch(() => {}); }
     });
-    window.addEventListener('online', () => { failures = 0; retryAt = 0; if (get(K.dirty)) syncNow().catch(() => {}); else foreground(); });
+    window.addEventListener('online', () => { failures = 0; retryAt = 0; if (dirty()) syncNow().catch(() => {}); else foreground(); });
     window.addEventListener('offline', () => { if (session()) set('offline', 'Offline — changes are saved on this device and will sync when you’re back online.'); });
     if (callbackError) set('error', 'Google sign-in didn’t finish: ' + callbackError);
     else if (session()) {

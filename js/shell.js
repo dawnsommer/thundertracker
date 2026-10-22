@@ -58,7 +58,7 @@ export function render() {
   if (ui.tab === 'systems') renderSystems();
   if (ui.tab === 'qbank') renderQbank();
   if (ui.tab === 'articles') renderArticles();
-  if (ui.tab === 'passive') renderPassive();
+  if (ui.tab === 'passive') { if (passiveOn()) renderPassive(); else { showTab('overview'); return; } }
   if (ui.tab === 'settings' && settingsRefresh) settingsRefresh();
 }
 export function renderNotice() {
