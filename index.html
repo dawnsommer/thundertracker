@@ -17,14 +17,14 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
-<link rel="stylesheet" href="styles.css?v=12">
+<link rel="stylesheet" href="styles.css?v=13">
 <script>
   // Apply a saved light/dark choice before first paint.
   try { const t = (JSON.parse(localStorage.getItem('ck-tracker') || '{}').prefs || {}).theme; if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
 </script>
-<script src="js/config.js?v=12" defer></script>
-<script src="js/cloud.js?v=12" defer></script>
-<script type="module" src="js/main.js?v=12"></script>
+<script src="js/config.js?v=13" defer></script>
+<script src="js/cloud.js?v=13" defer></script>
+<script type="module" src="js/main.js?v=13"></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -54,6 +54,7 @@
       <button class="tab" role="tab" id="tab-systems" data-tab="systems" aria-controls="view-systems" aria-selected="false" tabindex="-1">Systems<span class="ct" id="ct-sys"></span></button>
       <button class="tab" role="tab" id="tab-qbank" data-tab="qbank" aria-controls="view-qbank" aria-selected="false" tabindex="-1">Qbank<span class="ct" id="ct-qb"></span></button>
       <button class="tab" role="tab" id="tab-articles" data-tab="articles" aria-controls="view-articles" aria-selected="false" tabindex="-1">Articles<span class="ct" id="ct-art"></span></button>
+      <button class="tab" role="tab" id="tab-passive" data-tab="passive" aria-controls="view-passive" aria-selected="false" tabindex="-1" hidden>Passive<span class="ct" id="ct-pv"></span></button>
     </nav>
   </div>
 </header>
@@ -218,6 +219,13 @@
       </div>
     </div>
     <div id="art-list"></div>
+  </section>
+
+  <section class="view" id="view-passive" role="tabpanel" aria-labelledby="tab-passive" hidden>
+    <div class="sec-head">
+      <div><h2>Passive study</h2><p class="sub">Divine Intervention podcasts and PHYSEO. Optional: it isn’t counted in your pace, Up next or overview.</p></div>
+    </div>
+    <div id="pv-body"></div>
   </section>
 
   <section class="view" id="view-settings" aria-labelledby="settings-h" hidden>

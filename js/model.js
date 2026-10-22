@@ -1,7 +1,8 @@
 // The saved data shape: normalising old saves and imported files, change stamps, and the record-by-record merge used by Google sync.
 
-import { arr, clone, ID_RE, inRange, int, ints, isDate, num, obj, safeUrl, stampOf, str, uid } from './util.js?v=12';
-import { GROUPS, MERGE, PASSES, QBANKS, SUBJ } from './catalog.js?v=12';
+import { arr, clone, ID_RE, inRange, int, ints, isDate, num, obj, safeUrl, stampOf, str, uid } from './util.js?v=13';
+import { GROUPS, MERGE, PASSES, QBANKS, SUBJ } from './catalog.js?v=13';
+import { PV_PASSES } from './passive-catalog.js?v=13';
 
 export function normItem(x) {
   x = obj(x);
@@ -49,6 +50,11 @@ export function normArt(x) {
   x = obj(x);
   return { reads: int(x.reads, 0, PASSES), date: isDate(x.date), notes: str(x.notes), t: stampOf(x.t) };
 }
+// Passive study (DIP episodes, PHYSEO parts): times through it, notes done (DIP), last date
+export function normPassive(x) {
+  x = obj(x);
+  return { n: int(x.n, 0, PV_PASSES), notes: !!x.notes, date: isDate(x.date), t: stampOf(x.t) };
+}
 export function normLog(x) {
   x = obj(x);
   const date = isDate(x.date), q = int(x.q, 0, 5000);
@@ -72,9 +78,9 @@ export function migrate(sys) {
 
 // `base`, `deleted`, `lt` and `pt` exist for Google sync: see "change stamps + merge" below.
 export const blank = () => ({ v: 2, base: 0, deleted: {}, lt: 0, pt: 0, items: {}, systems: {}, extraForms: {}, extraAssess: {}, extraSystems: [], removed: [], log: [],
-  qbanks: QBANKS.map(blankQbank), articles: {}, artSections: [], artCustom: [], conversions: {},
+  qbanks: QBANKS.map(blankQbank), articles: {}, artSections: [], artCustom: [], conversions: {}, passive: {},
   prefs: { showOld: false, theme: 'system', examDate: '', target: '', bank: '', chart: 'score', sysSort: 'default', lastBackup: '',
-    artOrder: [], artView: 'grid', artSort: 'checklist', artCollapsed: [] } });
+    artOrder: [], artView: 'grid', artSort: 'checklist', artCollapsed: [], passive: false, pvCollapsed: [], pvFilter: 'all' } });
 
 // Accepts v1 saves (the original single-file version) and v2.
 export function norm(s) {
@@ -89,7 +95,7 @@ export function norm(s) {
   for (const g of GROUPS) { const a = ints(obj(s.extraAssess)[g.key], g.min, g.max); if (a.length) extraAssess[g.key] = a; }
   const p = obj(s.prefs), b = blank().prefs;
   const deleted = {};
-  for (const [k, t] of Object.entries(obj(s.deleted))) if (/^[ilsxqacrv]:[a-z0-9-]{1,48}$/i.test(k) && stampOf(t)) deleted[k] = stampOf(t);
+  for (const [k, t] of Object.entries(obj(s.deleted))) if (/^[ilsxqacrvp]:[a-z0-9-]{1,48}$/i.test(k) && stampOf(t)) deleted[k] = stampOf(t);
   const conversions = {};
   for (const [id, x] of Object.entries(obj(s.conversions))) { const c = ID_RE.test(id) && normConversion(x); if (c) conversions[id] = c; }
   const qIn = arr(s.qbanks).map(normQbank).filter(Boolean);
@@ -98,6 +104,8 @@ export function norm(s) {
   if (!qbanks[0].bank) qbanks[0].bank = inRange(p.bank, 1, 50000); // v2 kept the UWorld bank size in prefs
   const articles = {};
   for (const [id, x] of Object.entries(obj(s.articles))) if (ID_RE.test(id)) articles[id] = normArt(x);
+  const passive = {};
+  for (const [id, x] of Object.entries(obj(s.passive))) if (ID_RE.test(id)) passive[id] = normPassive(x);
   const artSections = arr(s.artSections).filter((x) => x && typeof x.id === 'string' && ID_RE.test(x.id) && typeof x.name === 'string' && x.name.trim())
     .map((x) => ({ id: x.id, name: x.name.trim().slice(0, 80), t: stampOf(x.t) }));
   const artCustom = arr(s.artCustom).filter((x) => x && typeof x.id === 'string' && ID_RE.test(x.id) && typeof x.sec === 'string' && typeof x.name === 'string' && x.name.trim())
@@ -109,7 +117,7 @@ export function norm(s) {
       .map((x) => ({ id: x.id, name: x.name.trim().slice(0, 60), t: stampOf(x.t) })),
     removed: [...new Set(arr(s.removed).filter((x) => typeof x === 'string' && ID_RE.test(x)))],
     log: arr(s.log).map(normLog).filter(Boolean),
-    qbanks, articles, artSections, artCustom, conversions,
+    qbanks, articles, artSections, artCustom, conversions, passive,
     prefs: {
       showOld: !!p.showOld,
       theme: ['light', 'dark'].includes(p.theme) ? p.theme : b.theme,
@@ -123,6 +131,9 @@ export function norm(s) {
       artView: p.artView === 'list' ? 'list' : 'grid',
       artSort: ['least', 'most', 'recent', 'az'].includes(p.artSort) ? p.artSort : 'checklist',
       artCollapsed: [...new Set(arr(p.artCollapsed).filter((x) => typeof x === 'string' && ID_RE.test(x)))].slice(0, 200),
+      passive: p.passive === true,
+      pvCollapsed: [...new Set(arr(p.pvCollapsed).filter((x) => typeof x === 'string' && ID_RE.test(x)))].slice(0, 50),
+      pvFilter: ['todo', 'video', 'notes'].includes(p.pvFilter) ? p.pvFilter : 'all',
     },
   };
 }
@@ -131,14 +142,15 @@ export function norm(s) {
 // A full restore or erase bumps `base`: on merge, anything older than the newest base is dropped,
 // so the restore wins on every device. Lists of added/hidden forms (`lt`) and the plan prefs (`pt`)
 // merge as a unit, newest wins. Theme and other view prefs stay per device.
-export const SYNC_PREFS = ['examDate', 'target', 'bank', 'showOld', 'artOrder'];
+export const SYNC_PREFS = ['examDate', 'target', 'bank', 'showOld', 'artOrder', 'passive'];
 export const sig = (r) => JSON.stringify(Object.keys(r).filter((k) => k !== 't').sort().map((k) => [k, r[k]]));
 export const listsSig = (s) => JSON.stringify([s.extraForms, s.extraAssess, s.removed]);
 export const prefsSig = (s) => JSON.stringify(SYNC_PREFS.map((k) => s.prefs[k]));
 export const byId = (a) => new Map(a.map((x) => [x.id, x]));
 // [tombstone tag, state key, shape]: every record kind that syncs one by one
 export const REC = [['i:', 'items', 'map'], ['s:', 'systems', 'map'], ['l:', 'log', 'list'], ['x:', 'extraSystems', 'list'], ['v:', 'conversions', 'map'],
-  ['q:', 'qbanks', 'list'], ['a:', 'articles', 'map'], ['c:', 'artSections', 'list'], ['r:', 'artCustom', 'list']];
+  ['q:', 'qbanks', 'list'], ['a:', 'articles', 'map'], ['c:', 'artSections', 'list'], ['r:', 'artCustom', 'list'],
+  ['p:', 'passive', 'map']];
 export const records = (s) => REC.map(([tag, key, shape]) => [tag, shape === 'map' ? new Map(Object.entries(s[key])) : byId(s[key])]);
 
 export function stamp(next, prev, now) {

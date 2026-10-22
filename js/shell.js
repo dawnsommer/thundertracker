@@ -1,21 +1,24 @@
 // Tabs, routing and the top-level render.
 
-import { $, fmtK, h, sum } from './util.js?v=12';
-import { TABS } from './catalog.js?v=12';
-import { state, storageMsg, sysItem, ui } from './store.js?v=12';
-import { allArticles, allCms, allSystems, allTests, artItem, taken } from './data.js?v=12';
-import { closeSheet, sheetOpen } from './sheets.js?v=12';
-import { renderOverview } from './overview.js?v=12';
-import { renderTests } from './assessments.js?v=12';
-import { renderCms } from './cms.js?v=12';
-import { renderSystems } from './systems.js?v=12';
-import { renderArticles } from './articles.js?v=12';
-import { renderQbank } from './qbank.js?v=12';
-import { buildSettings, setSettingsRefresh, settingsRefresh } from './settings.js?v=12';
+import { $, fmtK, h, sum } from './util.js?v=13';
+import { TABS } from './catalog.js?v=13';
+import { state, storageMsg, sysItem, ui } from './store.js?v=13';
+import { allArticles, allCms, allSystems, allTests, artItem, taken } from './data.js?v=13';
+import { closeSheet, sheetOpen } from './sheets.js?v=13';
+import { renderOverview } from './overview.js?v=13';
+import { renderTests } from './assessments.js?v=13';
+import { renderCms } from './cms.js?v=13';
+import { renderSystems } from './systems.js?v=13';
+import { renderArticles } from './articles.js?v=13';
+import { renderQbank } from './qbank.js?v=13';
+import { passiveOn, pvStats, renderPassive } from './passive.js?v=13';
+import { buildSettings, setSettingsRefresh, settingsRefresh } from './settings.js?v=13';
 
-export const VIEWS = TABS.concat('settings');
+export const VIEWS = TABS.concat('passive', 'settings');
+// the tabs in the strip right now: Passive study only once it's unlocked in Settings → Extras
+export const tabsNow = () => (passiveOn() ? TABS.concat('passive') : TABS);
 export function showTab(t, push) {
-  if (!VIEWS.includes(t)) t = 'overview';
+  if (!VIEWS.includes(t) || (t === 'passive' && !passiveOn())) t = 'overview';
   const entering = t === 'settings' && ui.tab !== 'settings';
   if (t !== 'settings') setSettingsRefresh(null);
   ui.tab = t;
@@ -32,11 +35,11 @@ export function showTab(t, push) {
 }
 $('tabs').addEventListener('click', (e) => { const b = e.target.closest('.tab'); if (b) showTab(b.dataset.tab, true); });
 $('tabs').addEventListener('keydown', (e) => {
-  const i = TABS.indexOf(ui.tab);
-  const j = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: TABS.length - 1 }[e.key];
+  const tabs = tabsNow(), i = tabs.indexOf(ui.tab);
+  const j = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: tabs.length - 1 }[e.key];
   if (j == null) return;
   e.preventDefault();
-  const t = TABS[(j + TABS.length) % TABS.length];
+  const t = tabs[(j + tabs.length) % tabs.length];
   showTab(t, true);
   $('tab-' + t).focus();
 });
@@ -55,6 +58,7 @@ export function render() {
   if (ui.tab === 'systems') renderSystems();
   if (ui.tab === 'qbank') renderQbank();
   if (ui.tab === 'articles') renderArticles();
+  if (ui.tab === 'passive') renderPassive();
   if (ui.tab === 'settings' && settingsRefresh) settingsRefresh();
 }
 export function renderNotice() {
@@ -72,4 +76,6 @@ export function renderCounts() {
   $('ct-qb').textContent = q ? fmtK(q) : '';
   const arts = allArticles();
   $('ct-art').textContent = arts.filter((a) => artItem(a.id).reads > 0).length + '/' + arts.length;
+  $('tab-passive').hidden = !passiveOn();
+  if (passiveOn()) { const p = pvStats(); $('ct-pv').textContent = (p.dipDone + p.phDone) + '/' + (p.dipTotal + p.phTotal); }
 }

@@ -1,26 +1,26 @@
 // Entry point: keyboard shortcuts and start-up. Loads every other module.
 
-import { $, clone, today } from './util.js?v=12';
-import { TABS } from './catalog.js?v=12';
-import { merge, norm, same } from './model.js?v=12';
-import { applyTheme, cloud, cycleTheme, flush, load, paintStatus, persistQuiet, saveTimer, setSave, setSaved, setState, state, storageOk, toast, ui } from './store.js?v=12';
-import { closeSheet, refreshSheet, sheetOpen } from './sheets.js?v=12';
-import { render, renderNotice, showTab, VIEWS } from './shell.js?v=12';
-import { drawTrend } from './overview.js?v=12';
-import { leaveSettings, openSettings } from './settings.js?v=12';
+import { $, clone, today } from './util.js?v=13';
+import { merge, norm, same } from './model.js?v=13';
+import { applyTheme, cloud, cycleTheme, flush, load, paintStatus, persistQuiet, saveTimer, setSave, setSaved, setState, state, storageOk, toast, ui } from './store.js?v=13';
+import { closeSheet, refreshSheet, sheetOpen } from './sheets.js?v=13';
+import { render, renderNotice, showTab, tabsNow, VIEWS } from './shell.js?v=13';
+import { drawTrend } from './overview.js?v=13';
+import { leaveSettings, openSettings } from './settings.js?v=13';
 
-import './data.js?v=12';
-import './assessments.js?v=12';
-import './cms.js?v=12';
-import './systems.js?v=12';
-import './articles.js?v=12';
-import './qbank.js?v=12';
-import './sim-import.js?v=12';
-import './backup.js?v=12';
-import './updates.js?v=12';
-import './calculator.js?v=12';
-import './planner.js?v=12';
-import { printSummary } from './print.js?v=12';
+import './data.js?v=13';
+import './assessments.js?v=13';
+import './cms.js?v=13';
+import './systems.js?v=13';
+import './articles.js?v=13';
+import './qbank.js?v=13';
+import './sim-import.js?v=13';
+import './backup.js?v=13';
+import './updates.js?v=13';
+import './calculator.js?v=13';
+import './planner.js?v=13';
+import './passive.js?v=13';
+import { printSummary } from './print.js?v=13';
 
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && sheetOpen) { closeSheet(); return; }
@@ -28,7 +28,8 @@ document.addEventListener('keydown', (e) => {
   if (sheetOpen || e.metaKey || e.ctrlKey || e.altKey) return;
   const t = e.target;
   if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
-  if (e.key >= '1' && e.key <= String(TABS.length)) { showTab(TABS[Number(e.key) - 1], true); }
+  const tabs = tabsNow();
+  if (e.key >= '1' && e.key <= String(tabs.length)) { showTab(tabs[Number(e.key) - 1], true); }
   else if (e.key === ',') { e.preventDefault(); if (ui.tab !== 'settings') openSettings(); }
   else if (e.key === 't') cycleTheme();
   else if (e.key === 'p') printSummary();

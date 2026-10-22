@@ -1,16 +1,17 @@
 // The Settings page.
 
-import { $, daysUntil, fmtDate, fmtLong, fmtN, fmtPct, h, isDate, plural } from './util.js?v=12';
-import { APP_VERSION } from './catalog.js?v=12';
-import { blank, norm, stampAll } from './model.js?v=12';
-import { applyTheme, cloud, save, setState, snapshot, state, toast, ui } from './store.js?v=12';
-import { qbStats } from './data.js?v=12';
-import { numField, refreshSheet } from './sheets.js?v=12';
-import { render, showTab } from './shell.js?v=12';
-import { openQbank } from './qbank.js?v=12';
-import { exportCsv, exportJson } from './backup.js?v=12';
-import { reloadLatest } from './updates.js?v=12';
-import { printSummary } from './print.js?v=12';
+import { $, daysUntil, fmtDate, fmtLong, fmtN, fmtPct, h, isDate, plural } from './util.js?v=13';
+import { APP_VERSION } from './catalog.js?v=13';
+import { blank, norm, stampAll } from './model.js?v=13';
+import { applyTheme, cloud, save, setState, snapshot, state, toast, ui } from './store.js?v=13';
+import { qbStats } from './data.js?v=13';
+import { numField, refreshSheet } from './sheets.js?v=13';
+import { render, showTab, tabsNow } from './shell.js?v=13';
+import { openQbank } from './qbank.js?v=13';
+import { exportCsv, exportJson } from './backup.js?v=13';
+import { reloadLatest } from './updates.js?v=13';
+import { printSummary } from './print.js?v=13';
+import { codeOk, passiveOn } from './passive.js?v=13';
 
 // Built once each time you open it; live parts redraw through settingsRefresh so typing isn't interrupted.
 export let settingsRefresh = null;
@@ -110,6 +111,32 @@ export function buildSettings() {
     h('button', { class: 'btn', 'data-open': 'qb-' + b.qb.id, onclick: () => openQbank(b.qb) }, 'Edit'))),
     h('div', { class: 'btnrow' }, h('button', { class: 'btn ghost', 'data-open': 'qb-new', onclick: () => openQbank(null) }, '+ Add a qbank')));
 
+  // extras: hidden sections, shown with a code
+  const exBox = h('div', { class: 'set-body', id: 'st-extras' });
+  let exShown = null;
+  const drawExtras = () => {
+    if (exShown === passiveOn()) return; // redraw only when it changes, so typing isn't interrupted
+    exShown = passiveOn();
+    if (exShown) {
+      exBox.replaceChildren(h('div', { class: 'set-row' },
+        h('div', null, h('b', { text: 'Passive study' }), h('small', { text: 'Divine Intervention podcasts and PHYSEO, as a tab · on for your devices that sync' })),
+        h('div', { class: 'btnrow' },
+          h('button', { class: 'btn', onclick: () => showTab('passive', true) }, 'Open'),
+          h('button', { class: 'btn ghost', id: 'st-lock', onclick: () => { state.prefs.passive = false; save(); render(); toast('Passive study hidden — your progress is kept'); } }, 'Hide'))));
+      return;
+    }
+    const code = h('input', { type: 'text', id: 'st-code', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', placeholder: 'Code', 'aria-label': 'Code' });
+    const err = h('p', { class: 'err-line', role: 'alert' });
+    const unlock = () => {
+      if (!codeOk(code.value)) { err.textContent = 'That code doesn’t unlock anything.'; code.select(); return; }
+      state.prefs.passive = true; save(); render();
+      toast('Passive study unlocked — it’s now a tab');
+    };
+    code.addEventListener('keydown', (e) => { if (e.key === 'Enter') unlock(); });
+    code.addEventListener('input', () => { err.textContent = ''; });
+    exBox.replaceChildren(h('div', { class: 'code-row' }, code, h('button', { class: 'btn', id: 'st-unlock', onclick: unlock }, 'Unlock')), err);
+  };
+
   // backup
   const backupNote = h('p', { class: 'hint' });
   const drawBackup = () => {
@@ -140,17 +167,20 @@ export function buildSettings() {
     clearTimeout(armTimer);
     delete resetBtn.dataset.arm; resetBtn.textContent = 'Erase all data';
     const undo = snapshot();
-    const theme = state.prefs.theme;
-    setState(blank()); state.prefs.theme = theme;
+    const theme = state.prefs.theme, passive = state.prefs.passive;
+    setState(blank()); state.prefs.theme = theme; state.prefs.passive = passive; // display settings stay
     stampAll(state, Date.now());
     save(); render(); refreshSheet();
     toast('All data erased', undo);
   } }, 'Erase all data');
 
-  const keys = [['1 – 6', 'Switch tabs'], [',', 'Open settings'], ['t', 'Light / dark'], ['p', 'Print a one-page summary'], ['Esc', 'Close a panel, or leave settings'], ['← →', 'Move between tabs (when a tab is focused)']];
+  const keysDl = h('dl', { class: 'keys' });
+  // the tab count changes when Passive study is unlocked
+  const drawKeys = () => keysDl.replaceChildren(...[['1 – ' + tabsNow().length, 'Switch tabs'], [',', 'Open settings'], ['t', 'Light / dark'], ['p', 'Print a one-page summary'], ['Esc', 'Close a panel, or leave settings'], ['← →', 'Move between tabs (when a tab is focused)']]
+    .flatMap(([k, d]) => [h('dt', null, h('kbd', { text: k })), h('dd', { text: d })]));
   const SECTIONS = [
     ['set-plan', 'Plan'], ['set-sync', 'Google sync'], ['set-look', 'Appearance'], ['set-qbanks', 'Qbanks'],
-    ['set-data', 'Backup & import'], ['set-keys', 'Shortcuts'], ['set-app', 'App version'], ['set-danger', 'Erase data'],
+    ['set-data', 'Backup & import'], ['set-extras', 'Extras'], ['set-keys', 'Shortcuts'], ['set-app', 'App version'], ['set-danger', 'Erase data'],
   ];
   const nav = h('nav', { class: 'set-nav', 'aria-label': 'Settings sections' }, SECTIONS.map(([id, label]) =>
     h('a', { href: '#settings', 'data-sec': id, onclick: (e) => { e.preventDefault(); const el = $(id); el.scrollIntoView({ block: 'start', behavior: 'smooth' }); el.focus({ preventScroll: true }); } }, label)));
@@ -172,7 +202,8 @@ export function buildSettings() {
       h('div', { class: 'btnrow' }, h('button', { class: 'btn', 'data-open': 'sim-import', onclick: () => $('sim-import').click() }, 'Import from Exam Simulator')),
       h('p', { class: 'hint', text: 'Exam Simulator import reads its progress backup (.zip) and fills in finished NBME, UWSA and CMS forms. You see what changes before anything is saved.' }),
       persistNote, h('div', { class: 'btnrow' }, persistBtn)),
-    card('set-keys', 'Keyboard shortcuts', null, h('dl', { class: 'keys' }, keys.flatMap(([k, d]) => [h('dt', null, h('kbd', { text: k })), h('dd', { text: d })]))),
+    card('set-extras', 'Extras', 'Optional sections, hidden until you enter their code.', exBox),
+    card('set-keys', 'Keyboard shortcuts', null, keysDl),
     card('set-app', 'App version', null,
       h('p', { class: 'hint', text: 'Version ' + APP_VERSION + '. The app checks for a new version each time it opens and shows “Reload” when one is ready. If this device still shows an old version, reload it here — your progress, your Google sign-in and ThunderShadow’s data on the same site are not touched.' }),
       h('div', { class: 'btnrow' }, h('button', { class: 'btn', id: 'st-reload', onclick: reloadLatest }, 'Reload latest version'))),
@@ -187,7 +218,7 @@ export function buildSettings() {
     const a = document.activeElement;
     if (a !== examIn) examIn.value = p().examDate;
     if (a !== target.inp) target.inp.value = p().target;
-    drawPlan(); drawGoogle(); drawTheme(); drawArtView(); drawQb(); drawBackup();
+    drawPlan(); drawGoogle(); drawTheme(); drawArtView(); drawQb(); drawBackup(); drawExtras(); drawKeys();
   };
   settingsRefresh();
   const f = ui.settingsFocus; ui.settingsFocus = '';

@@ -83,7 +83,7 @@ await p.screenshot({ path: S + '/articles2.png', fullPage: false });
 // --- settings page
 await p.keyboard.press(',');
 ok(await p.isVisible('#view-settings') && !(await p.isVisible('#view-articles')) && await p.evaluate(() => location.hash) === '#settings', 'settings is its own page');
-ok(await p.locator('.set-nav a').count() === 8 && await p.locator('.set-card').count() === 8, 'nav + 8 sections');
+ok(await p.locator('.set-nav a').count() === 9 && await p.locator('.set-card').count() === 9, 'nav + 9 sections (Extras included)');
 await p.fill('#st-target', '255');
 await p.type('#st-target', '');
 ok(await p.evaluate(() => document.activeElement.id) === 'st-target', 'typing in settings keeps focus');
