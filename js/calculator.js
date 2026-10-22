@@ -4,13 +4,13 @@
 // exam type; or a straight line fitted to your own forms that have both a score and a % correct.
 // A score you type in is never changed; the estimate is shown next to it.
 
-import { $, avg, fmtPct, h, num } from './util.js?v=11';
-import { GROUPS } from './catalog.js?v=11';
-import { normConversion } from './model.js?v=11';
-import { save, snapshot, state, toast, ui } from './store.js?v=11';
-import { band, pctOf, scaledOf, taken, testForms } from './data.js?v=11';
-import { render } from './shell.js?v=11';
-import { describeModel, modelsFor, runModel, SCORE_MODELS, wrongAt } from './score-models.js?v=11';
+import { $, avg, fmtPct, h, num } from './util.js?v=12';
+import { GROUPS } from './catalog.js?v=12';
+import { normConversion } from './model.js?v=12';
+import { save, snapshot, state, toast, ui } from './store.js?v=12';
+import { band, pctOf, scaledOf, taken, testForms } from './data.js?v=12';
+import { render } from './shell.js?v=12';
+import { describeModel, modelsFor, runModel, SCORE_MODELS, wrongAt } from './score-models.js?v=12';
 
 export function fitLine(points) {
   const n = points.length;
@@ -306,7 +306,7 @@ function buildCalculator(box) {
       return h('div', { class: 'about-row' }, h('b', { text: (f ? f.full : id) + ' · ' + fm.qs + ' Qs' }), h('div', null, fm.models.map((m, i) => h('p', null,
         m.url ? h('a', { href: m.url, target: '_blank', rel: 'noopener noreferrer', text: m.src }) : m.src, i === 0 && fm.models.length > 1 ? ' (default)' : '', ' — ', h('code', { text: describeModel(m) }), m.note ? ' ' + m.note : ''))));
     })),
-    h('p', { class: 'hint', text: 'No published conversion: UWSA 3, Free 120 (2019) and the latest Free 120. Step 2 CK passing score: 218 (since July 2025) — an estimate above it isn’t a pass prediction.' }));
+    h('p', { class: 'hint', text: 'No published conversion: UWSA 3, Free 120 (2019 and 2021). Step 2 CK passing score: 218 (since July 2025) — an estimate above it isn’t a pass prediction.' }));
   const more = h('details', { class: 'calc-more', id: 'calc-more' }, h('summary', { text: 'Your conversions & fit' }),
     h('div', { class: 'calc-cols' }, convBox, h('div', null, h('div', { class: 'calc-sub' }, h('h4', { text: 'Fit to your own forms' })), fits)));
 

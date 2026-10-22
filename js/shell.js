@@ -1,17 +1,17 @@
 // Tabs, routing and the top-level render.
 
-import { $, fmtK, h, sum } from './util.js?v=11';
-import { TABS } from './catalog.js?v=11';
-import { state, storageMsg, sysItem, ui } from './store.js?v=11';
-import { allArticles, allCms, allSystems, allTests, artItem, taken } from './data.js?v=11';
-import { closeSheet, sheetOpen } from './sheets.js?v=11';
-import { renderOverview } from './overview.js?v=11';
-import { renderTests } from './assessments.js?v=11';
-import { renderCms } from './cms.js?v=11';
-import { renderSystems } from './systems.js?v=11';
-import { renderArticles } from './articles.js?v=11';
-import { renderQbank } from './qbank.js?v=11';
-import { buildSettings, setSettingsRefresh, settingsRefresh } from './settings.js?v=11';
+import { $, fmtK, h, sum } from './util.js?v=12';
+import { TABS } from './catalog.js?v=12';
+import { state, storageMsg, sysItem, ui } from './store.js?v=12';
+import { allArticles, allCms, allSystems, allTests, artItem, taken } from './data.js?v=12';
+import { closeSheet, sheetOpen } from './sheets.js?v=12';
+import { renderOverview } from './overview.js?v=12';
+import { renderTests } from './assessments.js?v=12';
+import { renderCms } from './cms.js?v=12';
+import { renderSystems } from './systems.js?v=12';
+import { renderArticles } from './articles.js?v=12';
+import { renderQbank } from './qbank.js?v=12';
+import { buildSettings, setSettingsRefresh, settingsRefresh } from './settings.js?v=12';
 
 export const VIEWS = TABS.concat('settings');
 export function showTab(t, push) {

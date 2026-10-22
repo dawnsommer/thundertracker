@@ -1,11 +1,11 @@
 // The Systems tab and the system editor.
 
-import { $, fmtPct, h, num, today, uid } from './util.js?v=11';
-import { SYS_ST, TAGS } from './catalog.js?v=11';
-import { save, snapshot, state, sysItem, toast } from './store.js?v=11';
-import { allSystems, band, weakPattern } from './data.js?v=11';
-import { closeSheet, numField, openSheet, sheetHead } from './sheets.js?v=11';
-import { render } from './shell.js?v=11';
+import { $, fmtPct, h, num, today, uid } from './util.js?v=12';
+import { SYS_ST, TAGS } from './catalog.js?v=12';
+import { save, snapshot, state, sysItem, toast } from './store.js?v=12';
+import { allSystems, band, weakPattern } from './data.js?v=12';
+import { closeSheet, numField, openSheet, sheetHead } from './sheets.js?v=12';
+import { render } from './shell.js?v=12';
 
 // Status, confidence and resource ticks count as working on a system that day (shown on the calendar).
 export function setSys(id, patch) {

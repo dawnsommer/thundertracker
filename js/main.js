@@ -1,26 +1,26 @@
 // Entry point: keyboard shortcuts and start-up. Loads every other module.
 
-import { $, clone, today } from './util.js?v=11';
-import { TABS } from './catalog.js?v=11';
-import { merge, norm, same } from './model.js?v=11';
-import { applyTheme, cloud, cycleTheme, flush, load, paintStatus, persistQuiet, saveTimer, setSave, setSaved, setState, state, storageOk, toast, ui } from './store.js?v=11';
-import { closeSheet, refreshSheet, sheetOpen } from './sheets.js?v=11';
-import { render, renderNotice, showTab, VIEWS } from './shell.js?v=11';
-import { drawTrend } from './overview.js?v=11';
-import { leaveSettings, openSettings } from './settings.js?v=11';
+import { $, clone, today } from './util.js?v=12';
+import { TABS } from './catalog.js?v=12';
+import { merge, norm, same } from './model.js?v=12';
+import { applyTheme, cloud, cycleTheme, flush, load, paintStatus, persistQuiet, saveTimer, setSave, setSaved, setState, state, storageOk, toast, ui } from './store.js?v=12';
+import { closeSheet, refreshSheet, sheetOpen } from './sheets.js?v=12';
+import { render, renderNotice, showTab, VIEWS } from './shell.js?v=12';
+import { drawTrend } from './overview.js?v=12';
+import { leaveSettings, openSettings } from './settings.js?v=12';
 
-import './data.js?v=11';
-import './assessments.js?v=11';
-import './cms.js?v=11';
-import './systems.js?v=11';
-import './articles.js?v=11';
-import './qbank.js?v=11';
-import './sim-import.js?v=11';
-import './backup.js?v=11';
-import './updates.js?v=11';
-import './calculator.js?v=11';
-import './planner.js?v=11';
-import { printSummary } from './print.js?v=11';
+import './data.js?v=12';
+import './assessments.js?v=12';
+import './cms.js?v=12';
+import './systems.js?v=12';
+import './articles.js?v=12';
+import './qbank.js?v=12';
+import './sim-import.js?v=12';
+import './backup.js?v=12';
+import './updates.js?v=12';
+import './calculator.js?v=12';
+import './planner.js?v=12';
+import { printSummary } from './print.js?v=12';
 
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && sheetOpen) { closeSheet(); return; }

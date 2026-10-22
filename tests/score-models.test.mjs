@@ -12,7 +12,7 @@ const CASES = [
   ['nbme-16', 'nbmecalc', { wrong: 50 }, 244], ['nbme-16', 'nbmecalc', { wrong: 47 }, 248], ['nbme-16', 'nbmecalc', { pct: 80 }, 257], ['nbme-16', 'nbmecalc', { pct: 95 }, 'error'],
   ['uwsa-1', 'nbmescore', { wrong: 40 }, 246], ['uwsa-1', 'nbmescore', { pct: 72 }, 240], ['uwsa-1', 'nbmescore', { pct: 40 }, 'error'], ['uwsa-1', 'nbmecalculator', { wrong: 40 }, 250],
   ['uwsa-2', 'nbmescore', { wrong: 40 }, 246], ['uwsa-2', 'nbmecalculator', { wrong: 40 }, 237], ['uwsa-2', 'nbmescore', { wrong: 160 }, 144],
-  ['f120-2021', 'supplied', { pct: 78 }, 257],
+  ['f120-2023', 'supplied', { pct: 78 }, 257],
 ];
 for (const [id, mid, inp, want] of CASES) {
   const m = modelById(id, mid), qs = SCORE_MODELS[id].qs;
@@ -23,7 +23,7 @@ for (const [id, mid, inp, want] of CASES) {
 // starting from % correct gives the same result as the count (80% of 200 = 40 wrong, despite float error)
 ok(scoreAtPct(modelById('nbme-15', 'nbmescore'), 80, 200).score === 257, 'NBME 15 at 80% = 40 wrong → 257');
 // no conversion where none is published
-ok(['uwsa-3', 'f120-2019', 'f120-2023'].every((id) => !SCORE_MODELS[id]), 'UWSA 3, Free 120 (2019, 2023): no built-in');
+ok(['uwsa-3', 'f120-2019', 'f120-2021'].every((id) => !SCORE_MODELS[id]), 'UWSA 3, Free 120 (2019, 2021): no built-in');
 // the Excel calculator is only used for the retired forms: 6 and 8 have 184 questions, 7 has 176
 ok(Object.entries(SCORE_MODELS).every(([id, fm]) => fm.models.some((m) => m.id === 'excel') === ['nbme-6', 'nbme-7', 'nbme-8'].includes(id)), 'Excel formulas only for NBME 6–8');
 ok(SCORE_MODELS['nbme-6'].qs === 184 && SCORE_MODELS['nbme-7'].qs === 176 && SCORE_MODELS['nbme-8'].qs === 184, 'NBME 6 and 8: 184 questions, NBME 7: 176');

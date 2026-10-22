@@ -7,7 +7,7 @@
 //   UWSA 1      NBMEScore.com's %→score anchors (50, 55 and 85% are the site's own extrapolations);
 //               NBMECalculator.com's table, approximated as a line
 //   UWSA 2      NBMEScore.com's clamp(280 − 0.85 × wrong, 140, 300); NBMECalculator.com's table (≈ 1.08 per wrong)
-//   Free 120 (2021)  y = 1.165 × % + 166.17, a formula you supplied
+//   Free 120 (2023)  y = 1.165 × % + 166.17, a formula you supplied
 // UWSA 3 and the other Free 120 releases have none. A model never extrapolates past its range.
 //
 // Types:  wrong   score = b + a × wrong (+ q × wrong²), wrong = questions × (1 − %/100)
@@ -58,8 +58,8 @@ export const SCORE_MODELS = {
     { id: 'nbmecalculator', src: 'NBMECalculator.com table', short: 'NBMECalculator', type: 'wrong', b: 280, a: -1.08, clamp: [140, 300], url: 'https://nbmecalculator.com/step-2/uwsa-2/',
       note: 'A straight line that reproduces the site’s table.' },
   ] },
-  'f120-2021': { qs: 120, models: [
-    { id: 'supplied', src: 'Supplied formula', short: 'Supplied', type: 'pct', b: 166.17, a: 1.165, note: 'Only for the 2021 release.' },
+  'f120-2023': { qs: 120, models: [
+    { id: 'supplied', src: 'Supplied formula', short: 'Supplied', type: 'pct', b: 166.17, a: 1.165, note: 'Only for the 2023 release.' },
   ] },
 };
 
