@@ -1,12 +1,12 @@
 // The Qbank tab: qbank cards and editor, session log and weekly volume.
 
-import { $, dayNum, fmtDate, fmtK, fmtN, fmtPct, fromDay, h, isDate, num, plural, today, uid, weekday } from './util.js?v=14';
-import { QBANKS } from './catalog.js?v=14';
-import { save, snapshot, state, toast, ui } from './store.js?v=14';
-import { band, bankStats, qbStats, weakNames } from './data.js?v=14';
-import { closeSheet, numField, openSheet, sheetHead, weakPicker } from './sheets.js?v=14';
-import { render } from './shell.js?v=14';
-import { tile } from './overview.js?v=14';
+import { $, dayNum, fmtDate, fmtK, fmtN, fmtPct, fromDay, h, isDate, num, plural, today, uid, weekday } from './util.js?v=15';
+import { QBANKS } from './catalog.js?v=15';
+import { save, snapshot, state, toast, ui } from './store.js?v=15';
+import { band, bankStats, qbStats, weakNames } from './data.js?v=15';
+import { closeSheet, numField, openSheet, sheetHead, weakPicker } from './sheets.js?v=15';
+import { render } from './shell.js?v=15';
+import { tile } from './overview.js?v=15';
 
 export function renderQbank() {
   const qb = qbStats();
@@ -128,7 +128,7 @@ export function openQbank(qb) {
   const finIn = h('input', { type: 'checkbox', id: 'qb-fin' });
   finIn.checked = !!cur().finished;
   const finDate = h('input', { type: 'date', id: 'qb-fin-date', value: cur().finished, 'aria-label': 'Finished on' });
-  const picker = weakPicker(() => cur().weak || [], (weak) => patch({ weak }), () => cur().weakPct || {}, (weakPct) => patch({ weakPct }));
+  const picker = weakPicker(() => cur().weak || [], (weak) => patch({ weak }), { kind: 'pct', get: () => cur().weakPct || {}, set: (weakPct) => patch({ weakPct }) });
   const finBox = h('div', { class: 'field qb-fin-box' });
   const drawFin = () => {
     const b = bankStats(cur()), fin = !!cur().finished;

@@ -1,17 +1,17 @@
 // The Settings page.
 
-import { $, daysUntil, fmtDate, fmtLong, fmtN, fmtPct, h, isDate, plural } from './util.js?v=14';
-import { APP_VERSION } from './catalog.js?v=14';
-import { blank, norm, stampAll } from './model.js?v=14';
-import { applyTheme, cloud, save, setState, snapshot, state, toast, ui } from './store.js?v=14';
-import { qbStats } from './data.js?v=14';
-import { numField, refreshSheet } from './sheets.js?v=14';
-import { render, showTab, tabsNow } from './shell.js?v=14';
-import { openQbank } from './qbank.js?v=14';
-import { exportCsv, exportJson } from './backup.js?v=14';
-import { reloadLatest } from './updates.js?v=14';
-import { printSummary } from './print.js?v=14';
-import { codeOk, passiveOn } from './passive.js?v=14';
+import { $, daysUntil, fmtDate, fmtLong, fmtN, fmtPct, h, isDate, plural } from './util.js?v=15';
+import { APP_VERSION } from './catalog.js?v=15';
+import { blank, norm, stampAll } from './model.js?v=15';
+import { applyTheme, cloud, save, setState, snapshot, state, toast, ui } from './store.js?v=15';
+import { qbStats } from './data.js?v=15';
+import { numField, refreshSheet } from './sheets.js?v=15';
+import { render, showTab, tabsNow } from './shell.js?v=15';
+import { openQbank } from './qbank.js?v=15';
+import { exportCsv, exportJson } from './backup.js?v=15';
+import { reloadLatest } from './updates.js?v=15';
+import { printSummary } from './print.js?v=15';
+import { codeOk, passiveOn } from './passive.js?v=15';
 
 // Built once each time you open it; live parts redraw through settingsRefresh so typing isn't interrupted.
 export let settingsRefresh = null;
@@ -86,12 +86,6 @@ export function buildSettings() {
           onclick: () => { if (histBox.hidden) loadHistory(); else histBox.hidden = true; drawGoogle(); } }, 'Version history') : null,
         c.connected ? h('button', { class: 'btn ghost', onclick: () => cloud().disconnect().then(() => { histBox.hidden = true; toast('Signed out of Google sync'); }) }, 'Sign out') : null),
       c.connected ? histBox : null,
-      h('details', { class: 'set-more' }, h('summary', { text: 'When does it sync?' }),
-        h('ul', null,
-          h('li', { text: 'About 10 seconds after you stop editing (at most a minute after your first change), and right away when you leave the app.' }),
-          h('li', { text: 'When you open the app, and when you come back to it (at most every 5 minutes), it checks for changes from your other devices — a quick file check, with nothing downloaded unless something changed.' }),
-          h('li', { text: 'The sign-in service (the Cloudflare Worker) is only contacted to sign in or out and about once an hour while you’re using the app, when Google’s access pass expires.' }),
-          h('li', { text: 'If Google can’t be reached it waits longer between tries (30 seconds up to 15 minutes). Nothing is lost: everything stays saved on this device.' }))),
       h('p', { class: 'hint', text: 'Stored in a private app folder in your Google Drive (it doesn’t show up in your Drive files), kept apart from ThunderShadow’s data.' }),
       !c.connected && !c.canSignIn ? h('p', { class: 'hint', text: 'Google sign-in works on the published site: ' + c.returnUrl }) : null].filter(Boolean));
   };

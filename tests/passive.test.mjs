@@ -34,16 +34,16 @@ await p.click('#st-extras button:text("Open")');
 ok(await p.isVisible('#view-passive') && (await p.getAttribute('#tab-passive', 'aria-selected')) === 'true', 'Open goes to the tab');
 
 // layout and content
-ok((await p.locator('.pv-sec').count()) === 7, 'Divine: 7 sections (add-ons left out)');
-ok((await p.locator('.pv-dip .pv-row').count()) === 40, 'Divine: 40 items (37 episodes + 3 series)');
+ok((await p.locator('.pv-dip .pv-sec').count()) === 6, 'Divine: 6 sections (add-ons and optional series left out)');
+ok((await p.locator('.pv-dip .pv-row').count()) === 37, 'Divine: 37 episodes');
 const dipText = await p.textContent('.pv-dip');
-ok(dipText.includes('How to Use Divine for Step 2 (2025)') && dipText.includes('Divine Patch') && dipText.includes('Remaining Rapid Review Episodes'), 'core, Ep 573 additions and optional series all there');
+ok(dipText.includes('How to Use Divine for Step 2 (2025)') && dipText.includes('Divine Patch') && !dipText.includes('Remaining Rapid Review Episodes'), 'core and Ep 573 additions there, optional series gone');
 ok(!dipText.includes('Amenorrhea') && !dipText.includes('Cognitive Errors'), 'the “Recommended add-ons” list is not');
-ok((await p.textContent('#pv-core .pv-sec-h')).includes('★★★★★') && (await p.textContent('#pv-opt .pv-sec-h')).includes('★★') && !(await p.textContent('#pv-opt .pv-sec-h')).includes('★★★'), 'sections show their priority stars');
+ok((await p.textContent('#pv-core .pv-sec-h')).includes('★★★★★') && (await p.textContent('#pv-bonus .pv-sec-h')).includes('★★★') && !(await p.textContent('#pv-bonus .pv-sec-h')).includes('★★★★'), 'sections show their priority stars');
 ok((await p.locator('.pv-ph .pv-ph-row').count()) === 6 && (await p.textContent('.pv-ph')).includes('Biostatistics') && (await p.textContent('.pv-ph')).includes('OB/Gyn'), 'PHYSEO: 6 parts');
 ok((await p.locator('.pv-ph .pv-ph-row').first().locator('.pass').count()) === 5 && (await p.locator('.pv-dip .pv-row').first().locator('.pass').count()) === 5, '5 boxes each');
-ok((await p.textContent('.pv-over')).includes('0 of 40 episodes') && (await p.textContent('.pv-over')).includes('0 of 6 parts'), 'overview starts empty');
-ok((await p.textContent('#ct-pv')) === '0/46', 'tab count');
+ok((await p.textContent('.pv-over')).includes('0 of 37 episodes') && (await p.textContent('.pv-over')).includes('0 of 6 parts'), 'overview starts empty');
+ok((await p.textContent('#ct-pv')) === '0/43', 'tab count');
 
 // tick a DIP episode: video only, then notes
 const row = (id) => p.locator(`.pv-row[data-pv="${id}"]`);
@@ -59,14 +59,14 @@ ok((await row('dip-573').getAttribute('class')).includes('s-notes') && (await lo
 await row('dip-19').locator('.pass').nth(0).click(); // 2 h shelf review, video only
 await p.click('[data-notes="dip-137"]'); // notes before the video
 const over = await p.textContent('.pv-over');
-ok(over.includes('2 of 40 episodes') && over.includes('2h 35m of'), 'overview: episodes and time listened (35m + 2h): ' + over.slice(0, 120));
-ok(over.includes('2 with notes') && over.includes('1 video only') && over.includes('37 to do'), 'overview legend: with notes / video only / to do add up to 40');
+ok(over.includes('2 of 37 episodes') && over.includes('2h 35m of'), 'overview: episodes and time listened (35m + 2h): ' + over.slice(0, 120));
+ok(over.includes('2 with notes') && over.includes('1 video only') && over.includes('34 to do'), 'overview legend: with notes / video only / to do add up to 37');
 ok((await p.textContent('#pv-core .pv-ct')) === '1/15', 'section progress counts episodes listened');
 
 // PHYSEO
 await p.locator('.pv-ph-row[data-pv="ph-ethics"] .pass').nth(1).click();
 ok((await local()).passive['ph-ethics'].n === 2 && (await p.textContent('.pv-over')).includes('1 of 6 parts') && (await p.textContent('.pv-over')).includes('2 of 30 passes'), 'PHYSEO part: 2 passes');
-ok((await p.textContent('#ct-pv')) === '3/46', 'tab count updates');
+ok((await p.textContent('#ct-pv')) === '3/43', 'tab count updates');
 
 // filters
 await p.click('[data-pvf="video"]');
@@ -74,7 +74,7 @@ ok((await p.locator('.pv-dip .pv-row').count()) === 1, 'filter “Video only”:
 await p.click('[data-pvf="notes"]');
 ok((await p.locator('.pv-dip .pv-row').count()) === 2, 'filter “With notes”: 2');
 await p.click('[data-pvf="todo"]');
-ok((await p.locator('.pv-dip .pv-row').count()) === 37, 'filter “To do”: 37');
+ok((await p.locator('.pv-dip .pv-row').count()) === 34, 'filter “To do”: 34');
 await p.click('[data-pvf="all"]');
 // collapse a section (per device)
 await p.click('#pv-shelf .pv-sec-h');

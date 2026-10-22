@@ -1,11 +1,11 @@
 // The Systems tab and the system editor.
 
-import { $, fmtPct, h, num, today, uid } from './util.js?v=14';
-import { SYS_ST, TAGS } from './catalog.js?v=14';
-import { save, snapshot, state, sysItem, toast } from './store.js?v=14';
-import { allSystems, band, weakPattern } from './data.js?v=14';
-import { closeSheet, numField, openSheet, sheetHead } from './sheets.js?v=14';
-import { render } from './shell.js?v=14';
+import { $, fmtPct, h, num, today, uid } from './util.js?v=15';
+import { RESOURCES, SYS_ST } from './catalog.js?v=15';
+import { save, snapshot, state, sysItem, toast, ui } from './store.js?v=15';
+import { allSystems, band, weakPattern } from './data.js?v=15';
+import { closeSheet, numField, openSheet, sheetHead } from './sheets.js?v=15';
+import { render } from './shell.js?v=15';
 
 // Status, confidence and resource ticks count as working on a system that day (shown on the calendar).
 export function setSys(id, patch) {
@@ -21,6 +21,20 @@ export function tagBtn(id, t, after) {
       if (after) after();
     } }, (on ? '✓ ' : '') + t);
 }
+// the resources you chose to track (Systems → Resources); ticks on others stay saved
+export const sysTags = () => state.prefs.sysTags;
+function drawResPicker() {
+  const box = $('sys-res'), on = new Set(sysTags());
+  $('sys-res-btn').setAttribute('aria-expanded', ui.sysRes ? 'true' : 'false');
+  box.hidden = !ui.sysRes;
+  if (!ui.sysRes) { box.replaceChildren(); return; }
+  box.replaceChildren(h('span', { class: 'res-h', text: 'Show on each system' }),
+    h('div', { class: 'tags', role: 'group', 'aria-label': 'Resources to track' }, RESOURCES.map((t) => h('button', {
+      class: 'tag' + (on.has(t) ? ' on' : ''), 'aria-pressed': on.has(t) ? 'true' : 'false', 'data-res': t,
+      onclick: () => { state.prefs.sysTags = RESOURCES.filter((x) => (x === t ? !on.has(t) : on.has(x))); save(); render(); } }, (on.has(t) ? '✓ ' : '') + t))),
+    h('button', { class: 'linkish', onclick: () => { ui.sysRes = false; render(); } }, 'Done'));
+}
+$('sys-res-btn').addEventListener('click', () => { ui.sysRes = !ui.sysRes; render(); });
 export function sortedSystems() {
   const list = allSystems().slice(), m = state.prefs.sysSort;
   const uw = (s) => { const v = num(sysItem(s.id).uw); return v == null ? 999 : v; };
@@ -33,6 +47,7 @@ export function sortedSystems() {
 
 export function renderSystems() {
   $('sys-sort').value = state.prefs.sysSort;
+  drawResPicker();
   const inp = h('input', { type: 'text', placeholder: 'Add a system or topic (e.g. Vascular surgery)', id: 'add-sys', maxlength: '60', 'aria-label': 'New system name' });
   const add = () => {
     const name = inp.value.trim(); if (!name) return;
@@ -47,7 +62,7 @@ export function renderSystems() {
     return h('div', { class: 'sys' },
       h('div', { class: 'sys-main' },
         h('button', { class: 'nm', 'data-open': sy.id, onclick: () => openSystem(sy) }, sy.name, it.notes ? h('small', { text: it.notes }) : null),
-        h('div', { class: 'tags' }, TAGS.filter((t) => t === 'Sketchy' || it.tags.includes(t)).map((t) => tagBtn(sy.id, t)),
+        h('div', { class: 'tags' }, sysTags().map((t) => tagBtn(sy.id, t)),
           uw != null ? h('span', { class: 'tag uw ' + band('cms', uw), title: 'UWorld % correct', text: 'UW ' + fmtPct(uw) }) : null,
           weakIn.get(sy.id) ? h('span', { class: 'tag weak-tag' + (weakIn.get(sy.id).length >= 2 ? ' rec' : ''), title: 'Marked weak on ' + weakIn.get(sy.id).map((f) => f.full).join(', '),
             text: 'Weak ' + weakIn.get(sy.id).length + '×' }) : null)),
@@ -67,7 +82,8 @@ export function openSystem(sy) {
   notesIn.addEventListener('input', () => patch({ notes: notesIn.value }));
   const uw = numField('ed-uw', 'UWorld % correct', { inputmode: 'decimal', step: 'any', placeholder: 'e.g. 68', value: cur().uw }, 0, 100, false, (raw) => patch({ uw: raw }));
   const tagBox = h('div', { class: 'tags', role: 'group', 'aria-label': 'Resources done' });
-  const drawTags = () => tagBox.replaceChildren(...TAGS.map((t) => tagBtn(sy.id, t, drawTags)));
+  // your resources, plus any other you'd ticked before (so it can still be unticked)
+  const drawTags = () => tagBox.replaceChildren(...[...new Set(sysTags().concat(cur().tags))].map((t) => tagBtn(sy.id, t, drawTags)));
   drawTags();
   const isExtra = state.extraSystems.some((x) => x.id === sy.id);
   const rm = isExtra ? h('button', { class: 'btn ghost danger', onclick: () => {

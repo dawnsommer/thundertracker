@@ -5,7 +5,7 @@
   --good:#1d8658; --warn:#a86f12; --bad:#bf3a2b;
   --s0:#e7eaf0; --s1:#b7cdee; --s2:#4c7cc2; --s3:#1a3561;
   --s0-ink:#5a6578; --s1-ink:#152033; --s2-ink:#ffffff; --s3-ink:#ffffff;
-  --ser-nbme:#2f66b3; --ser-uwsa:#c2601a; --ser-f120:#7a52c7;
+  --ser-nbme:#2f66b3; --ser-uwsa:#c2601a; --ser-f120:#7a52c7; --ser-asa:#0f8577;
   --shadow:0 12px 40px rgba(20,32,51,.18);
   --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
   --f-body:"Public Sans", "Segoe UI", system-ui, sans-serif;
@@ -19,7 +19,7 @@
   --good:#4cc38a; --warn:#e3a640; --bad:#f06b5a;
   --s0:#222b39; --s1:#2f4a72; --s2:#4f80c6; --s3:#a4c4f6;
   --s0-ink:#93a0b3; --s1-ink:#e5eaf2; --s2-ink:#ffffff; --s3-ink:#0e131a;
-  --ser-nbme:#6f9ee6; --ser-uwsa:#f0954f; --ser-f120:#b597f5;
+  --ser-nbme:#6f9ee6; --ser-uwsa:#f0954f; --ser-f120:#b597f5; --ser-asa:#45c7b5;
   --shadow:0 12px 40px rgba(0,0,0,.5); color-scheme:dark;
 }}
 :root[data-theme="dark"]{
@@ -28,7 +28,7 @@
   --good:#4cc38a; --warn:#e3a640; --bad:#f06b5a;
   --s0:#222b39; --s1:#2f4a72; --s2:#4f80c6; --s3:#a4c4f6;
   --s0-ink:#93a0b3; --s1-ink:#e5eaf2; --s2-ink:#ffffff; --s3-ink:#0e131a;
-  --ser-nbme:#6f9ee6; --ser-uwsa:#f0954f; --ser-f120:#b597f5;
+  --ser-nbme:#6f9ee6; --ser-uwsa:#f0954f; --ser-f120:#b597f5; --ser-asa:#45c7b5;
   --shadow:0 12px 40px rgba(0,0,0,.5); color-scheme:dark;
 }
 :root[data-theme="light"]{color-scheme:light}
@@ -750,3 +750,43 @@ button.wm-row:hover{background:color-mix(in srgb,var(--hl-soft) 40%,transparent)
 /* settings: code entry */
 .code-row{display:flex;gap:8px;max-width:22rem}
 .code-row input{flex:1;min-width:0;border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:7px 10px;font:inherit}
+
+/* systems: which resources to track */
+.sys-tools{align-items:center}
+.res-pick{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:-4px 0 14px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r);background:var(--panel)}
+.res-pick .res-h{font-size:.74rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.res-pick .linkish{margin-left:auto}
+
+/* assessments: Edit list */
+.row.editing{grid-template-columns:7.25rem minmax(0,1fr) auto;cursor:default;padding:9px 14px}
+.row.editing .st-txt{font-size:.82rem;color:var(--muted)}
+.row.editing.removed{background:var(--bg)}
+.row.editing.removed .nm,.row.editing.removed .st-txt{opacity:.55}
+.rm-btn{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:4px 11px;font-size:.78rem;font-weight:600;color:var(--bad)}
+.rm-btn:hover{border-color:var(--bad)}
+.rm-btn.back{color:var(--good)}
+.rm-btn.back:hover{border-color:var(--good)}
+.wm-cell.long{font-size:.48rem;letter-spacing:-.04em}
+.weak-pct-grid.counts{grid-template-columns:minmax(0,18rem)}
+.weak-n.head small{font-size:.66rem;color:var(--muted);text-align:center;text-transform:uppercase;letter-spacing:.04em}
+.weak-n{display:grid;grid-template-columns:minmax(0,1fr) 3.4rem 3.4rem;align-items:center;gap:6px}
+.weak-n input{width:100%}
+
+/* passive study: your own sections */
+.pv-main{grid-area:dip;display:flex;flex-direction:column;gap:14px;min-width:0}
+.pv-dip{grid-area:auto}
+.pv-own{--pv:var(--ser-asa)}
+.pv-ring.own .fg{stroke:var(--ser-asa)}
+.pv-sec-hw{display:flex;align-items:center;gap:4px}
+.pv-sec-hw .pv-sec-h{flex:1;min-width:0}
+.pv-x{border:0;background:none;color:var(--muted);width:24px;height:24px;border-radius:6px;font-size:1rem;line-height:1;padding:0;flex:none;opacity:.55}
+.pv-x:hover,.pv-x:focus-visible{opacity:1;color:var(--bad);background:var(--bg)}
+.pv-row.own{grid-template-columns:2.9rem minmax(0,1fr) auto auto 24px}
+.pv-add{border:0;background:none;color:var(--muted);font-size:.8rem;font-weight:600;padding:6px 4px;text-align:left;align-self:flex-start}
+.pv-add:hover{color:var(--pv,var(--brand))}
+.pv-own-empty .pv-add-sec{padding:2px 4px}
+.pv-form{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px 4px}
+.pv-form .btn{padding:5px 10px;font-size:.8rem}
+.pv-in{flex:1;min-width:10rem;border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:6px 9px;font:inherit;font-size:.85rem}
+.pv-in.mins{flex:0 0 4.5rem;min-width:0}
+@media (max-width:560px){.pv-row.own{grid-template-columns:2.6rem minmax(0,1fr) auto 24px}.pv-row.own .pv-x{grid-column:4;grid-row:1/3}}

@@ -1,8 +1,9 @@
 // What the app tracks: assessments, CMS subjects, systems, qbanks, AMBOSS articles, labels and constants.
 
-import { slug } from './util.js?v=14';
+import { slug } from './util.js?v=15';
 
-// Self-assessments. `base` is the default list; newer releases can be added from the Assessments tab.
+// Self-assessments. `base` is the default list; newer releases can be added from the Assessments tab,
+// and any form can be removed from your list (and brought back) with Edit list.
 export const GROUPS = [
   { key: 'nbme', name: 'NBME CCSSA', short: 'NBME', qs: 200, qsFor: (n) => (n === 7 ? 176 : n <= 8 ? 184 : 200), scaled: true, min: 1, max: 99,
     desc: '200 questions in 4 blocks of 50 (Forms 6 and 8: 184, Form 7: 176) · log the 3-digit score and % correct',
@@ -16,17 +17,24 @@ export const GROUPS = [
     desc: '120 questions in 3 blocks of 40 · log % correct',
     base: [2019, 2021, 2023],
     label: (n) => n + ' release', full: (n) => 'Free 120 (' + n + ')', tag: (n) => 'F' + String(n).slice(2), addHint: 'Year' },
+  { key: 'asa', name: 'AMBOSS Self-Assessment', short: 'AMBOSS SA', qs: 160, scaled: true, min: 1, max: 9,
+    desc: 'AMBOSS Step 2 CK Self-Assessment · log the predicted 3-digit score and % correct',
+    base: [1],
+    label: (n) => 'AMBOSS SA ' + n, full: (n) => 'AMBOSS SA ' + n, tag: (n) => 'A' + n, addHint: 'SA #' },
 ];
 
+// CMS subjects: forms 1..latest. Forms 4+ behind the latest count as older, and so do the ones NBME
+// has retired (`retired`); older forms stay hidden unless you've taken them or turn on Show older forms.
+// October 2026 releases: Neurology 10–11 (6–7 retired), Emergency Medicine 4 (1 retired), Family Medicine 6–7 (1–3 retired).
 export const SUBJ = [
   { key: 'med',   name: 'Internal Medicine', latest: 10 },
   { key: 'surg',  name: 'Surgery',           latest: 9 },
   { key: 'peds',  name: 'Pediatrics',        latest: 9 },
   { key: 'obgyn', name: 'OB/GYN',            latest: 10 },
   { key: 'psych', name: 'Psychiatry',        latest: 8 },
-  { key: 'neuro', name: 'Clinical Neurology',latest: 9 },
-  { key: 'fm',    name: 'Family Medicine',   latest: 5 },
-  { key: 'em',    name: 'Emergency Medicine',latest: 3 },
+  { key: 'neuro', name: 'Clinical Neurology',latest: 11, retired: [6, 7] },
+  { key: 'fm',    name: 'Family Medicine',   latest: 7,  retired: [1, 2, 3] },
+  { key: 'em',    name: 'Emergency Medicine',latest: 4,  retired: [1] },
 ];
 export const SYSTEMS = [
   ['cardio','Cardiovascular'],['resp','Pulmonary & Critical Care'],['gi','Gastrointestinal & Hepatology'],
@@ -39,7 +47,9 @@ export const SYSTEMS = [
 ].map(([id, name]) => ({ id: 'sys-' + id, name }));
 // old system ids folded into the merged ones
 export const MERGE = { 'sys-male': 'sys-repro', 'sys-ob': 'sys-repro', 'sys-gyn': 'sys-repro', 'sys-ent': 'sys-neuro', 'sys-derm': 'sys-immuno' };
-export const TAGS = ['Sketchy', 'UWorld', 'AMBOSS', 'Anki'];
+// Resources you can tick off per system; pick which show in the Systems tab (synced).
+export const RESOURCES = ['Sketchy', 'CKNotes', 'Inner Circle', 'Self-Made Notes', 'UWincorrects', 'Bootcamp Notes', 'FirstAid'];
+export const RESOURCES_DEFAULT = ['Sketchy', 'CKNotes', 'Inner Circle'];
 // Built-in qbanks; you can add more on the Qbank tab. Sessions point at a qbank by name.
 export const QBANKS = [{ id: 'uworld', name: 'UWorld' }, { id: 'amboss', name: 'AMBOSS' }];
 export const PASSES = 5; // read-throughs per AMBOSS article, as in the checklist
@@ -48,7 +58,7 @@ export const FORM_ST = ['Not taken', 'Taken', 'Reviewed', 'Anki made'];
 export const SYS_ST = ['Not started', 'Learning', 'Qbank done', 'Revised'];
 export const TABS = ['overview', 'nbme', 'cms', 'systems', 'qbank', 'articles'];
 export const PASS = 218;
-export const APP_VERSION = 14; // matches VERSION in sw.js and every ?v= (tools/release.mjs keeps them in step)
+export const APP_VERSION = 15; // matches VERSION in sw.js and every ?v= (tools/release.mjs keeps them in step)
 // The app's script files, for “Reload latest version”.
 export const APP_FILES = ['js/articles.js', 'js/assessments.js', 'js/backup.js', 'js/calculator.js', 'js/catalog.js', 'js/cloud.js', 'js/cms.js', 'js/config.js', 'js/data.js', 'js/main.js', 'js/model.js', 'js/overview.js', 'js/passive-catalog.js', 'js/passive.js', 'js/planner.js', 'js/print.js', 'js/qbank.js', 'js/score-models.js', 'js/settings.js', 'js/sheets.js', 'js/shell.js', 'js/sim-import.js', 'js/store.js', 'js/systems.js', 'js/updates.js', 'js/util.js'];
 export const KEY = 'ck-tracker';

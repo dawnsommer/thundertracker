@@ -140,21 +140,21 @@ await p.click('#plan-spread');
 s = await local();
 const plans = Object.entries(s.items).filter(([, it]) => it.plan).map(([id, it]) => [id, it.plan]);
 const exam = d(30);
-ok(plans.length === 8, 'spread: NBME 13–16, UWSA 2–3, two Free 120s (older and taken skipped): ' + plans.length + ' ' + plans.map((x) => x[0]).join(','));
+ok(plans.length === 9, 'spread: NBME 13–16, UWSA 2–3, AMBOSS SA 1, two Free 120s (older and taken skipped): ' + plans.length + ' ' + plans.map((x) => x[0]).join(','));
 ok(plans.every(([, dd]) => dd > d(0) && dd <= d(28)), 'all planned between tomorrow and 2 days before test day');
 const f120 = plans.filter(([id]) => id.startsWith('f120'));
 ok(f120.length === 2 && f120.every(([, dd]) => dd >= d(22)), 'Free 120s in the final week: ' + JSON.stringify(f120));
 ok(!plans.some(([id]) => ['nbme-6', 'nbme-7', 'nbme-8', 'nbme-9', 'uwsa-1'].includes(id)), 'older and taken forms not planned');
 const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#plan-ics')]);
 const ics = fs.readFileSync(await dl.path(), 'utf8');
-ok(ics.startsWith('BEGIN:VCALENDAR') && (ics.match(/BEGIN:VEVENT/g) || []).length === 9 && ics.includes('DTSTART;VALUE=DATE:' + exam.replace(/-/g, '')) && ics.includes('SUMMARY:USMLE Step 2 CK'), 'calendar file: 8 forms + test day');
+ok(ics.startsWith('BEGIN:VCALENDAR') && (ics.match(/BEGIN:VEVENT/g) || []).length === 10 && ics.includes('DTSTART;VALUE=DATE:' + exam.replace(/-/g, '')) && ics.includes('SUMMARY:USMLE Step 2 CK'), 'calendar file: 9 forms + test day');
 await p.keyboard.press('Escape');
 ok((await p.textContent('#tests [data-open="nbme-13"] .dt')).startsWith('plan '), 'rows show the planned date');
 await p.click('#tab-overview'); await p.waitForTimeout(200);
 const nx = await p.textContent('#next');
 ok(/Planned.*(in \d+ days|tomorrow)/.test(nx), 'Up next shows the next planned form: ' + nx.match(/PLANNED.{0,60}|Planned.{0,60}/)?.[0]);
 const fut = await p.locator('#heat .heat .hc.fut.m-plan').count();
-ok(fut === 8 && await p.locator('#heat .heat .hc.m-test').count() === 1, 'calendar shows 8 planned days and test day (' + fut + ')');
+ok(fut === 9 && await p.locator('#heat .heat .hc.m-test').count() === 1, 'calendar shows 9 planned days and test day (' + fut + ')');
 await p.click(`#heat .hc[data-day="${exam}"]`);
 ok((await p.textContent('.heat-detail')).includes('test day'), 'tapping test day explains it');
 // overdue
@@ -164,23 +164,24 @@ ok((await p.textContent('#next')).includes('NBME 13 — planned'), 'overdue plan
 // taking a form takes it off the plan
 await p.click('#tab-nbme'); await p.click('#tests [data-open="nbme-13"]'); await p.locator('.stepper button').nth(1).click(); await p.keyboard.press('Escape');
 await p.click('#tab-overview'); await p.waitForTimeout(200);
-ok(!(await p.textContent('#next')).includes('NBME 13 — planned') && await p.locator('#heat .heat .hc.fut.m-plan').count() === 7, 'taken form drops off the plan');
+ok(!(await p.textContent('#next')).includes('NBME 13 — planned') && await p.locator('#heat .heat .hc.fut.m-plan').count() === 8, 'taken form drops off the plan');
 await p.locator('#heat').screenshot({ path: S + '/heat-plan.png' });
 
 // --- shades in the weakness matrix
 await p.click('#tab-nbme'); await p.click('#tests [data-open="nbme-9"]');
 await p.click('.weak-pick .tag:text-is("Renal")');
-await p.click('text=Add % correct per weak system');
-await p.fill('[data-weakpct="sys-renal"]', '50'); await p.keyboard.press('Escape');
+// assessments: errors and unstable questions per weak system, from your review
+await p.click('text=Add errors per weak system');
+await p.fill('[data-weak="sys-renal:e"]', '6'); await p.keyboard.press('Escape');
 await p.click('#tests [data-open="nbme-10"]'); await p.click('.weak-pick .tag:text-is("Renal")');
-await p.click('text=Add % correct per weak system'); await p.fill('[data-weakpct="sys-renal"]', '60'); await p.keyboard.press('Escape');
+await p.click('text=Add errors per weak system'); await p.fill('[data-weak="sys-renal:e"]', '3'); await p.fill('[data-weak="sys-renal:u"]', '1'); await p.keyboard.press('Escape');
 await p.click('#tests [data-open="nbme-11"]'); await p.click('.weak-pick .tag:text-is("Renal")'); await p.keyboard.press('Escape');
 s = await local();
-ok(s.items['nbme-9'].weakPct['sys-renal'] === '50', 'per-system % saved');
+ok(JSON.stringify(s.items['nbme-9'].weakN['sys-renal']) === '{"e":6,"u":0}' && JSON.stringify(s.items['nbme-10'].weakN['sys-renal']) === '{"e":3,"u":1}', 'errors and unstable saved per system');
 await p.click('#tab-overview'); await p.waitForTimeout(200);
 const cells = await p.locator('#weak button.wm-row', { hasText: 'Renal' }).first().evaluate((e) => [...e.querySelectorAll('.wm-cell.on')].map((c) => c.className.replace('wm-cell on', '').replace('first-qb', '').trim() + (c.textContent ? ':' + c.textContent : '')));
-ok(JSON.stringify(cells) === JSON.stringify(['sh3:50', 'sh2:60', '', 'qb sh1:70']), 'shades: 50% dark, 60% medium, none plain, UWorld 70% (system UW %) light: ' + JSON.stringify(cells));
-ok((await p.textContent('#weak')).includes('Your % in that system (65+ · 55–64 · under 55)'), 'shade legend');
+ok(JSON.stringify(cells) === JSON.stringify(['sh3:6', 'sh2:3·1', '', 'qb sh1:70']), 'shades: 6 errors dark, 3 errors + 1 unstable medium, none plain, UWorld 70% (system UW %) light: ' + JSON.stringify(cells));
+ok((await p.textContent('#weak')).includes('Errors·unstable on an assessment') && (await p.textContent('#weak')).includes('Your % in that system (65+ · 55–64 · under 55)'), 'shade legend for both');
 await p.locator('#weak').screenshot({ path: S + '/matrix-shades.png' });
 await p.setViewportSize({ width: 375, height: 800 }); await p.click('#tab-nbme'); await p.click('#calc-btn'); await p.waitForTimeout(200);
 ok(await p.evaluate(() => document.documentElement.scrollWidth) <= 375, 'calculator fits a phone');

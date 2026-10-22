@@ -1,12 +1,13 @@
 // The Passive study tab: Divine Intervention Podcasts (DIP) and PHYSEO. Hidden until unlocked with a code in
 // Settings → Extras. Optional study: it stays out of Up next, the pace and the overview's totals.
-// Each item has 5 boxes, ticked once per time through; a DIP episode also has a "notes done" switch, so you
-// can tell video-only from video + notes.
+// Each item has 5 boxes, ticked once per time through; an episode also has a "notes done" switch, so you
+// can tell video-only from video + notes. You can add your own sections (another podcast, a topic) and
+// episodes under the Divine list.
 
-import { $, fmtDate, h, today } from './util.js?v=14';
-import { save, state, ui } from './store.js?v=14';
-import { render } from './shell.js?v=14';
-import { DIP_ITEMS, DIP_SECTIONS, PHYSEO, PV_PASSES } from './passive-catalog.js?v=14';
+import { $, fmtDate, h, today, uid } from './util.js?v=15';
+import { save, snapshot, state, toast, ui } from './store.js?v=15';
+import { render } from './shell.js?v=15';
+import { DIP_ITEMS, DIP_SECTIONS, PHYSEO, PV_PASSES } from './passive-catalog.js?v=15';
 
 // The code only decides whether the tab shows; it's not a password (the app has no secrets).
 const CODE = '1afqyji';
@@ -27,16 +28,18 @@ const tapPass = (id, i) => { const n = pvItem(id).n; patch(id, { n: n === i + 1 
 const status = (it) => (it.notes ? 'notes' : it.n ? 'video' : 'todo');
 const fmtMin = (m) => (m >= 60 ? Math.floor(m / 60) + 'h' + (m % 60 ? ' ' + (m % 60) + 'm' : '') : m + 'm');
 
+const ownItems = () => state.pvCustom.filter((x) => state.pvSecs.some((s) => s.id === x.sec));
 export function pvStats() {
-  const dip = DIP_ITEMS.map((x) => [x, pvItem(x.id)]), ph = PHYSEO.map((x) => [x, pvItem(x.id)]);
+  const dip = DIP_ITEMS.map((x) => [x, pvItem(x.id)]), ph = PHYSEO.map((x) => [x, pvItem(x.id)]), own = ownItems().map((x) => [x, pvItem(x.id)]);
   const timed = DIP_ITEMS.filter((x) => x.mins);
-  const last = [...dip, ...ph].filter(([, it]) => it.date).sort((a, b) => b[1].date.localeCompare(a[1].date))[0];
+  const last = [...dip, ...ph, ...own].filter(([, it]) => it.date).sort((a, b) => b[1].date.localeCompare(a[1].date))[0];
   return {
     // every episode is exactly one of: to do, video only, with notes
     dipDone: dip.filter(([, it]) => it.n).length, dipNotes: dip.filter(([, it]) => status(it) === 'notes').length,
     dipVideoOnly: dip.filter(([, it]) => status(it) === 'video').length, dipTodo: dip.filter(([, it]) => status(it) === 'todo').length, dipTotal: dip.length,
     mins: timed.reduce((t, x) => t + x.mins, 0), minsDone: timed.filter((x) => pvItem(x.id).n).reduce((t, x) => t + x.mins, 0),
     phDone: ph.filter(([, it]) => it.n).length, phPasses: ph.reduce((t, [, it]) => t + it.n, 0), phTotal: ph.length,
+    ownDone: own.filter(([, it]) => it.n).length, ownNotes: own.filter(([, it]) => it.notes).length, ownTotal: own.length,
     last: last ? { name: last[0].ep ? 'Ep ' + last[0].ep : last[0].name, date: last[1].date } : null,
   };
 }
@@ -65,6 +68,71 @@ function ring(frac, label, cls) {
 }
 
 const FILTERS = [['all', 'All'], ['todo', 'To do'], ['video', 'Video only'], ['notes', 'With notes']];
+
+// one episode row: badge, title (and length), boxes, notes; your own ones can be removed
+function epRow(x, badge, onRemove) {
+  const it = pvItem(x.id), name = x.ep ? 'Ep ' + x.ep : x.name;
+  return h('div', { class: 'pv-row s-' + status(it) + (onRemove ? ' own' : ''), 'data-pv': x.id },
+    h('span', { class: 'pv-ep', text: badge }),
+    h('span', { class: 'pv-ti' }, h('span', { class: 'pv-nm', text: x.name, title: x.name }), x.mins ? h('small', { title: (x.approx ? 'About ' : '') + x.mins + ' min', text: fmtMin(x.mins) }) : null),
+    boxes(x.id, name), notesBtn(x),
+    onRemove ? h('button', { class: 'pv-x', 'aria-label': 'Remove ' + x.name, title: 'Remove', onclick: onRemove }, '×') : null);
+}
+// collapsible section header: name, progress, count (and × for your own sections)
+function secHead(sec, done, total, closed, extra, onRemove) {
+  const P = state.prefs;
+  const toggle = () => { const s = new Set(P.pvCollapsed); s.has(sec.id) ? s.delete(sec.id) : s.add(sec.id); P.pvCollapsed = [...s]; save(); render(); };
+  const pc = total ? done / total : 0;
+  return h('div', { class: 'pv-sec-hw' },
+    h('button', { class: 'pv-sec-h', 'aria-expanded': closed ? 'false' : 'true', onclick: toggle },
+      h('span', { class: 'chev', 'aria-hidden': 'true', text: '▾' }),
+      h('b', { text: sec.name }), extra || h('span'),
+      h('span', { class: 'pv-mini', 'aria-hidden': 'true' }, h('i', { style: 'width:' + pc * 100 + '%' })),
+      h('span', { class: 'pv-ct', text: done + '/' + total })),
+    onRemove ? h('button', { class: 'pv-x', 'aria-label': 'Remove section ' + sec.name, title: 'Remove section', onclick: onRemove }, '×') : null);
+}
+// a small inline form: text fields, Add and Cancel; Enter adds, Escape cancels
+function inlineForm(fields, onAdd) {
+  const cancel = () => { ui.pvAdd = null; render(); };
+  const add = () => { const vals = fields.map((f) => f.value.trim()); if (!vals[0]) { fields[0].focus(); return; } onAdd(vals); };
+  fields.forEach((f) => f.addEventListener('keydown', (e) => { if (e.key === 'Enter') add(); if (e.key === 'Escape') cancel(); }));
+  setTimeout(() => fields[0].focus(), 0);
+  return h('div', { class: 'pv-form' }, fields, h('button', { class: 'btn primary', onclick: add }, 'Add'), h('button', { class: 'btn ghost', onclick: cancel }, 'Cancel'));
+}
+const dropProgress = (ids) => ids.forEach((id) => delete state.passive[id]);
+function ownSections() {
+  const coll = new Set(state.prefs.pvCollapsed);
+  const secs = state.pvSecs.map((sec) => {
+    const items = state.pvCustom.filter((x) => x.sec === sec.id);
+    const done = items.filter((x) => pvItem(x.id).n).length, closed = coll.has(sec.id);
+    const removeSec = () => {
+      const undo = snapshot();
+      state.pvSecs = state.pvSecs.filter((s) => s.id !== sec.id);
+      state.pvCustom = state.pvCustom.filter((x) => x.sec !== sec.id);
+      dropProgress(items.map((x) => x.id));
+      save(); render(); toast(sec.name + ' removed', undo);
+    };
+    const adding = ui.pvAdd === sec.id;
+    return h('div', { class: 'pv-sec', id: 'pv-' + sec.id },
+      secHead(sec, done, items.length, closed, null, removeSec),
+      closed ? null : h('div', { class: 'pv-rows' }, items.map((x, i) => epRow(x, String(i + 1), () => {
+        const undo = snapshot();
+        state.pvCustom = state.pvCustom.filter((y) => y.id !== x.id); dropProgress([x.id]);
+        save(); render(); toast(x.name + ' removed', undo);
+      })), adding
+        ? inlineForm([h('input', { type: 'text', class: 'pv-in', id: 'pv-new-ep', maxlength: '120', placeholder: 'Episode or topic', 'aria-label': 'Episode title' }),
+          h('input', { type: 'number', class: 'pv-in mins', min: '1', max: '1000', placeholder: 'min', 'aria-label': 'Length in minutes (optional)' })],
+        ([name, mins]) => { state.pvCustom.push({ id: 'pvc-' + uid(), sec: sec.id, name: name.slice(0, 120), mins: Math.max(0, Math.min(1000, Math.round(Number(mins) || 0))) }); save(); render(); })
+        : h('button', { class: 'pv-add', 'data-add-ep': sec.id, onclick: () => { ui.pvAdd = sec.id; render(); } }, '+ Add episode')));
+  });
+  const addSec = ui.pvAdd === 'sec'
+    ? inlineForm([h('input', { type: 'text', class: 'pv-in', id: 'pv-new-sec', maxlength: '60', placeholder: 'A podcast or topic, e.g. Emma Holliday', 'aria-label': 'Section name' })],
+      ([name]) => { const id = 'pvs-' + uid(); state.pvSecs.push({ id, name: name.slice(0, 60) }); ui.pvAdd = id; save(); render(); })
+    : h('button', { class: 'pv-add pv-add-sec', id: 'pv-add-sec', onclick: () => { ui.pvAdd = 'sec'; render(); } }, '+ Add a section or podcast');
+  if (!secs.length) return h('div', { class: 'pv-own-empty' }, addSec);
+  return h('section', { class: 'card pv-card pv-own', 'aria-labelledby': 'pv-own-h' },
+    h('div', { class: 'pv-head' }, h('h3', { id: 'pv-own-h', text: 'Your sections' })), secs, addSec);
+}
 const shows = (f, it) => f === 'all' || status(it) === f;
 
 export function renderPassive() {
@@ -89,6 +157,9 @@ export function renderPassive() {
     h('div', { class: 'pv-stat' }, ring(pc(st.phDone, st.phTotal), st.phDone + '', 'ph'),
       h('div', null, h('span', { class: 'eyebrow', text: 'PHYSEO' }), h('p', { text: st.phDone + ' of ' + st.phTotal + ' parts' }),
         h('small', { text: st.phPasses + ' of ' + st.phTotal * PV_PASSES + ' passes' }))),
+    st.ownTotal ? h('div', { class: 'pv-stat' }, ring(pc(st.ownDone, st.ownTotal), st.ownDone + '', 'own'),
+      h('div', null, h('span', { class: 'eyebrow', text: 'Your sections' }), h('p', { text: st.ownDone + ' of ' + st.ownTotal + ' episodes' }),
+        h('small', { text: st.ownNotes + ' with notes' }))) : null,
     st.last ? h('p', { class: 'pv-last', text: 'Last: ' + st.last.name + ' · ' + fmtDate(st.last.date) }) : null);
 
   // PHYSEO: six parts, five boxes each
@@ -108,18 +179,9 @@ export function renderPassive() {
     const shown = items.filter(([, it]) => shows(f, it));
     if (f !== 'all' && !shown.length) return null;
     const closed = f === 'all' && coll.has(sec.id);
-    const toggle = () => { const s = new Set(P.pvCollapsed); s.has(sec.id) ? s.delete(sec.id) : s.add(sec.id); P.pvCollapsed = [...s]; save(); render(); };
     return h('div', { class: 'pv-sec', id: 'pv-' + sec.id },
-      h('button', { class: 'pv-sec-h', 'aria-expanded': closed ? 'false' : 'true', onclick: toggle },
-        h('span', { class: 'chev', 'aria-hidden': 'true', text: '▾' }),
-        h('b', { text: sec.name }),
-        h('span', { class: 'pv-stars', 'aria-label': sec.stars + ' of 5 stars', title: 'Priority ' + sec.stars + '/5', text: '★'.repeat(sec.stars) }),
-        h('span', { class: 'pv-mini', 'aria-hidden': 'true' }, h('i', { style: 'width:' + pc(done, items.length) * 100 + '%' })),
-        h('span', { class: 'pv-ct', text: done + '/' + items.length })),
-      closed ? null : h('div', { class: 'pv-rows' }, shown.map(([x, it]) => h('div', { class: 'pv-row s-' + status(it), 'data-pv': x.id },
-        h('span', { class: 'pv-ep' + (x.ep ? '' : ' series'), text: x.ep || 'Series' }),
-        h('span', { class: 'pv-ti' }, h('span', { class: 'pv-nm', text: x.name, title: x.name }), x.mins ? h('small', { title: (x.approx ? 'About ' : '') + x.mins + ' min', text: fmtMin(x.mins) }) : null),
-        boxes(x.id, x.ep ? 'Ep ' + x.ep : x.name), notesBtn(x)))));
+      secHead(sec, done, items.length, closed, h('span', { class: 'pv-stars', 'aria-label': sec.stars + ' of 5 stars', title: 'Priority ' + sec.stars + '/5', text: '★'.repeat(sec.stars) })),
+      closed ? null : h('div', { class: 'pv-rows' }, shown.map(([x]) => epRow(x, x.ep))));
   }).filter(Boolean);
   const dip = h('section', { class: 'card pv-card pv-dip', 'aria-labelledby': 'pv-dip-h' },
     h('div', { class: 'pv-head' }, h('h3', { id: 'pv-dip-h', text: 'Divine Intervention' }),
@@ -129,5 +191,5 @@ export function renderPassive() {
     secs.length ? secs : h('p', { class: 'sub', text: 'Nothing here with this filter.' }));
   dip.querySelector('.pv-note.mini').innerHTML = NOTE_ICON;
 
-  box.replaceChildren(h('div', { class: 'pv-grid' }, h('div', { class: 'pv-side' }, over, physeo), dip));
+  box.replaceChildren(h('div', { class: 'pv-grid' }, h('div', { class: 'pv-side' }, over, physeo), h('div', { class: 'pv-main' }, dip, ownSections())));
 }

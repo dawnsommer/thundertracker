@@ -1,15 +1,15 @@
 // The Overview tab: tiles, score trend, CMS bars, Up next, activity calendar and the weakness matrix.
 
-import { $, avg, dayNum, daysUntil, fmtDate, fmtK, fmtLong, fmtN, fmtPct, fromDay, h, monthShort, nn, num, plural, today, weekday } from './util.js?v=14';
-import { GROUPS, PASS, SUBJ, SYS_ST } from './catalog.js?v=14';
-import { cloud, item, save, state, sysItem, ui } from './store.js?v=14';
-import { allArticles, allCms, allSystems, allTests, artItem, band, cmsForms, isEmpty, outlook, pctOf, qbStats, scaledOf, shortSys, taken, trendPoints, weakPattern } from './data.js?v=14';
-import { render, showTab } from './shell.js?v=14';
-import { openForm } from './assessments.js?v=14';
-import { openSystem } from './systems.js?v=14';
-import { renderArtSummary } from './articles.js?v=14';
-import { openSettings, signIn } from './settings.js?v=14';
-import { inDays, openPlanner, plannedForms } from './planner.js?v=14';
+import { $, avg, dayNum, daysUntil, fmtDate, fmtK, fmtLong, fmtN, fmtPct, fromDay, h, monthShort, nn, num, plural, today, weekday } from './util.js?v=15';
+import { GROUPS, PASS, SUBJ, SYS_ST } from './catalog.js?v=15';
+import { cloud, item, save, state, sysItem, ui } from './store.js?v=15';
+import { allArticles, allCms, allSystems, allTests, artItem, band, cmsForms, isEmpty, outlook, pctOf, qbStats, scaledOf, shortSys, taken, trendPoints, weakPattern } from './data.js?v=15';
+import { render, showTab } from './shell.js?v=15';
+import { openForm } from './assessments.js?v=15';
+import { openSystem } from './systems.js?v=15';
+import { renderArtSummary } from './articles.js?v=15';
+import { openSettings, signIn } from './settings.js?v=15';
+import { inDays, openPlanner, plannedForms } from './planner.js?v=15';
 
 export function tile(label, big, small, frac, note) {
   return h('div', { class: 'tile' },
@@ -65,7 +65,7 @@ export function renderOverview() {
     tile('CMS forms', String(cTaken.length), 'of ' + cms.length, cms.length ? cTaken.length / cms.length : 0,
       cScores.length ? 'Average ' + fmtPct(avg(cScores)) + ' correct · ' + cTaken.filter((f) => item(f.id).status >= 2).length + ' reviewed' : 'No scores logged yet'),
     tile('Systems revised', String(sRev), 'of ' + sys.length, sys.length ? sRev / sys.length : 0,
-      (sAny ? sAny + ' started' : 'None started yet') + ' · ' + sys.filter((s) => sysItem(s.id).tags.includes('Sketchy')).length + ' Sketchy done'),
+      (sAny ? sAny + ' started' : 'None started yet') + (state.prefs.sysTags[0] ? ' · ' + sys.filter((s) => sysItem(s.id).tags.includes(state.prefs.sysTags[0])).length + ' ' + state.prefs.sysTags[0] + ' done' : '')),
     tile('Qbanks', fmtK(qb.total), 'questions', null,
       qb.total || qb.acc != null
         ? [qb.banks.filter((b) => b.pctDone != null).map((b) => b.qb.name + ' ' + fmtPct(b.pctDone)).join(' · '), qb.acc != null ? fmtPct(qb.acc) + ' correct' : ''].filter(Boolean).join(' · ')
@@ -98,6 +98,9 @@ export function renderOverview() {
 
 // Weakness matrix: a row per system, a column per marked assessment (oldest → newest) and finished qbank.
 // A filled square = weak there. Rows sort by how often a system came up; 2+ is a recurring pattern.
+// Optional shading, darker = weaker: on an assessment, the errors you counted in that system (an unstable
+// question counts half): under 3 light, 3–4 medium, 5+ dark; on a qbank, your % correct: 65+ light,
+// 55–64 medium, under 55 dark (UWorld falls back to the system's UWorld %).
 export function renderWeak(box) {
   const { rows, sources, nTests, nBanks } = weakPattern();
   if (!rows.length) {
@@ -108,10 +111,16 @@ export function renderWeak(box) {
     return;
   }
   const recurring = rows.filter((r) => r.hits.length >= 2);
-  // optional % correct in a weak system: lower % = darker square (UWorld falls back to the system's UW %)
-  const pctFor = (src, sy) => num(src.pct[sy.id]) ?? (src.kind === 'qbank' && src.full.startsWith('UWorld') ? num(sysItem(sy.id).uw) : null);
-  const shade = (p) => (p == null ? '' : p < 55 ? ' sh3' : p < 65 ? ' sh2' : ' sh1');
-  const anyPct = rows.some((r) => r.hits.some((src) => pctFor(src, r.sy) != null));
+  const shadeFor = (src, sy) => {
+    const c = src.n && src.n[sy.id];
+    if (c) {
+      const w = c.e + c.u / 2;
+      return { kind: 'n', cls: w >= 5 ? ' sh3' : w >= 3 ? ' sh2' : ' sh1', text: c.e + (c.u ? '·' + c.u : ''), tip: c.e + ' wrong' + (c.u ? ', ' + c.u + ' unstable' : '') };
+    }
+    const p = num(src.pct[sy.id]) ?? (src.kind === 'qbank' && src.full.startsWith('UWorld') ? num(sysItem(sy.id).uw) : null);
+    return p == null ? null : { kind: 'pct', cls: p < 55 ? ' sh3' : p < 65 ? ' sh2' : ' sh1', text: String(Math.round(p)), tip: fmtPct(p) + ' correct' };
+  };
+  const kinds = new Set(rows.flatMap((r) => r.hits.map((src) => (shadeFor(src, r.sy) || {}).kind)).filter(Boolean));
   const shown = ui.weakAll ? rows : rows.slice(0, 10);
   const total = sources.length;
   const cols = 'grid-template-columns:minmax(7.5rem,9.5rem) repeat(' + sources.length + ',22px) 4.2rem';
@@ -126,9 +135,9 @@ export function renderWeak(box) {
       'aria-label': r.sy.name + ': weak ' + n + ' of ' + total + ' times — ' + r.hits.map((x) => x.full).join(', ') + (r.recent ? '. Weak recently.' : '') },
       h('span', { class: 'wm-name', title: r.sy.name }, shortSys(r.sy.name), h('small', { class: 'wm-n', text: n + '×' }), r.recent ? h('i', { class: 'wm-recent', title: 'Weak in one of your last two marked assessments' }) : null),
       sources.map((src, i) => {
-        const on = hit.has(src.key), p = on ? pctFor(src, r.sy) : null;
-        return h('span', { class: 'wm-cell' + (on ? (src.kind === 'qbank' ? ' on qb' : ' on') + shade(p) : '') + (src.kind === 'qbank' && (i === 0 || sources[i - 1].kind !== 'qbank') ? ' first-qb' : ''),
-          title: on ? shortSys(r.sy.name) + ' weak · ' + src.full + (p != null ? ' · ' + fmtPct(p) + ' correct' : '') : '' }, p != null ? String(Math.round(p)) : null);
+        const on = hit.has(src.key), sh = on ? shadeFor(src, r.sy) : null;
+        return h('span', { class: 'wm-cell' + (on ? (src.kind === 'qbank' ? ' on qb' : ' on') + (sh ? sh.cls : '') : '') + (sh && sh.text.length > 3 ? ' long' : '') + (src.kind === 'qbank' && (i === 0 || sources[i - 1].kind !== 'qbank') ? ' first-qb' : ''),
+          title: on ? shortSys(r.sy.name) + ' weak · ' + src.full + (sh ? ' · ' + sh.tip : '') : '' }, sh ? sh.text : null);
       }),
       h('span', { class: 'wm-tot' }, h('b', { text: String(n) }), h('span', { class: 'wm-bar', 'aria-hidden': 'true' }, h('i', { style: 'width:' + (n / total * 100) + '%' }))));
   });
@@ -144,7 +153,8 @@ export function renderWeak(box) {
       h('span', null, h('i', { class: 'wm-cell on' }), 'Weak in an assessment'),
       nBanks ? h('span', null, h('i', { class: 'wm-cell on qb' }), 'Weak in a qbank') : null,
       h('span', null, h('i', { class: 'wm-recent' }), 'Weak in your last 2 assessments'),
-      anyPct ? h('span', null, h('i', { class: 'wm-cell on sh1' }), h('i', { class: 'wm-cell on sh2' }), h('i', { class: 'wm-cell on sh3' }), 'Your % in that system (65+ · 55–64 · under 55)') : null,
+      kinds.has('n') ? h('span', null, h('i', { class: 'wm-cell on sh1' }), h('i', { class: 'wm-cell on sh2' }), h('i', { class: 'wm-cell on sh3' }), 'Errors·unstable on an assessment (under 3 · 3–4 · 5+; unstable counts half)') : null,
+      kinds.has('pct') ? h('span', null, h('i', { class: 'wm-cell on qb sh1' }), h('i', { class: 'wm-cell on qb sh2' }), h('i', { class: 'wm-cell on qb sh3' }), 'Your % in that system (65+ · 55–64 · under 55)') : null,
       h('span', { text: 'Columns oldest → newest · tap a row for the system, a column for the form' })),
   ].filter(Boolean));
 }

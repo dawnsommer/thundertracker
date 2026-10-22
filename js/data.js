@@ -1,11 +1,11 @@
 // Derived views of the state: form lists, scores, qbank stats, weak-system patterns and articles.
 
-import { avg, dayNum, daysUntil, num, sum, today } from './util.js?v=14';
-import { ARTICLE_SECTIONS, GROUPS, SUBJ, SYSTEMS } from './catalog.js?v=14';
-import { item, save, state } from './store.js?v=14';
-import { render } from './shell.js?v=14';
-import { openForm } from './assessments.js?v=14';
-import { openQbank } from './qbank.js?v=14';
+import { avg, dayNum, daysUntil, num, sum, today } from './util.js?v=15';
+import { ARTICLE_SECTIONS, GROUPS, SUBJ, SYSTEMS } from './catalog.js?v=15';
+import { item, save, state } from './store.js?v=15';
+import { render } from './shell.js?v=15';
+import { openForm } from './assessments.js?v=15';
+import { openQbank } from './qbank.js?v=15';
 
 export function testForms(g, includeHidden) {
   const rm = new Set(state.removed);
@@ -25,7 +25,7 @@ export function cmsForms(s, includeOld, includeRemoved) {
   return [...ns].sort((a, b) => a - b).map((n) => {
     const id = 'cms-' + s.key + '-' + n;
     const extra = n > s.latest;
-    const old = !extra && n <= s.latest - 4;
+    const old = !extra && (n <= s.latest - 4 || (s.retired || []).includes(n));
     return { id, n, kind: 'cms', label: 'Form ' + n, full: s.name + ' Form ' + n, old, subj: s, removed: rm.has(id), extra };
   }).filter((f) => (includeRemoved || !f.removed) && (includeOld || !f.old || item(f.id).status > 0));
 }
@@ -42,7 +42,7 @@ export function weakSources() {
   const order = (f) => item(f.id).date || '9999';
   const tests = allTests().filter((f) => item(f.id).weak.length)
     .sort((a, b) => order(a).localeCompare(order(b)) || ORDER(a) - ORDER(b))
-    .map((f) => ({ key: f.id, kind: 'test', tag: f.tag, full: f.full, date: item(f.id).date, weak: item(f.id).weak, pct: item(f.id).weakPct || {}, open: () => openForm(f), g: f.g.key }));
+    .map((f) => ({ key: f.id, kind: 'test', tag: f.tag, full: f.full, date: item(f.id).date, weak: item(f.id).weak, pct: item(f.id).weakPct || {}, n: item(f.id).weakN || {}, open: () => openForm(f), g: f.g.key }));
   const banks = state.qbanks.filter((q) => q.finished && q.weak.length)
     .map((q) => ({ key: 'qb-' + q.id, kind: 'qbank', tag: qbAbbr(q.name), full: q.name + ' (qbank)', date: q.finished, weak: q.weak, pct: q.weakPct || {}, open: () => openQbank(q) }));
   return tests.concat(banks);

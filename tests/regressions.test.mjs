@@ -33,17 +33,17 @@ await p.clock.setSystemTime(new Date('2026-10-25T09:00:00'));
 await p.fill('#lg-q', '20'); await p.click('#log-form button[type=submit]');
 ok((await local()).log.some((e) => e.date === '2026-10-23' && e.q === 20), 'a picked date stays for the next session too');
 
-// --- typing in a weak-system % box survives a sheet refresh (sync status, a synced change)
+// --- typing in a weak-system box survives a sheet refresh (sync status, a synced change)
 await p.click('#tab-nbme'); await p.click('#tests [data-open="nbme-9"]');
 await p.click('.weak-pick .tag:text-is("Renal")'); await p.click('.weak-pick .tag:text-is("Cardiovascular")');
-await p.click('text=Add % correct per weak system');
-const box = '[data-weakpct="sys-renal"]';
+await p.click('text=Add errors per weak system');
+const box = '[data-weak="sys-renal:e"]';
 await p.click(box); await p.keyboard.type('5');
 await mod('sheets');
 await p.evaluate(() => window.__sheets.refreshSheet());
 await p.keyboard.type('2');
-ok((await p.evaluate(() => document.activeElement && document.activeElement.dataset.weakpct)) === 'sys-renal' && (await p.inputValue(box)) === '52', 'focus and typing survive a refresh: ' + await p.inputValue(box));
-ok((await local()).items['nbme-9'].weakPct['sys-renal'] === '52', 'value saved');
+ok((await p.evaluate(() => document.activeElement && document.activeElement.dataset.weak)) === 'sys-renal:e' && (await p.inputValue(box)) === '52', 'focus and typing survive a refresh: ' + await p.inputValue(box));
+ok((await local()).items['nbme-9'].weakN['sys-renal'].e === 52, 'value saved');
 await p.keyboard.press('Escape');
 
 // --- a qbank removed (on another device) while its sheet is open: the sheet closes, no error

@@ -1,22 +1,40 @@
 // The Assessments tab (NBME, UWSA, Free 120) and the assessment editor.
 
-import { $, avg, daysUntil, fmtDate, fmtPct, h, isDate, nn, num, plural, today } from './util.js?v=14';
-import { FORM_ST, GROUPS } from './catalog.js?v=14';
-import { item, save, snapshot, state, toast, ui } from './store.js?v=14';
-import { addForm, band, pctOf, scaledOf, taken, testForms, toggleRemove, weakNames } from './data.js?v=14';
-import { closeSheet, numField, openSheet, sheetHead, weakPicker } from './sheets.js?v=14';
-import { render } from './shell.js?v=14';
-import { statusPill } from './overview.js?v=14';
-import { estimateScore, estText, toggleCalculator } from './calculator.js?v=14';
-import { modelsFor } from './score-models.js?v=14';
+import { $, avg, daysUntil, fmtDate, fmtPct, h, isDate, nn, num, today } from './util.js?v=15';
+import { FORM_ST, GROUPS } from './catalog.js?v=15';
+import { item, save, snapshot, state, toast, ui } from './store.js?v=15';
+import { addForm, band, pctOf, scaledOf, taken, testForms, toggleRemove, weakNames } from './data.js?v=15';
+import { closeSheet, numField, openSheet, sheetHead, weakPicker } from './sheets.js?v=15';
+import { render } from './shell.js?v=15';
+import { statusPill } from './overview.js?v=15';
+import { estimateScore, estText, toggleCalculator } from './calculator.js?v=15';
+import { modelsFor } from './score-models.js?v=15';
 
 export function renderTests() {
-  $('tests').replaceChildren(...GROUPS.map((g) => {
+  const eb = $('edit-tests');
+  eb.setAttribute('aria-pressed', ui.editTests ? 'true' : 'false');
+  eb.textContent = ui.editTests ? 'Done editing' : 'Edit list';
+  const bar = ui.editTests ? h('div', { class: 'editbar' },
+    h('span', { text: 'Remove the forms you won’t take; ↺ brings one back. Scores are kept.' }),
+    h('button', { class: 'btn primary', onclick: () => { ui.editTests = false; render(); } }, 'Done')) : null;
+  $('tests').replaceChildren(...[bar].filter(Boolean), ...GROUPS.map((g) => {
     const all = testForms(g, true), forms = all.filter((f) => !f.removed);
     const nHidden = all.length - forms.length;
     const done = forms.filter(taken).length;
     const a3 = avg(forms.map(scaledOf).filter(nn)), ap = avg(forms.map(pctOf).filter(nn));
-    const rows = forms.map((f) => {
+    // edit mode: every form, removed ones greyed out with ↺
+    const editRow = (f) => {
+      const it = item(f.id), s3 = scaledOf(f), p = pctOf(f);
+      return h('div', { class: 'row editing' + (f.removed ? ' removed' : ''), 'data-edit': f.id },
+        h('span', { class: 'nm' }, f.label, f.old ? h('span', { class: 'old', text: 'older' }) : null),
+        h('span', { class: 'st-txt', text: f.removed ? 'Removed' + (it.status > 0 ? ' · your scores are kept' : '') : FORM_ST[it.status] + (s3 != null ? ' · ' + s3 : p != null ? ' · ' + fmtPct(p) : '') }),
+        h('button', { class: 'rm-btn' + (f.removed ? ' back' : ''), 'aria-label': (f.removed ? 'Restore ' : 'Remove ') + f.full, onclick: () => {
+          const undo = snapshot();
+          toggleRemove(f);
+          toast(f.full + (f.removed ? ' is back' : ' removed'), undo);
+        } }, f.removed ? '↺ Restore' : '× Remove'));
+    };
+    const rows = ui.editTests ? all.map(editRow) : forms.map((f) => {
       const it = item(f.id), s3 = scaledOf(f), p = pctOf(f);
       const main = g.scaled ? s3 : p;
       // no 3-digit score yet: show an estimate from % correct, if one is available
@@ -53,14 +71,9 @@ export function renderTests() {
         h('span', { class: 'stat' }, done + '/' + forms.length + ' done',
           a3 != null ? h('span', { class: band('score', a3), text: ' · avg ' + Math.round(a3) }) : null,
           ap != null ? ' · avg ' + fmtPct(ap) : null),
-        nHidden ? h('button', { class: 'linkish', onclick: () => {
-          const undo = snapshot();
-          const ids = new Set(all.filter((f) => f.removed).map((f) => f.id));
-          state.removed = state.removed.filter((id) => !ids.has(id)); save(); render();
-          toast(plural(ids.size, 'form') + ' restored', undo);
-        } }, nHidden + ' hidden · restore') : null),
+        nHidden && !ui.editTests ? h('button', { class: 'linkish', onclick: () => { ui.editTests = true; render(); } }, nHidden + ' removed · restore') : null),
       h('p', { class: 'sub', text: g.desc }),
-      h('div', { class: 'rows' }, rows, add));
+      h('div', { class: 'rows' }, rows, ui.editTests ? null : add));
   }));
 }
 
@@ -107,7 +120,7 @@ export function openForm(f) {
   const planIn = isCms ? null : h('input', { type: 'date', id: 'ed-plan', value: cur().plan });
   if (planIn) planIn.addEventListener('change', () => patch({ plan: isDate(planIn.value) }));
   const planField = planIn && h('div', { class: 'field' }, h('label', { for: 'ed-plan', text: 'Planned for' }), planIn);
-  const picker = isCms ? null : weakPicker(() => cur().weak, (weak) => patch({ weak }), () => cur().weakPct || {}, (weakPct) => patch({ weakPct }));
+  const picker = isCms ? null : weakPicker(() => cur().weak, (weak) => patch({ weak }), { kind: 'count', get: () => cur().weakN || {}, set: (weakN) => patch({ weakN }) });
   const weakBox = picker && picker.box, drawWeak = () => picker && picker.draw();
   const clearBtn = h('button', { class: 'btn ghost danger', onclick: () => {
     const undo = snapshot();
@@ -118,8 +131,8 @@ export function openForm(f) {
     const undo = snapshot();
     if (!f.removed) toggleRemove(f);
     closeSheet();
-    toast(f.full + (isCms ? ' removed' : ' hidden'), undo);
-  } }, isCms ? 'Remove form' : 'Hide form');
+    toast(f.full + ' removed — Edit list brings it back', undo);
+  } }, 'Remove form');
   openSheet(f.id, f.full, [
     sheetHead(isCms ? 'CMS · ' + f.subj.name : f.g.name, f.label + (f.old ? ' (older)' : '')),
     h('div', { class: 'field' }, h('span', { class: 'lab', text: 'Status' }), stepper),
@@ -141,3 +154,4 @@ export function openForm(f) {
   }, scaled ? '#ed-score' : '#ed-pct');
 }
 $('calc-btn').addEventListener('click', () => toggleCalculator());
+$('edit-tests').addEventListener('click', () => { ui.editTests = !ui.editTests; ui.addingFor = null; render(); });

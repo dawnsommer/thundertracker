@@ -1,18 +1,18 @@
 // Tabs, routing and the top-level render.
 
-import { $, fmtK, h, sum } from './util.js?v=14';
-import { TABS } from './catalog.js?v=14';
-import { state, storageMsg, sysItem, ui } from './store.js?v=14';
-import { allArticles, allCms, allSystems, allTests, artItem, taken } from './data.js?v=14';
-import { closeSheet, sheetOpen } from './sheets.js?v=14';
-import { renderOverview } from './overview.js?v=14';
-import { renderTests } from './assessments.js?v=14';
-import { renderCms } from './cms.js?v=14';
-import { renderSystems } from './systems.js?v=14';
-import { renderArticles } from './articles.js?v=14';
-import { renderQbank } from './qbank.js?v=14';
-import { passiveOn, pvStats, renderPassive } from './passive.js?v=14';
-import { buildSettings, setSettingsRefresh, settingsRefresh } from './settings.js?v=14';
+import { $, fmtK, h, sum } from './util.js?v=15';
+import { TABS } from './catalog.js?v=15';
+import { state, storageMsg, sysItem, ui } from './store.js?v=15';
+import { allArticles, allCms, allSystems, allTests, artItem, taken } from './data.js?v=15';
+import { closeSheet, sheetOpen } from './sheets.js?v=15';
+import { renderOverview } from './overview.js?v=15';
+import { renderTests } from './assessments.js?v=15';
+import { renderCms } from './cms.js?v=15';
+import { renderSystems } from './systems.js?v=15';
+import { renderArticles } from './articles.js?v=15';
+import { renderQbank } from './qbank.js?v=15';
+import { passiveOn, pvStats, renderPassive } from './passive.js?v=15';
+import { buildSettings, setSettingsRefresh, settingsRefresh } from './settings.js?v=15';
 
 export const VIEWS = TABS.concat('passive', 'settings');
 // the tabs in the strip right now: Passive study only once it's unlocked in Settings → Extras
@@ -77,5 +77,5 @@ export function renderCounts() {
   const arts = allArticles();
   $('ct-art').textContent = arts.filter((a) => artItem(a.id).reads > 0).length + '/' + arts.length;
   $('tab-passive').hidden = !passiveOn();
-  if (passiveOn()) { const p = pvStats(); $('ct-pv').textContent = (p.dipDone + p.phDone) + '/' + (p.dipTotal + p.phTotal); }
+  if (passiveOn()) { const p = pvStats(); $('ct-pv').textContent = (p.dipDone + p.phDone + p.ownDone) + '/' + (p.dipTotal + p.phTotal + p.ownTotal); }
 }

@@ -1,6 +1,6 @@
 // What the Passive study tab tracks: Divine Intervention Podcasts (DIP) episodes from the Step 2 CK master
 // checklist (v3, with the Ep 573 core additions; its 'Recommended add-ons' list is left out) and PHYSEO parts.
-// Each DIP item: [episode, title, minutes (null if it varies), approximate?]. Ids are stable: dip-<episode> or dip-<slug>.
+// Each DIP item: [episode, title, minutes, approximate?]. Ids are stable: dip-<episode>.
 
 export const PV_PASSES = 5; // times through each item, as in the checklist
 
@@ -53,11 +53,6 @@ export const DIP_SECTIONS = [
   { id: 'add573', name: 'Ep 573 core additions', stars: 5, items: [
     ['dip-400', '400', 'Get Your Head In The Game: Psychological Aspects of Test Day', 41, false],
     ['dip-446', '446', 'Divine Patch: Updates/Corrections from Past Episodes', 35, true],
-  ] },
-  { id: 'opt', name: 'Optional series', stars: 2, items: [
-    ['dip-f120-review', '', 'Free 120 Review Series', null, false],
-    ['dip-free137', '', 'Step 3 Free 137 Discussion Series', null, false],
-    ['dip-rapid-review', '', 'Remaining Rapid Review Episodes', null, false],
   ] },
 ].map((s) => Object.assign(s, { items: s.items.map(([id, ep, name, mins, approx]) => ({ id, ep, name, mins, approx, sec: s.id })) }));
 
