@@ -29,6 +29,11 @@ const js = fs.readdirSync(path.join(root, 'js')).filter((f) => f.endsWith('.js')
 sw = sw.replace(/const SHELL = \[.*?\];/, "const SHELL = ['./', 'index.html', 'styles.css?v=" + next + "', " + js.map((f) => "'js/" + f + '?v=' + next + "'").join(', ') +
   ", 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'];");
 fs.writeFileSync(path.join(root, 'sw.js'), sw);
+// …and the page's modulepreload list (every module but the two classic scripts)
+let html = read('index.html');
+const mods = js.filter((f) => !['config.js', 'cloud.js', 'main.js'].includes(f));
+html = html.replace(/(<!-- modulepreload:[^\n]*-->\n)[\s\S]*?(<!-- \/modulepreload -->)/, (m, a, b) => a + mods.map((f) => '<link rel="modulepreload" href="js/' + f + '?v=' + next + '">\n').join('') + b);
+fs.writeFileSync(path.join(root, 'index.html'), html);
 let cat = read('js/catalog.js');
 cat = cat.replace(/export const APP_FILES = \[.*?\];/, 'export const APP_FILES = [' + js.map((f) => "'js/" + f + "'").join(', ') + '];');
 fs.writeFileSync(path.join(root, 'js/catalog.js'), cat);

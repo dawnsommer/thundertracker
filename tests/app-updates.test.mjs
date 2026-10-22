@@ -19,6 +19,13 @@ await p.evaluate(() => navigator.serviceWorker.ready);
 await p.reload(); await p.waitForTimeout(500);
 ok(await p.evaluate(() => !!navigator.serviceWorker.controller), 'service worker controls the page');
 ok((await p.textContent('#ct-nbme')).trim().startsWith('1/'), 'data loaded');
+// what reached the server (the test server logs every request; the service worker's own fetches included)
+const ORIGIN = new globalThis.URL(URL).origin;
+const served = async () => (await (await fetch(ORIGIN + '/__log')).json()).filter((x) => x.startsWith('/thundertracker/'));
+await served();
+await p.reload(); await p.waitForTimeout(500);
+let hits = await served();
+ok(hits.length > 0 && hits.every((x) => !/[?&]v=\d+/.test(x)) && (await p.textContent('#ct-nbme')).trim().startsWith('1/'), 'repeat load: only the page is checked with the server; scripts and styles come from the app cache: ' + hits.join(' '));
 // --- deploy a new version (new heading, bumped version) while the page is open
 const edit = (f, fn) => fs.writeFileSync(SITE + '/' + f, fn(fs.readFileSync(SITE + '/' + f, 'utf8')));
 const V = Number(/const VERSION = (\d+);/.exec(fs.readFileSync(SITE + '/sw.js', 'utf8'))[1]), N = V + 1;
@@ -28,8 +35,11 @@ edit('sw.js', (t) => bump(t.replace('const VERSION = ' + V + ';', 'const VERSION
 for (const f of (fs.existsSync(SITE + '/js') ? fs.readdirSync(SITE + '/js').filter((n) => n.endsWith('.js')).map((n) => 'js/' + n) : []).concat(fs.existsSync(SITE + '/app.js') ? ['app.js'] : []))
   edit(f, (t) => bump(t.replace('const APP_VERSION = ' + V + ';', 'const APP_VERSION = ' + N + ';')));
 // normal reload within the 10-minute HTTP cache window must already show the new version
+await served();
 await p.reload(); await p.waitForTimeout(800);
 ok((await p.textContent('h1')).includes('NEW'), 'reload shows the new deploy despite max-age=600');
+hits = await served();
+ok(hits.some((u) => u.includes('?v=' + N)) && !hits.some((u) => u.includes('?v=' + V)), 'after a deploy, the new version’s files are fetched and no old ones: ' + hits.filter((u) => u.includes('?v=')).length);
 await p.waitForTimeout(1500);
 const toastTxt = await p.textContent('#toasts');
 ok(/updated/.test(toastTxt), 'update notice offered: ' + toastTxt);
@@ -49,5 +59,12 @@ await p.evaluate(() => navigator.serviceWorker.ready); await p.reload(); await p
 await ctx.setOffline(true); await p.reload(); await p.waitForTimeout(500);
 ok((await p.textContent('h1')).includes('NEW') && (await p.textContent('#ct-nbme')).trim().startsWith('1/'), 'works offline with the new version');
 await ctx.setOffline(false);
+// a very slow network: the cached page is used after 3 s instead of waiting
+await fetch(ORIGIN + '/__slow?ms=8000');
+const t0 = Date.now();
+await p.reload({ timeout: 15000 }); await p.waitForFunction(() => (document.getElementById('ct-nbme') || {}).textContent, null, { timeout: 15000 });
+const took = Date.now() - t0;
+await fetch(ORIGIN + '/__slow?ms=0');
+ok(took < 6000 && (await p.textContent('h1')).includes('NEW'), 'slow network: the cached page after ~3 s instead of waiting 8 s (' + took + ' ms)');
 ok(errs.length === 0, 'no errors ' + JSON.stringify(errs));
 await b.close();

@@ -1,15 +1,15 @@
 // The Overview tab: tiles, score trend, CMS bars, Up next, activity calendar and the weakness matrix.
 
-import { $, avg, dayNum, daysUntil, fmtDate, fmtK, fmtLong, fmtN, fmtPct, fromDay, h, nn, num, plural, today, weekday } from './util.js?v=13';
-import { GROUPS, PASS, SUBJ, SYS_ST } from './catalog.js?v=13';
-import { cloud, item, save, state, sysItem, ui } from './store.js?v=13';
-import { allArticles, allCms, allSystems, allTests, artItem, band, cmsForms, isEmpty, outlook, pctOf, qbStats, scaledOf, shortSys, taken, trendPoints, weakPattern } from './data.js?v=13';
-import { render, showTab } from './shell.js?v=13';
-import { openForm } from './assessments.js?v=13';
-import { openSystem } from './systems.js?v=13';
-import { renderArtSummary } from './articles.js?v=13';
-import { openSettings, signIn } from './settings.js?v=13';
-import { inDays, openPlanner, plannedForms } from './planner.js?v=13';
+import { $, avg, dayNum, daysUntil, fmtDate, fmtK, fmtLong, fmtN, fmtPct, fromDay, h, monthShort, nn, num, plural, today, weekday } from './util.js?v=14';
+import { GROUPS, PASS, SUBJ, SYS_ST } from './catalog.js?v=14';
+import { cloud, item, save, state, sysItem, ui } from './store.js?v=14';
+import { allArticles, allCms, allSystems, allTests, artItem, band, cmsForms, isEmpty, outlook, pctOf, qbStats, scaledOf, shortSys, taken, trendPoints, weakPattern } from './data.js?v=14';
+import { render, showTab } from './shell.js?v=14';
+import { openForm } from './assessments.js?v=14';
+import { openSystem } from './systems.js?v=14';
+import { renderArtSummary } from './articles.js?v=14';
+import { openSettings, signIn } from './settings.js?v=14';
+import { inDays, openPlanner, plannedForms } from './planner.js?v=14';
 
 export function tile(label, big, small, frac, note) {
   return h('div', { class: 'tile' },
@@ -319,7 +319,7 @@ export function renderHeat(box) {
     // label each month at its first week; skip a leading partial month that would collide with the next label
     const nextMon = new Date((start + (w + 2) * 7) * 864e5).getUTCMonth();
     if (mon !== prevMonth) {
-      if (w > 0 || nextMon === mon) months.push(h('span', { style: 'grid-column:' + (w + 1) + '/span 3', text: new Date((start + w * 7) * 864e5).toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' }) }));
+      if (w > 0 || nextMon === mon) months.push(h('span', { style: 'grid-column:' + (w + 1) + '/span 3', text: monthShort(start + w * 7) }));
       prevMonth = mon;
     }
     for (let d = 0; d < 7; d++) {

@@ -3,10 +3,10 @@
 // Each item has 5 boxes, ticked once per time through; a DIP episode also has a "notes done" switch, so you
 // can tell video-only from video + notes.
 
-import { $, fmtDate, h, today } from './util.js?v=13';
-import { save, state, ui } from './store.js?v=13';
-import { render } from './shell.js?v=13';
-import { DIP_ITEMS, DIP_SECTIONS, PHYSEO, PV_PASSES } from './passive-catalog.js?v=13';
+import { $, fmtDate, h, today } from './util.js?v=14';
+import { save, state, ui } from './store.js?v=14';
+import { render } from './shell.js?v=14';
+import { DIP_ITEMS, DIP_SECTIONS, PHYSEO, PV_PASSES } from './passive-catalog.js?v=14';
 
 // The code only decides whether the tab shows; it's not a password (the app has no secrets).
 const CODE = '1afqyji';

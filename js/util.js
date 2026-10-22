@@ -21,15 +21,21 @@ export const sum = (a) => a.reduce((x, y) => x + y, 0);
 export const fmtPct = (v) => Math.round(v) + '%';
 export const fmtK = (n) => (n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1).replace(/\.0$/, '') + 'k' : String(n));
 export const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
-export const fmtDate = (d) => {
-  if (!d) return '';
-  const t = new Date(d + 'T00:00:00');
-  return isNaN(t) ? d : t.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' });
+// Date formatters are built once: toLocaleDateString builds a new one on every call, which made
+// the activity calendar (140 day titles) the slowest part of the overview.
+const dateFmt = (opts) => {
+  const f = new Intl.DateTimeFormat('en-GB', opts), memo = new Map();
+  return (d) => {
+    if (!d) return '';
+    let s = memo.get(d);
+    if (s == null) { const t = new Date(d + 'T00:00:00'); s = isNaN(t) ? d : f.format(t); if (memo.size > 2000) memo.clear(); memo.set(d, s); }
+    return s;
+  };
 };
-export const fmtLong = (d) => {
-  const t = new Date(d + 'T00:00:00');
-  return isNaN(t) ? d : t.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
-};
+export const fmtDate = dateFmt({ day: 'numeric', month: 'short', year: '2-digit' });
+const fmtLongDay = dateFmt({ weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+export const fmtLong = (d) => fmtLongDay(d) || d;
+export const monthShort = ((f) => (n) => f.format(new Date(n * 864e5)))(new Intl.DateTimeFormat('en-GB', { month: 'short', timeZone: 'UTC' })); // from a day number
 export const today = () => { const t = new Date(); return new Date(t - t.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
 // dates as whole days (UTC-based, so daylight-saving changes never shift a day)
 export const dayNum = (d) => { const [y, m, dd] = d.split('-').map(Number); return Math.round(Date.UTC(y, m - 1, dd) / 864e5); };

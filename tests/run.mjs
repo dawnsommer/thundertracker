@@ -15,9 +15,20 @@ const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/ja
   '.webmanifest': 'application/manifest+json', '.svg': 'image/svg+xml', '.png': 'image/png' };
 
 // Static server. `maxAge` mimics GitHub Pages' caching (max-age=600 + Last-Modified/304).
+// For tests of the service worker: GET /__log returns (and clears) the paths requested so far, and
+// GET /__slow?ms=N delays every page (HTML) response by N ms (0 turns it off).
 function serve(dir, { maxAge } = {}) {
+  let log = [], slow = 0;
   const server = http.createServer((req, res) => {
     const u = new URL(req.url, 'http://x');
+    if (u.pathname === '/__log') { res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(log)); log = []; return; }
+    if (u.pathname === '/__slow') { slow = Number(u.searchParams.get('ms')) || 0; res.writeHead(204).end(); return; }
+    log.push(u.pathname + u.search);
+    const isPage = u.pathname.endsWith('/') || u.pathname.endsWith('.html');
+    if (slow && isPage) { setTimeout(() => { if (!res.writableEnded) answer(req, res, u); }, slow); return; }
+    answer(req, res, u);
+  });
+  function answer(req, res, u) {
     let f = path.join(dir, decodeURIComponent(u.pathname));
     if (!f.startsWith(dir)) { res.writeHead(403).end(); return; }
     if (fs.existsSync(f) && fs.statSync(f).isDirectory()) f = path.join(f, 'index.html');
@@ -28,7 +39,7 @@ function serve(dir, { maxAge } = {}) {
     const ims = req.headers['if-modified-since'];
     if (ims && new Date(ims) >= new Date(lm)) { res.writeHead(304, headers).end(); return; }
     res.writeHead(200, headers).end(fs.readFileSync(f));
-  });
+  }
   return new Promise((ok) => server.listen(0, '127.0.0.1', () => ok({ url: 'http://localhost:' + server.address().port, close: () => server.close() })));
 }
 // A sign-in Worker that refuses without CORS headers (its reply can't be read by the page).
