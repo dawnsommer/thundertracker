@@ -1,15 +1,16 @@
 // The Overview tab: tiles, score trend, CMS bars, Up next, activity calendar and the weakness matrix.
 
-import { $, avg, dayNum, daysUntil, fmtDate, fmtK, fmtLong, fmtN, fmtPct, fromDay, h, monthShort, nn, num, plural, today, weekday } from './util.js?v=16';
-import { GROUPS, PASS, SUBJ, SYS_ST } from './catalog.js?v=16';
-import { cloud, item, save, state, sysItem, ui } from './store.js?v=16';
-import { allArticles, allCms, allSystems, allTests, artItem, band, cmsForms, isEmpty, outlook, pctOf, qbStats, scaledOf, shortSys, taken, trendPoints, weakPattern } from './data.js?v=16';
-import { render, showTab } from './shell.js?v=16';
-import { openForm } from './assessments.js?v=16';
-import { openSystem } from './systems.js?v=16';
-import { renderArtSummary } from './articles.js?v=16';
-import { openSettings, signIn } from './settings.js?v=16';
-import { inDays, openPlanner, plannedForms } from './planner.js?v=16';
+import { $, avg, dayNum, daysUntil, fmtDate, fmtK, fmtLong, fmtN, fmtPct, fromDay, h, monthShort, nn, num, plural, today, weekday } from './util.js?v=17';
+import { GROUPS, PASS, SUBJ, SYS_ST } from './catalog.js?v=17';
+import { cloud, item, save, state, sysItem, ui } from './store.js?v=17';
+import { allArticles, allCms, allSystems, allTests, artItem, band, cmsForms, isEmpty, outlook, pctOf, qbStats, scaledOf, shortSys, taken, trendPoints, weakPattern } from './data.js?v=17';
+import { render, showTab } from './shell.js?v=17';
+import { openForm } from './assessments.js?v=17';
+import { openSystem } from './systems.js?v=17';
+import { renderArtSummary } from './articles.js?v=17';
+import { openSettings, signIn } from './settings.js?v=17';
+import { lastText, passiveOn, pvStats, pvSummary } from './passive.js?v=17';
+import { inDays, openPlanner, plannedForms } from './planner.js?v=17';
 
 export function tile(label, big, small, frac, note) {
   return h('div', { class: 'tile' },
@@ -94,6 +95,14 @@ export function renderOverview() {
   renderHeat($('heat'));
   renderWeak($('weak'));
   renderArtSummary($('art-mini'), true);
+  // Passive study: only once it's unlocked; optional, so it stays out of the tiles, Up next and the pace
+  $('pv-mini-card').hidden = !passiveOn();
+  if (passiveOn()) {
+    const last = pvStats().last;
+    $('pv-mini').replaceChildren(h('div', { class: 'pv-sum' }, pvSummary(true),
+      h('div', { class: 'art-foot' }, last ? h('span', { class: 'pv-last', text: lastText(last) }) : h('span'),
+        h('button', { class: 'btn', onclick: () => showTab('passive', true) }, 'Open passive study'))));
+  }
 }
 
 // Weakness matrix: a row per system, a column per marked assessment (oldest → newest) and finished qbank.

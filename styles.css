@@ -403,8 +403,22 @@ footer a{color:inherit}
 .art-bars{gap:7px}
 .art-bars .sbar{grid-template-columns:minmax(0,12rem) 1fr auto;font-size:.82rem}
 .art-bars .sbar .val{min-width:3rem}
-.art-mini-h{margin:0 0 12px;font-size:.88rem;color:var(--muted)}
-.art-mini-h b{font-family:var(--f-display);font-size:1.4rem;color:var(--ink);font-weight:500;margin-right:4px}
+/* overview card: ring + totals, read-through mix, section bars split by read-throughs */
+.art-mini{display:flex;flex-direction:column;gap:8px}
+.art-hero{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.art-hero .pv-stat{flex:999 1 10rem}
+.art-kpis{display:flex;gap:6px;flex:1 0 auto}
+.art-kpis div{flex:1;display:flex;flex-direction:column;align-items:center;min-width:4.6rem;padding:6px 8px;border-radius:8px;background:color-mix(in srgb,var(--s1) 22%,var(--panel));border:1px solid var(--line)}
+.art-kpis b{font:500 1.25rem/1.1 var(--f-display)}
+.art-kpis span{font-size:.64rem;color:var(--muted);white-space:nowrap}
+.art-mini .dist{height:8px;border-radius:4px;margin-top:4px}
+.art-mini .dist-l b{color:var(--ink);font-weight:600;margin-left:2px}
+.art-mini .art-bars{margin-top:6px;padding-top:12px;border-top:1px solid var(--line)}
+.art-mini .art-bars .segbar{height:8px;gap:1px;background:var(--s0)}
+.art-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px}
+.art-foot .linkish,.art-foot .pv-last{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
+.art-foot .btn{flex:none}
+.stack{display:flex;flex-direction:column;gap:12px;min-width:0}
 .art-tools{display:flex;flex-direction:column;gap:10px}
 .art-head{align-items:center}
 .art-head h3{flex:0 1 auto}
@@ -671,8 +685,9 @@ button.wm-row:hover{background:color-mix(in srgb,var(--hl-soft) 40%,transparent)
 .pv-key{margin:0 0 2px;font-size:.7rem;color:var(--muted);display:flex;align-items:center;gap:4px}
 
 /* overview */
-.pv-over{padding:14px;display:flex;flex-direction:column;gap:8px}
-.pv-over .pv-stat + .pv-bar{margin-top:2px}
+.pv-over,.pv-sum{display:flex;flex-direction:column;gap:8px}
+.pv-over{padding:14px}
+.pv-stat + .pv-bar{margin-top:2px}
 .pv-legend + .pv-stat{margin-top:6px;padding-top:10px;border-top:1px solid var(--line)}
 .pv-stat{display:flex;gap:10px;align-items:center;min-width:0}
 .pv-stat > div:last-child{display:flex;flex-direction:column;min-width:0}
@@ -687,6 +702,8 @@ button.wm-row:hover{background:color-mix(in srgb,var(--hl-soft) 40%,transparent)
 .pv-ring .fg{stroke-linecap:round;transition:stroke-dasharray .3s ease}
 .pv-ring.dip .fg{stroke:var(--ser-f120)}
 .pv-ring.ph .fg{stroke:var(--ser-uwsa)}
+.pv-ring.own .fg{stroke:var(--ser-asa)}
+.pv-ring.amb .fg{stroke:var(--s2)}
 .pv-ringw b{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:700 .84rem var(--f-mono)}
 .pv-bar{display:flex;height:6px;border-radius:3px;background:var(--s0);overflow:hidden}
 .pv-bar i{display:block;height:100%;transition:width .3s ease}

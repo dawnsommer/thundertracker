@@ -4,10 +4,10 @@
 // can tell video-only from video + notes. You can add your own sections (another podcast, a topic) and
 // episodes under the Divine list.
 
-import { $, fmtDate, h, today, uid } from './util.js?v=16';
-import { save, snapshot, state, toast, ui } from './store.js?v=16';
-import { render } from './shell.js?v=16';
-import { DIP_ITEMS, DIP_SECTIONS, PHYSEO, PV_PASSES } from './passive-catalog.js?v=16';
+import { $, fmtDate, h, ring, today, uid } from './util.js?v=17';
+import { save, snapshot, state, toast, ui } from './store.js?v=17';
+import { render } from './shell.js?v=17';
+import { DIP_ITEMS, DIP_SECTIONS, PHYSEO, PV_PASSES } from './passive-catalog.js?v=17';
 
 // The code only decides whether the tab shows; it's not a password (the app has no secrets).
 const CODE = '1afqyji';
@@ -58,15 +58,6 @@ function notesBtn(x) {
   b.innerHTML = NOTE_ICON;
   return b;
 }
-// progress ring: share of items started
-function ring(frac, label, cls) {
-  const ns = 'http://www.w3.org/2000/svg', r = 15, c = 2 * Math.PI * r;
-  const s = (tag, a) => { const e = document.createElementNS(ns, tag); for (const k in a) e.setAttribute(k, a[k]); return e; };
-  const svg = s('svg', { viewBox: '0 0 36 36', class: 'pv-ring ' + cls, 'aria-hidden': 'true' });
-  svg.append(s('circle', { cx: 18, cy: 18, r, class: 'bg' }), s('circle', { cx: 18, cy: 18, r, class: 'fg', 'stroke-dasharray': (frac * c).toFixed(2) + ' ' + c.toFixed(2), transform: 'rotate(-90 18 18)' }));
-  return h('div', { class: 'pv-ringw' }, svg, h('b', { text: label }));
-}
-
 const FILTERS = [['all', 'All'], ['todo', 'To do'], ['video', 'Video only'], ['notes', 'With notes']];
 
 // one episode row: badge, title (and length), boxes, notes; your own ones can be removed
@@ -133,19 +124,16 @@ function ownSections() {
   return h('section', { class: 'card pv-card pv-own', 'aria-labelledby': 'pv-own-h' },
     h('div', { class: 'pv-head' }, h('h3', { id: 'pv-own-h', text: 'Your sections' })), secs, addSec);
 }
+export const lastText = (last) => 'Last: ' + last.name + ' · ' + fmtDate(last.date);
 const shows = (f, it) => f === 'all' || status(it) === f;
 
-export function renderPassive() {
-  const box = $('pv-body');
-  if (!box) return;
-  const st = pvStats(), P = state.prefs, f = P.pvFilter || 'all';
-  const pc = (a, b) => (b ? a / b : 0);
-
-  // overview
+// progress at a glance: the Passive tab's side card, and the overview's Passive study card (which shows the last one itself)
+export function pvSummary(noLast) {
+  const st = pvStats(), pc = (a, b) => (b ? a / b : 0);
   const bar = h('div', { class: 'pv-bar', role: 'img', 'aria-label': 'Divine Intervention: ' + st.dipNotes + ' with notes, ' + st.dipVideoOnly + ' video only, ' + st.dipTodo + ' to do' },
     h('i', { class: 'n', style: 'width:' + pc(st.dipNotes, st.dipTotal) * 100 + '%' }),
     h('i', { class: 'v', style: 'width:' + pc(st.dipVideoOnly, st.dipTotal) * 100 + '%' }));
-  const over = h('section', { class: 'card pv-over', 'aria-label': 'Passive study overview' },
+  return [
     h('div', { class: 'pv-stat' }, ring(pc(st.dipDone, st.dipTotal), st.dipDone + '', 'dip'),
       h('div', null, h('span', { class: 'eyebrow', text: 'Divine' }), h('p', { text: st.dipDone + ' of ' + st.dipTotal + ' episodes' }),
         h('small', { text: fmtMin(st.minsDone) + ' of ' + fmtMin(st.mins) + ' listened' }))),
@@ -160,7 +148,15 @@ export function renderPassive() {
     st.ownTotal ? h('div', { class: 'pv-stat' }, ring(pc(st.ownDone, st.ownTotal), st.ownDone + '', 'own'),
       h('div', null, h('span', { class: 'eyebrow', text: 'Your sections' }), h('p', { text: st.ownDone + ' of ' + st.ownTotal + ' episodes' }),
         h('small', { text: st.ownNotes + ' with notes' }))) : null,
-    st.last ? h('p', { class: 'pv-last', text: 'Last: ' + st.last.name + ' · ' + fmtDate(st.last.date) }) : null);
+    st.last && !noLast ? h('p', { class: 'pv-last', text: lastText(st.last) }) : null,
+  ];
+}
+
+export function renderPassive() {
+  const box = $('pv-body');
+  if (!box) return;
+  const st = pvStats(), P = state.prefs, f = P.pvFilter || 'all';
+  const over = h('section', { class: 'card pv-over', 'aria-label': 'Passive study overview' }, pvSummary());
 
   // PHYSEO: six parts, five boxes each
   const physeo = h('section', { class: 'card pv-card pv-ph', 'aria-labelledby': 'pv-ph-h' },

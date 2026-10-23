@@ -76,6 +76,13 @@ ok((await p.locator('#art-list .art-sec h3').first().textContent()) === 'Recomme
 // overview mini card jumps into the section
 await p.keyboard.press('1'); await p.waitForTimeout(150);
 ok((await p.textContent('#art-mini')).includes('3/26'), 'overview article card');
+const mini = (await p.textContent('#art-mini')).replace(/\s+/g, '');
+ok(/8read-throughs/.test(mini) && /1done5×/.test(mini) && /12%atleastonce/.test(mini) && await p.locator('#art-mini .pv-ring').count() === 1, 'overview card: ring, read-throughs, done 5×: ' + mini.slice(0, 80));
+ok(/0×23/.test(mini) && /1×1/.test(mini) && /2×1/.test(mini) && /5×1/.test(mini), 'overview card: how many articles at each read-through count');
+ok(await p.evaluate(() => { const b = [...document.querySelectorAll('#art-mini .sbar')].find((x) => x.textContent.includes('Patient Safety')); const seg = b.querySelector('.segbar span'); return seg && seg.style.background.includes('--s3'); }), 'section bars are split by read-throughs (5× darkest)');
+await p.click('#art-mini .art-foot .linkish');
+ok((await p.textContent('#art-mini .art-foot .linkish')).includes('Vitamins') && (await p.textContent('.sheet h2')).includes('Vitamins'), 'last read article opens from the card');
+await p.keyboard.press('Escape'); await p.waitForTimeout(150);
 await p.click('#art-mini .sbar:has-text("Nutrition")'); await p.waitForTimeout(300);
 ok(await p.evaluate(() => location.hash) === '#articles' && await p.evaluate(() => { const r = document.getElementById('art-sec-nutrition').getBoundingClientRect(); return r.top >= 0 && r.top < innerHeight; }), 'mini card jumps to the section');
 await p.screenshot({ path: S + '/articles2.png', fullPage: false });

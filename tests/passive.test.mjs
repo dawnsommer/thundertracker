@@ -19,6 +19,7 @@ ok(await p.isHidden('#view-passive') && await p.isVisible('#view-overview'), 'go
 await p.keyboard.press('7');
 ok(await p.isVisible('#view-overview'), 'key 7 does nothing while locked');
 ok(!(await p.content()).includes('PHYSEO') || await p.isHidden('#view-passive'), 'nothing of it on screen');
+ok(await p.isHidden('#pv-mini-card'), 'no Passive study card on the overview while locked');
 
 // Settings → Extras
 await p.keyboard.press(',');
@@ -82,16 +83,25 @@ ok((await p.locator('#pv-shelf .pv-row').count()) === 0 && (await local()).prefs
 await p.click('#pv-shelf .pv-sec-h');
 await p.screenshot({ path: S + '/passive.png', fullPage: true });
 
-// optional: not in the overview, Up next or pace
+// the overview gets the same summary card (under AMBOSS articles); it stays out of the tiles, Up next and the pace
 await p.click('#tab-overview'); await p.waitForTimeout(200);
-const ov = await p.textContent('#view-overview');
-ok(!/Divine|PHYSEO|Passive/i.test(ov), 'nothing about passive study on the overview / Up next');
+const card = await p.textContent('#pv-mini-card');
+ok(await p.isVisible('#pv-mini-card') && card.includes('2 of 37 episodes') && card.includes('1 of 6 parts') && card.includes('2 of 30 passes') && card.includes('2 with notes'), 'overview: Passive study card with the same numbers');
+ok(card.includes('Last: Ep ') && await p.locator('#pv-mini .pv-ring').count() === 2, 'overview card: rings and the last episode');
+ok(await p.evaluate(() => { const a = document.querySelector('#art-mini').closest('.card'), c = document.getElementById('pv-mini-card'); return a.parentElement === c.parentElement && a.getBoundingClientRect().bottom <= c.getBoundingClientRect().top; }), 'it sits below the AMBOSS articles card');
+ok(!/Divine|PHYSEO|Passive/i.test(await p.textContent('#tiles') + await p.textContent('#next')), 'nothing about passive study in the tiles or Up next');
+await p.click('#pv-mini-card button:text("Open passive study")');
+ok(await p.isVisible('#view-passive') && await p.evaluate(() => location.hash) === '#passive', 'its button opens the tab');
+await p.click('#tab-overview');
 await p.keyboard.press('7');
 ok(await p.isVisible('#view-passive'), 'key 7 opens it once unlocked');
 
 // hide keeps progress; erase keeps the unlock but clears progress
 await p.keyboard.press(','); await p.click('#st-lock');
 ok(await p.isHidden('#tab-passive') && (await local()).passive['dip-573'].n === 2, 'Hide: tab gone, progress kept');
+await p.keyboard.press('1');
+ok(await p.isHidden('#pv-mini-card'), 'Hide: the overview card goes too');
+await p.keyboard.press(',');
 await p.fill('#st-code', 'passive'); await p.click('#st-unlock');
 await p.click('text=Erase all data'); await p.click('text=Tap again to erase everything');
 s = await local();

@@ -59,3 +59,11 @@ export const ints = (a, lo, hi) => [...new Set(arr(a).map(Number).filter((n) => 
 export const safeUrl = (x) => { try { const u = new URL(String(x).trim()); return /^https?:$/.test(u.protocol) ? u.href.slice(0, 500) : ''; } catch (e) { return ''; } };
 export const clone = (x) => JSON.parse(JSON.stringify(x));
 export const svgIcon = (body) => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + body + '</svg>';
+// progress ring (share done) with a label in the middle; cls picks the colour (see .pv-ring in styles.css)
+export function ring(frac, label, cls) {
+  const ns = 'http://www.w3.org/2000/svg', r = 15, c = 2 * Math.PI * r;
+  const s = (tag, a) => { const e = document.createElementNS(ns, tag); for (const k in a) e.setAttribute(k, a[k]); return e; };
+  const svg = s('svg', { viewBox: '0 0 36 36', class: 'pv-ring ' + cls, 'aria-hidden': 'true' });
+  svg.append(s('circle', { cx: 18, cy: 18, r, class: 'bg' }), s('circle', { cx: 18, cy: 18, r, class: 'fg', 'stroke-dasharray': (Math.min(1, frac) * c).toFixed(2) + ' ' + c.toFixed(2), transform: 'rotate(-90 18 18)' }));
+  return h('div', { class: 'pv-ringw' }, svg, h('b', { text: label }));
+}

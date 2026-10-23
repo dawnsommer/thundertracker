@@ -1,8 +1,8 @@
 // App updates: service worker registration, the update notice and “Reload latest version”.
 
-import { $, h } from './util.js?v=16';
-import { APP_FILES } from './catalog.js?v=16';
-import { flush, saveTimer, toast } from './store.js?v=16';
+import { $, h } from './util.js?v=17';
+import { APP_FILES } from './catalog.js?v=17';
+import { flush, saveTimer, toast } from './store.js?v=17';
 
 // A new deploy installs a new service worker, which takes over straight away; offer a reload so this
 // page picks up the new files. Returning to the app checks for a new version at most every 30 minutes.

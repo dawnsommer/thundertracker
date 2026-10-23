@@ -1,11 +1,11 @@
 // Derived views of the state: form lists, scores, qbank stats, weak-system patterns and articles.
 
-import { avg, dayNum, daysUntil, num, sum, today } from './util.js?v=16';
-import { ARTICLE_SECTIONS, GROUPS, SUBJ, SYSTEMS } from './catalog.js?v=16';
-import { item, save, state } from './store.js?v=16';
-import { render } from './shell.js?v=16';
-import { openForm } from './assessments.js?v=16';
-import { openQbank } from './qbank.js?v=16';
+import { avg, dayNum, daysUntil, num, sum, today } from './util.js?v=17';
+import { ARTICLE_SECTIONS, GROUPS, SUBJ, SYSTEMS } from './catalog.js?v=17';
+import { item, save, state } from './store.js?v=17';
+import { render } from './shell.js?v=17';
+import { openForm } from './assessments.js?v=17';
+import { openQbank } from './qbank.js?v=17';
 
 export function testForms(g, includeHidden) {
   const rm = new Set(state.removed);

@@ -73,6 +73,7 @@ ok((await own.locator('.pv-row').count()) === 2 && (await own.textContent()).inc
 await own.locator('.pv-row').first().locator('.pass').nth(1).click();
 await own.locator('.pv-row').first().locator('.pv-note').click();
 ok((await p.textContent('.pv-over')).includes('Your sections') && (await p.textContent('.pv-over')).includes('1 of 2 episodes') && (await p.textContent('.pv-over')).includes('1 with notes'), 'overview counts your sections');
+ok(await p.evaluate(() => getComputedStyle(document.querySelector('.pv-over .pv-ring.own .fg')).stroke !== 'none'), 'your sections’ ring has a colour (it drew nothing before)');
 ok((await p.textContent('#ct-pv')) === '1/45', 'tab count includes them: ' + await p.textContent('#ct-pv'));
 await own.locator('.pv-row').nth(1).locator('.pv-x').click();
 ok((await own.locator('.pv-row').count()) === 1, 'remove an episode');

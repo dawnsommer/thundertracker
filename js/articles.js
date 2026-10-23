@@ -1,11 +1,11 @@
 // The AMBOSS articles tab.
 
-import { $, fmtDate, h, isDate, plural, safeUrl, sum, svgIcon, today, uid } from './util.js?v=16';
-import { PASSES } from './catalog.js?v=16';
-import { save, snapshot, state, toast, ui } from './store.js?v=16';
-import { allSystems, artItem, artSections, artUrl } from './data.js?v=16';
-import { closeSheet, openSheet, refreshSheet, sheetHead } from './sheets.js?v=16';
-import { render, showTab } from './shell.js?v=16';
+import { $, fmtDate, h, isDate, plural, ring, safeUrl, sum, svgIcon, today, uid } from './util.js?v=17';
+import { PASSES } from './catalog.js?v=17';
+import { save, snapshot, state, toast, ui } from './store.js?v=17';
+import { allSystems, artItem, artSections, artUrl } from './data.js?v=17';
+import { closeSheet, openSheet, refreshSheet, sheetHead } from './sheets.js?v=17';
+import { render, showTab } from './shell.js?v=17';
 
 export function setReads(id, n) {
   const cur = artItem(id);
@@ -64,7 +64,13 @@ export function toggleCollapsed(id, open) {
   save(); render();
 }
 
+// one colour per read-through count, 0× (unread) to 5×
+const TONES = ['var(--s0)', 'var(--s1)', 'color-mix(in srgb,var(--s1) 45%,var(--s2))', 'var(--s2)', 'color-mix(in srgb,var(--s2) 50%,var(--s3))', 'var(--s3)'];
+const distBar = (dist) => h('div', { class: 'dist', role: 'img', 'aria-label': dist.map((c, i) => c + ' at ' + i).join(', ') + ' read-throughs' },
+  dist.map((c, i) => (c ? h('span', { style: 'flex:' + c + ';background:' + TONES[i], title: c + ' article' + (c === 1 ? '' : 's') + ' read ' + i + '×' }) : null)));
+
 // Progress at a glance: totals, how many articles sit at each read-through count, and every section's bar.
+// The overview's card (compact) leads with a ring and splits each section's bar by read-throughs.
 export function renderArtSummary(box, compact) {
   const secs = orderedSections(), arts = secs.flatMap((x) => x.articles);
   const reads = arts.map((a) => artItem(a.id).reads);
@@ -76,18 +82,33 @@ export function renderArtSummary(box, compact) {
     const el = $('art-' + sec.id); if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' });
   };
   const bars = h('div', { class: 'sbars art-bars' }, secs.map((sec) => {
-    const n = sec.articles.length, r = sec.articles.filter((a) => artItem(a.id).reads > 0).length;
+    const n = sec.articles.length, rs = sec.articles.map((a) => artItem(a.id).reads), r = rs.filter((x) => x > 0).length;
+    // compact: one segment per read-through count (1× light → 5× dark); full: read at least once
+    const segs = compact
+      ? Array.from({ length: PASSES }, (_, i) => rs.filter((x) => Math.min(x, PASSES) === i + 1).length).map((c, i) => (c ? h('span', { style: 'width:' + c / n * 100 + '%;background:' + TONES[i + 1] }) : null))
+      : h('span', { style: 'width:' + (n ? r / n * 100 : 0) + '%;background:var(--s2)' });
     return h('button', { class: 'sbar', onclick: () => jump(sec), 'aria-label': sec.name + ': ' + r + ' of ' + n + ' read' },
       h('span', { class: 'lbl', text: sec.name.replace(/^High-Yield /, ''), title: sec.name }),
-      h('span', { class: 'segbar', 'aria-hidden': 'true' }, h('span', { style: 'width:' + (n ? r / n * 100 : 0) + '%;background:var(--s2)' })),
+      h('span', { class: 'segbar', 'aria-hidden': 'true' }, segs),
       h('span', { class: 'val', text: r + '/' + n }));
   }));
+  const legend = h('div', { class: 'dist-l', 'aria-hidden': 'true' }, dist.map((c, i) => h('span', null, h('i', { style: 'background:' + TONES[i] }), i + '×', compact ? h('b', { text: String(c) }) : null)));
   if (compact) {
-    box.replaceChildren(h('p', { class: 'art-mini-h' }, h('b', { text: read + '/' + arts.length }), ' read · ' + plural(passes, 'read-through') + (finished ? ' · ' + finished + ' done 5×' : '')), bars,
-      h('button', { class: 'btn', style: 'margin-top:12px', onclick: () => showTab('articles', true) }, 'Open articles'));
+    const last = arts.filter((a) => artItem(a.id).reads && artItem(a.id).date).sort((a, b) => artItem(b.id).date.localeCompare(artItem(a.id).date))[0];
+    box.replaceChildren(h('div', { class: 'art-mini' },
+      h('div', { class: 'art-hero' },
+        h('div', { class: 'pv-stat' }, ring(arts.length ? read / arts.length : 0, String(read), 'amb'),
+          h('div', null, h('span', { class: 'eyebrow', text: 'Read' }), h('p', { text: read + '/' + arts.length + ' articles' }),
+            h('small', { text: arts.length ? Math.round(read / arts.length * 100) + '% at least once' : 'No articles' }))),
+        h('div', { class: 'art-kpis' },
+          h('div', null, h('b', { text: String(passes) }), h('span', { text: 'read-throughs' })),
+          h('div', null, h('b', { text: String(finished) }), h('span', { text: 'done 5×' })))),
+      distBar(dist), legend, bars,
+      h('div', { class: 'art-foot' },
+        last ? h('button', { class: 'linkish', 'data-open': last.id, onclick: () => openArticle(last) }, 'Last: ' + last.name + ' · ' + fmtDate(artItem(last.id).date)) : h('span'),
+        h('button', { class: 'btn', onclick: () => showTab('articles', true) }, 'Open articles'))));
     return;
   }
-  const tones = ['var(--s0)', 'var(--s1)', 'color-mix(in srgb,var(--s1) 45%,var(--s2))', 'var(--s2)', 'color-mix(in srgb,var(--s2) 50%,var(--s3))', 'var(--s3)'];
   box.replaceChildren(h('div', { class: 'card art-sum' },
     h('div', { class: 'art-stats' },
       h('div', null, h('div', { class: 'eyebrow', text: 'Read' }), h('div', { class: 'big' }, String(read), h('small', { text: 'of ' + arts.length })),
@@ -95,9 +116,7 @@ export function renderArtSummary(box, compact) {
       h('div', null, h('div', { class: 'eyebrow', text: 'Read-throughs' }), h('div', { class: 'big' }, String(passes), h('small', { text: 'of ' + arts.length * PASSES })),
         h('div', { class: 'meter' }, h('b', { style: 'width:' + (arts.length ? passes / (arts.length * PASSES) * 100 : 0) + '%' }))),
       h('div', null, h('div', { class: 'eyebrow', text: 'Done 5×' }), h('div', { class: 'big' }, String(finished), h('small', { text: 'articles' })),
-        h('div', { class: 'dist', role: 'img', 'aria-label': dist.map((c, i) => c + ' at ' + i).join(', ') + ' read-throughs' },
-          dist.map((c, i) => (c ? h('span', { style: 'flex:' + c + ';background:' + tones[i], title: c + ' article' + (c === 1 ? '' : 's') + ' read ' + i + '×' }) : null))),
-        h('div', { class: 'dist-l', 'aria-hidden': 'true' }, dist.map((c, i) => h('span', null, h('i', { style: 'background:' + tones[i] }), i + '×'))))),
+        distBar(dist), legend)),
     bars));
 }
 
