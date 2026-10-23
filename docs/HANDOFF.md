@@ -1,8 +1,8 @@
 # Handoff: state of Thunder tracker (23 Oct 2026)
 
-**Live:** version 16 at https://dawnsommer.github.io/thundertracker/. `main` = `74e6ec5` (plus these docs). All 463 checks pass locally and on GitHub Actions.
+**Live:** version 17 at https://dawnsommer.github.io/thundertracker/. `main` = `1d1ff68` (plus these docs). All 474 checks pass locally and on GitHub Actions.  
+Version 17 added the Passive study card on the overview and redesigned the AMBOSS articles card.
 
-**Not deployed yet:** version 17 on `claude/wonderful-sagan-xmc7en` (Passive study card on the overview, AMBOSS articles card redesign). Deploy when the user says so.
 Rules, architecture and conventions are in `CLAUDE.md`; user docs are in `README.md`.
 
 ## What exists (built Oct 2026, roughly in order)
