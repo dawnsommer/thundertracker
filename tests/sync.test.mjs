@@ -156,6 +156,24 @@ await pa.evaluate(() => window.CKCloud.syncNow()); await idle(pa);
 ok(remote().items['nbme-13'] && remote().items['nbme-13'].score === '238', 'the edit still reached Google');
 await pa.evaluate(() => { Storage.prototype.setItem = window.__setItem; });
 
+// BlockFlow history: its own Drive file, merged record by record, deletions carried over
+const rec = { id: 'abc123', n: 1, name: 'NBME 12', mode: 'nbme', start: 1.7e12, end: 1.7e12 + 3e6, q: 200, qd: 200, used: 1.6e7, total: 1.8e7, brk: 6e5, breaks: 1, blk: [1.8e6], plan: [1.8e6], t: 1.7e12 + 3e6 };
+const stateBefore = remote() && JSON.stringify(remote());
+await pa.evaluate((r) => localStorage.setItem('thundertracker:blockflow-history', JSON.stringify({ v: 1, sessions: { [r.id]: r }, del: {} })), rec);
+await pa.reload(); await idle(pa);
+const bfFile = () => [...drive.values()].find((x) => x.name === 'thundertracker-blockflow.json');
+ok(bfFile() && JSON.parse(bfFile().content).data.sessions.abc123.name === 'NBME 12' && bfFile().appProperties.kind === 'blockflow', 'history uploaded as its own file, thundertracker-blockflow.json');
+ok(!JSON.stringify(remote()).includes('NBME 12'), 'not inside the tracker’s state file');
+await pb.reload(); await idle(pb);
+const histB = await pb.evaluate(() => JSON.parse(localStorage.getItem('thundertracker:blockflow-history')));
+ok(histB && histB.sessions.abc123 && histB.sessions.abc123.name === 'NBME 12', 'device B got the session');
+await pb.goto(BASE + '#timer'); await idle(pb);
+await pb.click('#bf-hist .bf-hx');
+await pb.evaluate(() => window.CKCloud.syncNow()); await idle(pb);
+ok(!JSON.parse(bfFile().content).data.sessions.abc123 && JSON.parse(bfFile().content).data.del.abc123, 'deleting on B reaches Drive as a tombstone');
+await pa.reload(); await idle(pa);
+ok(!(await pa.evaluate(() => JSON.parse(localStorage.getItem('thundertracker:blockflow-history')).sessions.abc123)), 'and A drops it too');
+
 // sign out A: worker /disconnect called, local data kept
 await pa.evaluate(() => window.CKCloud.disconnect());
 ok(calls.includes('A worker /disconnect') && !(await st(pa)).connected && (await local(pa)).items['nbme-12'], 'sign out keeps local data');

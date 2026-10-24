@@ -7,8 +7,8 @@ The repo is **public**. Read `docs/HANDOFF.md` for the current state, history an
 - **Never commit personal data.** That includes the user's Exam Simulator backup, real scores and uploaded files; use the synthetic fixture in `tests/fixtures/sim-backup.mjs`. No secrets in the frontend (`js/config.js` holds only public settings).
 - **Don't write the Passive study unlock code anywhere in the repo.** It's checked as a hash in `js/passive.js`; the user knows it.
 - **Shared origin.** dawnsommer.github.io also hosts ThunderShadow and other apps, and they all share one localStorage and one Cache Storage. This app only touches:
-  - the `ck-tracker` localStorage key and `thundertracker:*` keys (BlockFlow: `thundertracker:blockflow` settings and `thundertracker:blockflow-session`, local only, not synced);
-  - Drive appDataFolder files named `thundertracker-*`;
+  - the `ck-tracker` localStorage key and `thundertracker:*` keys (BlockFlow: `thundertracker:blockflow` settings and `thundertracker:blockflow-session`, local only; `thundertracker:blockflow-history`, synced);
+  - Drive appDataFolder files named `thundertracker-*` (the state, its daily copies, and `thundertracker-blockflow.json` for BlockFlow's history);
   - caches named `ck-tracker-*`.
 
   ThunderShadow's `cloudflareWorkerSession` is read-only (shared sign-in). Never clear all storage or caches.
@@ -32,6 +32,7 @@ The repo is **public**. Read `docs/HANDOFF.md` for the current state, history an
   - Synced prefs are listed in `SYNC_PREFS` and merge as a unit (newest wins). On a device's first sync, the account's values win where set and lists are combined.
   - Traffic is budgeted: 10 s debounce (60 s max), a 5-minute foreground check, backoff 30 s → 15 min. `tests/sync-traffic.test.mjs` guards this.
   - Version history: a dated copy once a day, last 10 kept.
+  - Extra documents with their own Drive file: `CKCloud.addDoc({ name, file, get, norm, merge, same, apply, empty })` and `markDocDirty(name)`. They ride the same listing, have their own dirty flag and signature, and a failure in one never fails the tracker's sync. BlockFlow's history is the only one (merge: newest `t` wins, tombstones in `del`; in `timer-engine.js`).
 - **Service worker** (`sw.js`):
   - Versioned `?v=` files are cache-first.
   - The page is network-first with `cache: 'no-cache'` (beats GitHub's max-age=600), falling back to the cache after 3 s. A page that arrives late isn't stored.

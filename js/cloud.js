@@ -13,6 +13,9 @@
 //   happen only when something actually changed.
 // - Failures back off (30 s, 1, 2, 4… up to 15 minutes) instead of retrying in a loop.
 // - Once a day a dated copy is saved next to it (the last 10 are kept) so you can restore an older version.
+// - Other parts of the app can sync a document of their own in its own file (BlockFlow's session history:
+//   thundertracker-blockflow.json). It rides along with the same listing and only uploads when it changed;
+//   erasing or restoring the tracker's data never touches it.
 (() => {
   'use strict';
 
@@ -46,6 +49,10 @@
   // written, but the edits are still in memory and should still reach Google.
   let memDirty = '';
   const dirty = () => get(K.dirty) || memDirty;
+  // extra documents: { name, file, get, norm, merge, same, apply, empty }; each with its own dirty flag and Drive signature
+  const docs = [];
+  const dk = (d, k) => K[k] + ':' + d.name;
+  const anyDirty = () => dirty() || docs.some((d) => get(dk(d, 'dirty')));
   const setDirty = (v) => { memDirty = v; put(K.dirty, v); };
 
   let justConnected = false, callbackError = '';
@@ -84,7 +91,7 @@
   function status() {
     return {
       configured: configured(), connected: !!session(), state: st.state, message: st.message, short: SHORT[st.state] || '',
-      account: get(K.account), lastSync: get(K.last), shared: get(K.shared) === '1', returnUrl: CFG.returnUrl, pending: !!dirty(),
+      account: get(K.account), lastSync: get(K.last), shared: get(K.shared) === '1', returnUrl: CFG.returnUrl, pending: !!anyDirty(),
       canSignIn: configured() && (onSite() || !!get(SHADOW_SESSION)),
     };
   }
@@ -103,6 +110,7 @@
   function forget() {
     token = ''; tokenExp = 0;
     [K.session, K.shared, K.account, K.last, K.sig, K.dirty, K.token, K.snap].forEach((k) => put(k, ''));
+    docs.forEach((d) => { put(dk(d, 'sig'), ''); put(dk(d, 'dirty'), ''); });
     memDirty = '';
   }
   // The cached token is tied to the session it came from (by a short fingerprint, not the session itself).
@@ -167,12 +175,13 @@
   // One listing returns the state file and the history copies (only this app's files).
   async function listFiles() {
     const params = new URLSearchParams({
-      spaces: 'appDataFolder', q: "(name = '" + FILE_NAME + "' or name contains '" + HIST_PREFIX + "') and trashed = false", orderBy: 'modifiedTime desc',
+      spaces: 'appDataFolder', q: "(name = '" + FILE_NAME + "' or " + docs.map((d) => "name = '" + d.file + "' or ").join('') + "name contains '" + HIST_PREFIX + "') and trashed = false", orderBy: 'modifiedTime desc',
       pageSize: '100', fields: 'files(id,name,modifiedTime,md5Checksum,size,appProperties)',
     });
     const body = await driveJson(DRIVE + '/files?' + params, {}, 'Reading Google Drive');
     const mine = (body.files || []).filter((f) => !f.appProperties || !f.appProperties.appId || f.appProperties.appId === APP_ID);
-    return { state: mine.find((f) => f.name === FILE_NAME) || null, history: mine.filter((f) => f.name.startsWith(HIST_PREFIX)) };
+    return { state: mine.find((f) => f.name === FILE_NAME) || null, history: mine.filter((f) => f.name.startsWith(HIST_PREFIX)),
+      docs: Object.fromEntries(docs.map((d) => [d.name, mine.find((f) => f.name === d.file) || null])) };
   }
   async function removeFile(file) {
     const res = await drive(DRIVE + '/files/' + encodeURIComponent(file.id), { method: 'DELETE' });
@@ -224,6 +233,27 @@
       { method: 'POST', headers: { 'Content-Type': 'multipart/related; boundary=' + boundary }, body }, 'Saving to Google Drive');
   }
 
+  // An extra document: same pattern as the state file (download only if changed, upload only if needed).
+  // A failure here leaves its changes queued and doesn't fail the tracker's own sync.
+  async function syncDoc(d, file, first) {
+    try {
+      const dirtyAt = get(dk(d, 'dirty')), local = d.get();
+      let remote = null, merged = local;
+      if (file && (first || sigOf(file) !== get(dk(d, 'sig')))) {
+        const doc = await download(file);
+        if (doc && doc.app === APP_ID && doc.kind === d.name && doc.data) { remote = d.norm(doc.data); merged = d.merge(local, remote); }
+      }
+      if (!d.same(merged, local)) d.apply(merged);
+      let sig = file ? sigOf(file) : '';
+      if (file ? dirtyAt || (remote && !d.same(merged, remote)) : dirtyAt || !d.empty(merged)) {
+        const doc = { app: APP_ID, kind: d.name, formatVersion: 1, updatedAt: new Date().toISOString(), device: deviceId(), data: merged };
+        sig = sigOf(await upload(file, doc, d.file, d.name));
+      }
+      put(dk(d, 'sig'), sig);
+      if (get(dk(d, 'dirty')) === dirtyAt) put(dk(d, 'dirty'), ''); else again = true;
+    } catch (e) { if (e && e.auth) throw e; }
+  }
+
   // One round trip when nothing changed (a file listing). Downloads only when the Drive copy changed,
   // uploads only when this device has edits or the merge produced something Drive doesn't have.
   function syncNow(opts = {}) {
@@ -252,6 +282,7 @@
         const saved = await upload(file, docOf(merged));
         sigNow = sigOf(saved);
       }
+      for (const d of docs) await syncDoc(d, files.docs[d.name], first);
       await keepDailyCopy(files.history, merged);
       put(K.sig, sigNow);
       if (dirty() === dirtyAt) { setDirty(''); firstDirtyAt = 0; } else again = true;
@@ -268,7 +299,7 @@
           const wait = Math.min(MAX_BACKOFF_MS, 30000 * 2 ** (failures - 1));
           retryAt = Date.now() + wait;
           set('error', 'Couldn’t sync with Google — your progress is safe on this device. Trying again in ' + (wait < 60000 ? Math.round(wait / 1000) + ' s' : Math.round(wait / 60000) + ' min') + '. ' + ((e && e.message) || ''));
-          if (dirty()) { clearTimeout(timer); timer = setTimeout(() => { timer = null; syncNow().catch(() => {}); }, wait); }
+          if (anyDirty()) { clearTimeout(timer); timer = setTimeout(() => { timer = null; syncNow().catch(() => {}); }, wait); }
         }
       }
       if (opts.manual) throw e;
@@ -349,7 +380,7 @@
   function lastSeen() { return Math.max(lastCheck, Date.parse(get(K.last)) || 0); }
   function foreground() {
     if (!session() || !navigator.onLine || Date.now() < retryAt) return;
-    if (dirty() || Date.now() - lastSeen() > CHECK_EVERY_MS) syncNow().catch(() => {});
+    if (anyDirty() || Date.now() - lastSeen() > CHECK_EVERY_MS) syncNow().catch(() => {});
   }
 
   function init(api) {
@@ -358,9 +389,9 @@
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') foreground();
       // leaving the page: send pending edits now rather than waiting for the debounce
-      else if (dirty() && session() && navigator.onLine && !syncP) { app.flush(); syncNow().catch(() => {}); }
+      else if (anyDirty() && session() && navigator.onLine && !syncP) { app.flush(); syncNow().catch(() => {}); }
     });
-    window.addEventListener('online', () => { failures = 0; retryAt = 0; if (dirty()) syncNow().catch(() => {}); else foreground(); });
+    window.addEventListener('online', () => { failures = 0; retryAt = 0; if (anyDirty()) syncNow().catch(() => {}); else foreground(); });
     window.addEventListener('offline', () => { if (session()) set('offline', 'Offline — changes are saved on this device and will sync when you’re back online.'); });
     if (callbackError) set('error', 'Google sign-in didn’t finish: ' + callbackError);
     else if (session()) {
@@ -370,8 +401,12 @@
     else set('signedout', '');
   }
 
+  // register an extra document (before or after init); markDocDirty(name) queues its upload
+  function addDoc(d) { if (!docs.some((x) => x.name === d.name)) docs.push(d); }
+  function markDocDirty(name) { const d = docs.find((x) => x.name === name); if (d) { put(dk(d, 'dirty'), String(Date.now())); schedule(); } }
+
   window.CKCloud = {
-    init, connect, disconnect, syncNow, markDirty, status, listVersions, getVersion, stats: () => Object.assign({}, stats),
+    init, connect, addDoc, markDocDirty, disconnect, syncNow, markDirty, status, listVersions, getVersion, stats: () => Object.assign({}, stats),
     subscribe: (fn) => { subs.add(fn); return () => subs.delete(fn); },
     justConnected: () => { const j = justConnected; justConnected = false; return j; },
   };

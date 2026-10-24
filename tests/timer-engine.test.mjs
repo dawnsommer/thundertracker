@@ -77,3 +77,18 @@ ok(s.phase === 'done' && T.elapsed(s.b, t0 + 999e3) === 91e3 && T.qsDone(s) === 
 
 // saved sessions are checked
 ok(T.valid(JSON.parse(JSON.stringify(s))) && !T.valid({ v: 1 }) && !T.valid(null) && !T.valid(Object.assign({}, s, { seg: 9 })), 'valid() accepts a saved session and rejects broken ones');
+
+// session history: a record per finished session; merged record by record with tombstones
+s = T.start({ mode: 'nbme', name: '  NBME 12 ' }, t0);
+T.tick(s, t0 + 31 * M); T.next(s, t0 + 31 * M); T.endBlock(s, t0 + 51 * M); T.takeBreak(s, t0 + 51 * M, 5 * M); T.next(s, t0 + 60 * M); T.finish(s, t0 + 70 * M);
+const r = T.record(s, 3);
+ok(r.name === 'NBME 12' && r.n === 3 && r.qd === 40 && r.blk.map((x) => x / M).join() === '31,20,10' && r.used === 61 * M && r.brk === 9 * M, 'record: name, questions reached, answering time per block (breaks left out)');
+ok(T.histName(r) === 'NBME 12' && T.histName({ n: 4, name: '' }) === 'Session 04', 'a generic name when none is given');
+const h0 = T.normHistory({ sessions: { [r.id]: r } });
+ok(T.nextN(h0) === 4 && T.nextN(T.normHistory(null)) === 1, 'the next generic number follows the highest');
+const gone = T.normHistory({ sessions: {}, del: { [r.id]: r.t + 1 } });
+ok(!T.mergeHistory(h0, gone).sessions[r.id] && !T.mergeHistory(gone, h0).sessions[r.id], 'a deletion wins over the older record, either way round');
+const back = T.normHistory({ sessions: { [r.id]: Object.assign({}, r, { name: 'renamed', t: r.t + 2 }) } });
+ok(T.mergeHistory(gone, back).sessions[r.id].name === 'renamed', 'a newer edit (undo, rename) wins over the tombstone');
+ok(T.sameHistory(T.mergeHistory(h0, back), T.mergeHistory(back, h0)), 'merge gives the same result either way round');
+ok(!Object.keys(T.normHistory({ sessions: { 'bad id!': r, x: null } }).sessions).length, 'bad records are dropped');

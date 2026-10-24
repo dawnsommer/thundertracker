@@ -811,7 +811,10 @@ button.wm-row:hover{background:color-mix(in srgb,var(--hl-soft) 40%,transparent)
 /* BlockFlow exam timer (js/blockflow.js): setup card, two clocks, block progress; .bf-pip is the floating window */
 #open-timer{position:relative}
 #open-timer.live::after{content:"";position:absolute;top:3px;right:3px;width:8px;height:8px;border-radius:50%;background:var(--hl);box-shadow:0 0 0 2px var(--bg)}
-.bf{display:flex;flex-direction:column;gap:14px;max-width:780px;width:100%}
+.bf{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start;width:100%}
+.bf-main{display:flex;flex-direction:column;gap:14px;min-width:0}
+.bf-side{position:sticky;top:150px;min-width:0}
+@media (max-width:900px){.bf{grid-template-columns:minmax(0,1fr)}.bf-side{position:static}}
 .bf .lab,.bf-pip .lab{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
 .bf-setup{display:flex;flex-direction:column;gap:18px;padding:20px}
 .bf-top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 14px}
@@ -920,3 +923,33 @@ button.wm-row:hover{background:color-mix(in srgb,var(--hl-soft) 40%,transparent)
 .bf-pip .bf-head{flex-wrap:nowrap}
 .bf-pip .bf-where{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 @media (max-width:560px){.bf-vol{width:84px}.bf-sum b{font-size:1.35rem}}
+/* BlockFlow: name + start, and the session history (a side column on desktop) */
+html{scrollbar-gutter:stable} /* the timer page is short: keep the scrollbar's room so switching pages never shifts the layout */
+.bf-go{display:flex;gap:8px}
+.bf-name{flex:1 1 auto;min-width:0;border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:0 12px;font-size:.9rem}
+.bf-go .bf-start{flex:0 0 auto;padding-inline:22px}
+.bf-hist{display:flex;flex-direction:column;padding:16px 16px 12px}
+.bf-hhead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:4px}
+.bf-hempty{margin:4px 0 0;line-height:1.5}
+.bf-hrow{display:grid;grid-template-columns:minmax(0,1fr) 26px;gap:5px 6px;padding:11px 0;border-top:1px solid var(--line)}
+.bf-hhead + .bf-hrow{border-top:0}
+.bf-hrow > :not(.bf-hx){grid-column:1}
+.bf-hx{grid-column:2;grid-row:1;width:26px;height:26px;opacity:0;transition:opacity .15s}
+.bf-hrow:hover .bf-hx,.bf-hx:focus-visible{opacity:1}
+@media (hover:none){.bf-hx{opacity:1}}
+.bf-hmain{display:flex;align-items:baseline;justify-content:space-between;gap:8px;min-width:0}
+.bf-hn{border:0;background:none;padding:0;text-align:left;font-weight:600;font-size:.9rem;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:text;min-width:0}
+.bf-hn:hover{text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
+.bf-hn-in{border:1px solid var(--brand);background:var(--bg);border-radius:6px;padding:2px 7px;font-weight:600;font-size:.9rem;width:100%;min-width:0}
+.bf-hdate{font-size:.75rem;color:var(--muted);white-space:nowrap;flex:none}
+.bf-hstat{display:flex;flex-wrap:wrap;justify-content:space-between;gap:2px 10px;font-size:.74rem;color:var(--muted)}
+.bf-hbars{display:flex;align-items:flex-end;gap:3px;height:16px}
+.bf-hbars i{flex:1 1 0;max-width:22px;display:flex;align-items:flex-end;height:100%;background:var(--s0);border-radius:2px;overflow:hidden}
+.bf-hbars i b{display:block;width:100%;background:var(--s2)}
+.bf-hbars i.over b{background:var(--warn)}
+.bf-hbars i.no{opacity:.45}
+.bf-hkey{display:flex;align-items:center;gap:5px;margin:8px 0 0;padding-top:10px;border-top:1px solid var(--line);font-size:.7rem}
+.bf-hkey i{width:8px;height:8px;border-radius:2px;background:var(--s2)}
+.bf-hkey i.over{background:var(--warn);margin-left:8px}
+.bf-hmore{align-self:flex-start;margin:6px 0 0}
+@media (max-width:560px){.bf-go{flex-direction:column}.bf-name{padding:10px 12px}}

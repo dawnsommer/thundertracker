@@ -3,14 +3,16 @@
 // breaks. The clock maths is in timer-engine.js; this module holds the one live session, saves it,
 // plays the chimes and draws it in the page and, optionally, a Picture-in-Picture window. Both views
 // read the same session, so there is only ever one timer.
-// Local only (not synced): settings in thundertracker:blockflow, the session in thundertracker:blockflow-session.
+// Settings (thundertracker:blockflow) and the live session (thundertracker:blockflow-session) stay in this
+// browser. The history of finished sessions (thundertracker:blockflow-history) also syncs with Google, as its
+// own Drive file (thundertracker-blockflow.json), separate from the tracker's data.
 
-import { $, h, svgIcon } from './util.js?v=19';
-import { toast, ui } from './store.js?v=19';
-import { showTab } from './shell.js?v=19';
-import * as T from './timer-engine.js?v=19';
+import { $, fmtDate, h, svgIcon } from './util.js?v=20';
+import { toast, ui } from './store.js?v=20';
+import { showTab } from './shell.js?v=20';
+import * as T from './timer-engine.js?v=20';
 
-const CKEY = 'thundertracker:blockflow', SKEY = 'thundertracker:blockflow-session', MIN = 60000;
+const CKEY = 'thundertracker:blockflow', SKEY = 'thundertracker:blockflow-session', HKEY = 'thundertracker:blockflow-history', MIN = 60000;
 const DEF = { mode: 'nbme', q: 40, pace: 90, per: 20, total: '', brk: 5, ext: 5, planned: [], auto: false, warn: 0, sound: true, vol: 70, notify: false, display: 'page' };
 const read = (k) => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } };
 const write = (k, v) => { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
@@ -25,6 +27,21 @@ const now = () => Date.now();
 const opts = () => ({ warn: cfg.warn * MIN, auto: cfg.auto, planned: cfg.planned, breakMs: cfg.brk * MIN });
 const pipOk = () => 'documentPictureInPicture' in window;
 export const live = () => !!(S && S.phase !== 'done');
+
+// ---- history: one record per finished session, merged record by record (timer-engine.js)
+let hist = T.normHistory(read(HKEY)), histAll = false, nameNext = '';
+const cloud = () => window.CKCloud || null; // not store.js's: this runs while store.js is still loading
+const saveHist = () => { write(HKEY, hist); if (cloud()) cloud().markDocDirty('blockflow'); drawHistory(); };
+if (cloud()) cloud().addDoc({ name: 'blockflow', file: 'thundertracker-blockflow.json', get: () => JSON.parse(JSON.stringify(hist)),
+  norm: T.normHistory, merge: T.mergeHistory, same: T.sameHistory, empty: (x) => !Object.keys(x.sessions).length && !Object.keys(x.del).length,
+  apply: (m) => { hist = m; write(HKEY, hist); drawHistory(); } });
+// a finished session goes into the history once (sessions under a minute of answering are left out)
+function keep() {
+  if (!S || S.phase !== 'done' || S.saved) return;
+  if (T.elapsed(S.b, S.ended) >= MIN) { const r = T.record(S, T.nextN(hist)); hist.sessions[r.id] = r; S.saved = r.id; saveHist(); }
+  else S.saved = '-';
+  persist();
+}
 
 // ---- sounds: Web Audio, made here (no files). Upcoming alerts are scheduled on the audio clock, which
 // keeps time in a background tab where timers are slowed down; tick() still catches anything missed.
@@ -99,7 +116,7 @@ function alertFor(evs) {
 // ---- the controller: every change goes through act(), which saves and redraws
 function act(fn, ...args) {
   if (!S) return;
-  if (fn(S, now(), ...args)) { persist(); changed(); }
+  if (fn(S, now(), ...args)) { persist(); keep(); changed(); }
 }
 function changed() { schedule(); draw(); }
 function loop() {
@@ -114,6 +131,7 @@ document.addEventListener('visibilitychange', loop);
 // another tab started, paused or ended the session
 window.addEventListener('storage', (e) => {
   if (e.key === SKEY) { S = loadSession(); recovered = false; changed(); }
+  if (e.key === HKEY) { hist = T.normHistory(read(HKEY)); drawHistory(); }
   if (e.key === CKEY) { Object.assign(cfg, DEF, read(CKEY) || {}); setVol(); built = ''; changed(); }
 });
 // browsers start audio only after a tap or key press
@@ -123,7 +141,7 @@ document.addEventListener('keydown', unlock, true);
 
 function begin() {
   audio();
-  S = T.start(cfg, now()); recovered = false;
+  S = T.start(Object.assign({}, cfg, { name: nameNext }), now()); recovered = false; nameNext = '';
   persist();
   if (cfg.display === 'pip' && pipOk()) openPip(); // inside the Start click, as the browser requires
   changed();
@@ -174,8 +192,8 @@ export function draw(force) {
   const k = viewKey(false);
   if (k === built) return;
   built = k;
-  $('bf-body').replaceChildren(S ? liveView(false) : setupView());
-  paint();
+  $('bf-body').replaceChildren(h('div', { class: 'bf-main' }, S ? liveView(false) : setupView()), h('aside', { class: 'bf-side', id: 'bf-hist', 'aria-label': 'History' }));
+  drawHistory(); paint();
 }
 export const renderTimer = () => draw();
 
@@ -217,7 +235,8 @@ function liveView(compact) {
     if (S.phase === 'end' && lastBlock) acts.push(btn('Finish exam', () => act(T.finish), 'primary'), btn('Pause', () => act(T.pause), 'ghost'));
     if (over && !(S.phase === 'end' && lastBlock)) acts.push(btn('Finish exam', () => act(T.finish), 'primary'));
   }
-  const where = done ? plural(S.q, 'question') + ' · ' + plural(S.breaks, 'break')
+  const rec = done && hist.sessions[S.saved];
+  const where = done ? (rec ? T.histName(rec) + ' · ' : S.name ? S.name + ' · ' : '') + plural(S.qd || S.q, 'question') + ' · ' + plural(S.breaks, 'break')
     : 'Block ' + (S.seg + 1) + ' of ' + n + ' · Q' + g.q0 + '–' + g.q1;
   const aLabel = done ? 'Answering time' : onBreak() ? (S.phase === 'over' ? 'Break · over by' : 'Break') : 'Block ' + (S.seg + 1);
   const aSub = done ? 'of ' + T.fmt(S.total, true) + ' allowed' : onBreak() ? 'of ' + T.fmt(S.brk.dur) + ' · total paused' : S.phase === 'end' ? 'time’s up · total still running' : 'of ' + T.fmt(g.dur);
@@ -296,7 +315,9 @@ function setupView() {
       row('Start planned breaks and next blocks by themselves', h('input', { type: 'checkbox', id: 'bf-auto', class: 'bf-check', checked: cfg.auto || null, onchange: (e) => set('auto', e.target.checked), 'aria-label': 'Automatic' })),
       row('Notify when the page is in the background', notifyNote, notifyBox),
       row('Test sounds', test('segEnd', 'Block'), test('breakEnd', 'Break'), test('totalEnd', 'Time up'), test('warn', 'Warning'))),
-    startBtn);
+    h('div', { class: 'bf-go' }, h('input', { id: 'bf-name', class: 'bf-name', type: 'text', maxlength: 60, value: nameNext, autocomplete: 'off',
+      placeholder: 'Name (optional) · Session ' + String(T.nextN(hist)).padStart(2, '0'), 'aria-label': 'Session name (optional)',
+      oninput: (e) => { nameNext = e.target.value; }, onkeydown: (e) => { if (e.key === 'Enter') begin(); } }), startBtn));
   function refresh() {
     const p = T.plan(cfg), n = p.segs.length, nb = cfg.mode === 'nbme';
     root.querySelectorAll('[data-k] button').forEach((b) => b.setAttribute('aria-pressed', cfg[b.parentNode.dataset.k] === b.dataset.v ? 'true' : 'false'));
@@ -325,11 +346,49 @@ function setupView() {
   return root;
 }
 
+// ---- history list: newest first; tap a name to rename, × deletes (with undo)
+function drawHistory() {
+  const box = ui.tab === 'timer' && $('bf-hist');
+  if (!box) return;
+  const all = Object.values(hist.sessions).sort((a, b) => b.start - a.start);
+  const head = h('div', { class: 'bf-hhead' }, h('h3', { text: 'History' }), all.length ? h('span', { class: 'hint num', text: String(all.length) }) : null);
+  if (!all.length) {
+    box.replaceChildren(h('div', { class: 'card bf-hist' }, head, h('p', { class: 'hint bf-hempty', text: 'Finished sessions show up here with their date, pace and time per block. They sync with Google when you’re signed in.' })));
+    return;
+  }
+  const rows = (histAll ? all : all.slice(0, 8)).map((r) => {
+    const qs = r.qd || r.q, spq = qs ? Math.round(r.used / 1000 / qs) : 0;
+    const name = h('button', { class: 'bf-hn', title: 'Rename', onclick: () => {
+      const inp = h('input', { class: 'bf-hn-in', type: 'text', maxlength: 60, value: r.name, placeholder: 'Session ' + String(r.n).padStart(2, '0'), 'aria-label': 'Session name' });
+      let done = false;
+      const fin = (ok) => { if (done) return; done = true; const v = inp.value.trim().slice(0, 60); if (ok && v !== r.name) { r.name = v; r.t = Math.max(Date.now(), r.t + 1); saveHist(); } else drawHistory(); };
+      inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') fin(true); if (e.key === 'Escape') { e.stopPropagation(); fin(false); } });
+      inp.addEventListener('blur', () => fin(true));
+      name.replaceWith(inp); inp.focus(); inp.select();
+    } }, T.histName(r));
+    const bars = h('div', { class: 'bf-hbars', 'aria-hidden': 'true' }, r.plan.map((p, i) => {
+      const u = r.blk[i] || 0, x = p ? u / p : 0;
+      return h('i', { class: !u ? 'no' : x > 1.02 ? 'over' : '', title: 'Block ' + (i + 1) + ': ' + (u ? T.fmt(u) + ' of ' + T.fmt(p) : 'not reached') }, h('b', { style: 'height:' + Math.round(Math.min(1.3, x) / 1.3 * 100) + '%' }));
+    }));
+    return h('div', { class: 'bf-hrow', 'data-id': r.id },
+      h('div', { class: 'bf-hmain' }, name, h('span', { class: 'bf-hdate', text: fmtDate(dayOf(r.start)) + (r.mode === 'custom' ? ' · custom' : '') })),
+      h('div', { class: 'bf-hstat num' }, h('span', { text: qs + (qs < r.q ? '/' + r.q : '') + ' q · ' + spq + ' s/q' + (r.breaks ? ' · ' + plural(r.breaks, 'break') : '') }),
+        h('span', { text: T.fmt(r.used, true) + ' / ' + T.fmt(r.total, true) })),
+      bars,
+      h('button', { class: 'xs bf-hx', 'aria-label': 'Delete ' + T.histName(r), title: 'Delete', onclick: () => {
+        delete hist.sessions[r.id]; hist.del[r.id] = Math.max(Date.now(), r.t + 1); saveHist();
+        toast('Deleted ' + T.histName(r), () => { r.t = Math.max(Date.now(), hist.del[r.id] + 1); hist.sessions[r.id] = r; saveHist(); });
+      } }, '×'));
+  });
+  box.replaceChildren(h('div', { class: 'card bf-hist' }, head, rows,
+    h('p', { class: 'hint bf-hkey' }, h('i'), 'time per block against its plan', h('i', { class: 'over' }), 'ran over'), all.length > 8 ? h('button', { class: 'linkish bf-hmore', onclick: () => { histAll = !histAll; drawHistory(); } }, histAll ? 'Show fewer' : 'Show all ' + all.length) : null));
+}
+const dayOf = (ts) => { const d = new Date(ts); return new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
+
 // ---- the page: opened from the timer icon in the header (#timer)
 const leave = () => showTab(ui.prevTab && !['timer', 'settings'].includes(ui.prevTab) ? ui.prevTab : 'overview', true);
 export function openTimer() { if (ui.tab !== 'timer' && ui.tab !== 'settings') ui.prevTab = ui.tab; showTab('timer', true); window.scrollTo(0, 0); }
 $('open-timer').addEventListener('click', () => (ui.tab === 'timer' ? leave() : openTimer()));
-$('timer-back').addEventListener('click', leave);
 // Space pauses and resumes while the BlockFlow page is open
 document.addEventListener('keydown', (e) => {
   if (e.key !== ' ' || ui.tab !== 'timer' || !live() || /^(INPUT|TEXTAREA|SELECT|BUTTON|SUMMARY)$/.test(e.target.tagName)) return;

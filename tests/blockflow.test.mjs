@@ -22,19 +22,34 @@ await p.evaluate(() => localStorage.setItem('ck-tracker', JSON.stringify({ v: 2,
 await p.reload();
 const before = await p.evaluate(() => localStorage.getItem('ck-tracker'));
 
-// the header icon opens the page; Back and the icon return to the tab you were on
+// the header icon opens the page and, tapped again, returns to the tab you were on (no Back button)
 await p.click('#tab-cms');
 await p.click('#open-timer');
 ok(await p.isVisible('#view-timer') && (await p.evaluate(() => location.hash)) === '#timer', 'timer icon opens the BlockFlow page (#timer)');
 ok((await p.getAttribute('#open-timer', 'aria-pressed')) === 'true' && (await p.locator('.tab[aria-selected="true"]').count()) === 0, 'icon pressed, no tab selected');
-await p.click('#timer-back');
-ok(await p.isVisible('#view-cms'), 'Back returns to CMS forms');
+ok(!(await p.locator('#view-timer').getByText('← Back').count()) && !(await p.locator('#timer-back').count()), 'no Back button on the page');
+await p.click('#open-timer');
+ok(await p.isVisible('#view-cms'), 'the icon returns to CMS forms');
 await p.keyboard.press('b');
 ok(await p.isVisible('#view-timer'), 'key b opens it');
 await p.click('#open-timer');
 ok(await p.isVisible('#view-cms'), 'the icon again closes it');
 await p.goto(BASE + '#timer');
 ok(await p.isVisible('#bf-body .bf-setup'), 'a direct link to #timer works');
+// no jitter: on a tall screen the timer page is shorter than the window, so (with real, non-overlay
+// scrollbars) the page scrollbar goes away; the layout must not shift sideways when that happens
+{
+  const bs = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined, ignoreDefaultArgs: ['--hide-scrollbars'] });
+  const q = await (await bs.newContext({ viewport: { width: 1280, height: 1400 } })).newPage();
+  await q.goto(BASE);
+  ok(await q.evaluate(() => document.documentElement.scrollHeight > innerHeight), 'the overview scrolls at this height');
+  const x0 = await q.evaluate(() => document.querySelector('h1').getBoundingClientRect().left);
+  await q.click('#open-timer');
+  ok(await q.evaluate(() => document.documentElement.scrollHeight <= innerHeight), 'the timer page doesn’t');
+  const x1 = await q.evaluate(() => document.querySelector('h1').getBoundingClientRect().left);
+  ok(x0 === x1, 'opening the timer doesn’t shift the page sideways (' + x0 + ' → ' + x1 + ')');
+  await bs.close();
+}
 
 // setup: NBME default, custom plan preview with a partial last block
 ok((await txt('#bf-start')) === 'Start · 200 questions · 5:00:00' && await p.isHidden('#bf-custom'), 'NBME is the default: 200 questions, 5 hours');
@@ -157,12 +172,23 @@ ok((await txt('#bf-body .bf-foot button')) === 'Tap again to end' && (await st()
 await p.click('#bf-body .bf-foot button');
 ok((await st()) === 'Complete' && await btn('New session').isVisible(), 'ended: summary');
 ok(!(await p.evaluate(() => document.getElementById('open-timer').classList.contains('live'))), 'icon no longer shows a live session');
+// it went into the history, with a generic name, the date and per-block times
+const hist = () => p.evaluate(() => JSON.parse(localStorage.getItem('thundertracker:blockflow-history')));
+let h1 = Object.values((await hist()).sessions);
+ok(h1.length === 1 && h1[0].n === 1 && h1[0].name === '' && h1[0].qd === 60 && h1[0].blk.length === 4 && h1[0].plan.length === 10, 'saved to history: 60 questions reached, 4 block times');
+const near = (x, m) => Math.abs(x - m * M) < 5000;
+ok(near(h1[0].blk[0], 30) && near(h1[0].blk[1], 30) && near(h1[0].blk[2], 6), 'block times are answering time: 30, 30 (the break left out) and 6 min (the 10-min pause left out)');
+ok((await txt('#bf-body .bf-where')).startsWith('Session 01 · 60 questions'), 'the summary names it Session 01');
+ok((await txt('#bf-hist .bf-hrow')).includes('Session 01') && (await txt('#bf-hist .bf-hrow')).includes('24 Oct 26') && (await txt('#bf-hist .bf-hstat')).startsWith('60/200 q'), 'history row: name, date, 60/200 questions');
+ok((await p.locator('#bf-hist .bf-hbars i').count()) === 10 && (await p.locator('#bf-hist .bf-hbars i.no').count()) === 6 && !(await p.locator('#bf-hist .bf-hbars i.over').count()), 'one bar per block; blocks not reached are faded, none ran over');
 await btn('New session').click();
 ok(await p.isVisible('#bf-start') && (await session()) === null, 'New session clears it');
 
 // custom run with a partial last block, then total expiry and overtime
 await p.click('[data-k="mode"] button[data-v="custom"]');
 await p.fill('#bf-q', '25'); await p.fill('#bf-pace', '60');
+ok((await p.getAttribute('#bf-name', 'placeholder')).includes('Session 02'), 'the name field suggests the next generic name');
+await p.fill('#bf-name', 'AMBOSS cardio');
 await p.click('#bf-start');
 ok((await txt('#bf-body .bf-where')) === 'Block 1 of 2 · Q1–20' && (await A()) === '20:00' && (await B()) === '0:25:00', 'custom: 25 questions at 60 s');
 await run(20 * M + 500);
@@ -172,7 +198,17 @@ await run(5 * M + 30000);
 ok((await st()) === 'Overtime' && (await B()).startsWith('+0:00:3') && await btn('Finish exam').isVisible(), 'total time up: Overtime, counting on, Finish exam offered');
 ok(!(await p.locator('#bf-body .bf-acts button', { hasText: 'Continue' }).count()), 'no Continue after the last block');
 await btn('Finish exam').click();
-ok((await st()) === 'Complete' && (await txt('#bf-body .bf-where')).startsWith('25 questions'), 'Finish exam');
+ok((await st()) === 'Complete' && (await txt('#bf-body .bf-where')).startsWith('AMBOSS cardio · 25 questions'), 'Finish exam; your name is kept');
+ok((await p.locator('#bf-hist .bf-hrow').count()) === 2 && (await txt('#bf-hist .bf-hrow .bf-hn')) === 'AMBOSS cardio', 'newest first in the history');
+// rename and delete (with undo)
+await p.click('#bf-hist .bf-hrow:nth-child(3) .bf-hn');
+await p.fill('#bf-hist .bf-hn-in', 'NBME 12'); await p.keyboard.press('Enter');
+h1 = Object.values((await hist()).sessions).find((r) => r.n === 1);
+ok(h1.name === 'NBME 12' && (await p.locator('#bf-hist .bf-hn', { hasText: 'NBME 12' }).count()) === 1, 'tap a name to rename it');
+await p.click('#bf-hist .bf-hrow:nth-child(2) .bf-hx');
+ok((await p.locator('#bf-hist .bf-hrow').count()) === 1 && Object.keys((await hist()).del).length === 1, 'delete leaves a tombstone (so it stays deleted after a sync)');
+await p.click('#toasts button:text("Undo")');
+ok((await p.locator('#bf-hist .bf-hrow').count()) === 2 && Object.keys((await hist()).sessions).length === 2, 'Undo brings it back');
 await btn('New session').click();
 
 // background-tab accuracy: with timers frozen for a long stretch, the clocks are right as soon as it ticks again
@@ -199,7 +235,7 @@ await p.setViewportSize({ width: 1280, height: 900 });
 const keys = await p.evaluate(() => Object.keys(localStorage));
 ok(keys.every((k) => k === 'ck-tracker' || k.startsWith('thundertracker:')), 'only ck-tracker and thundertracker:* keys in storage: ' + keys.join(', '));
 ok((await p.evaluate(() => localStorage.getItem('ck-tracker'))) === before, 'the tracker’s own data is untouched');
-await p.click('#timer-back');
+await p.click('#open-timer');
 ok(await p.isVisible('#view-overview') || await p.isVisible('#view-cms'), 'the rest of the app still works after');
 ok(!errs.length, 'no page errors' + (errs.length ? ': ' + errs.join(' | ') : ''));
 await b.close();

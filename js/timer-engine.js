@@ -39,7 +39,8 @@ export function plan(cfg) {
 export function start(cfg, now) {
   const p = plan(cfg);
   return { v: 1, mode: p.mode, q: p.q, segs: p.segs, total: p.total, seg: 0, phase: 'focus', paused: false,
-    a: clock(now), b: clock(now), brk: null, brkUsed: 0, breaks: 0, fired: {}, started: now, ended: null };
+    a: clock(now), b: clock(now), brk: null, brkUsed: 0, breaks: 0, fired: {}, started: now, ended: null,
+    name: String(cfg.name || '').trim().slice(0, 60), blk: [], bAt: 0, qd: 0 };
 }
 const last = (s) => s.seg === s.segs.length - 1;
 export const segLeft = (s, now) => s.segs[s.seg].dur - elapsed(s.a, now);
@@ -108,7 +109,7 @@ export function endBlock(s, now) {
 export function next(s, now) {
   if (!['end', 'break', 'over'].includes(s.phase)) return false;
   if (last(s)) return finish(s, now);
-  endBreak(s, now);
+  endBreak(s, now); blockDone(s, now);
   s.seg++; s.a = clock(now); run(s.b, now);
   s.phase = 'focus'; s.paused = false;
   return true;
@@ -132,10 +133,13 @@ export function extend(s, now, ms) {
 }
 export function finish(s, now) {
   if (s.phase === 'done') return false;
-  endBreak(s, now); stop(s.a, now); stop(s.b, now);
+  s.qd = qsDone(s);
+  endBreak(s, now); stop(s.a, now); stop(s.b, now); blockDone(s, now);
   s.phase = 'done'; s.paused = false; s.ended = now;
   return true;
 }
+// a block's answering time is the total clock's time from its start to the next block (breaks excluded)
+function blockDone(s, now) { if (!s.blk) return; const e = elapsed(s.b, now); s.blk[s.seg] = e - (s.bAt || 0); s.bAt = e; }
 function endBreak(s, now) { if (s.brk) { stop(s.brk.c, now); s.brkUsed += s.brk.c.acc; s.brk = null; } }
 
 // Questions behind you: every block before this one, plus this one once it's over.
@@ -161,3 +165,38 @@ export function fmtDur(ms) {
   const t = Math.round(ms / 1000), hh = Math.floor(t / 3600), mm = Math.floor((t % 3600) / 60), ss = t % 60;
   return [hh && hh + ' h', mm && mm + ' min', ss && ss + ' s'].filter(Boolean).join(' ') || '0 min';
 }
+
+// ---- Session history (synced as its own Drive file): one record per finished session, merged record by
+// record like the tracker's data: the newest `t` wins, a deletion leaves a tombstone in `del`.
+export function record(s, n) {
+  const used = elapsed(s.b, s.ended);
+  return { id: s.started.toString(36) + Math.random().toString(36).slice(2, 6), n, name: s.name || '', mode: s.mode, start: s.started, end: s.ended,
+    q: s.q, qd: s.qd, used, total: s.total, brk: s.brkUsed, breaks: s.breaks, blk: (s.blk || []).slice(0, s.segs.length),
+    plan: s.segs.map((g) => g.dur), t: s.ended };
+}
+const fin = (x, lo = 0) => (Number.isFinite(Number(x)) && Number(x) >= lo ? Number(x) : 0);
+export function normHistory(x) {
+  const out = { v: 1, sessions: {}, del: {} };
+  if (!x || typeof x !== 'object') return out;
+  for (const [id, r] of Object.entries(x.sessions || {})) {
+    if (!/^[a-z0-9]{4,24}$/.test(id) || !r || typeof r !== 'object' || !fin(r.start)) continue;
+    const nums = (a) => (Array.isArray(a) ? a.slice(0, 1000).map((v) => fin(v)) : []);
+    out.sessions[id] = { id, n: Math.round(fin(r.n)), name: typeof r.name === 'string' ? r.name.trim().slice(0, 60) : '', mode: r.mode === 'custom' ? 'custom' : 'nbme',
+      start: fin(r.start), end: fin(r.end), q: Math.round(fin(r.q)), qd: Math.round(fin(r.qd)), used: fin(r.used), total: fin(r.total), brk: fin(r.brk),
+      breaks: Math.round(fin(r.breaks)), blk: nums(r.blk), plan: nums(r.plan), t: fin(r.t) };
+  }
+  for (const [id, t] of Object.entries(x.del || {})) if (/^[a-z0-9]{4,24}$/.test(id) && fin(t)) out.del[id] = fin(t);
+  for (const id in out.del) if (out.sessions[id] && out.sessions[id].t <= out.del[id]) delete out.sessions[id];
+  return out;
+}
+export function mergeHistory(a, b) {
+  const m = { v: 1, sessions: {}, del: Object.assign({}, a.del) };
+  for (const [id, t] of Object.entries(b.del)) m.del[id] = Math.max(t, m.del[id] || 0);
+  for (const src of [a, b]) for (const [id, r] of Object.entries(src.sessions)) if (!m.sessions[id] || r.t > m.sessions[id].t) m.sessions[id] = r;
+  return normHistory(m);
+}
+// the next generic number (Session 01, 02 …)
+export const nextN = (hist) => Object.values(hist.sessions).reduce((x, r) => Math.max(x, r.n), 0) + 1;
+export const histName = (r) => r.name || 'Session ' + String(r.n).padStart(2, '0');
+const canon = (x) => JSON.stringify([Object.keys(x.sessions).sort().map((k) => x.sessions[k]), Object.keys(x.del).sort().map((k) => [k, x.del[k]])]);
+export const sameHistory = (a, b) => canon(a) === canon(b);
