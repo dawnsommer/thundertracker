@@ -231,6 +231,33 @@ await p.click('#bf-body .bf-foot button'); await p.click('#bf-body .bf-foot butt
 ok(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'setup fits too');
 await p.setViewportSize({ width: 1280, height: 900 });
 
+// many sessions: 3 beside the timer, all of them in a side panel that scrolls on its own
+await p.evaluate(() => {
+  const sessions = {};
+  for (let i = 1; i <= 100; i++) {
+    const start = Date.parse('2026-01-01T09:00:00') + i * 2.6e9 / 1;
+    sessions['seed' + String(i).padStart(3, '0')] = { id: 'seed' + String(i).padStart(3, '0'), n: i, name: i === 42 ? 'NBME 15' : '', mode: 'nbme', start, end: start + 1.8e7, q: 200, qd: 200,
+      used: 1.7e7, total: 1.8e7, brk: 6e5, breaks: 1, blk: [1.7e6], plan: [1.8e6], t: start + 1.8e7 };
+  }
+  localStorage.setItem('thundertracker:blockflow-history', JSON.stringify({ v: 1, sessions, del: {} }));
+});
+await p.reload(); await p.waitForSelector('#bf-hist .bf-hrow');
+const h3 = await p.evaluate(() => document.documentElement.scrollHeight);
+ok((await p.locator('#bf-hist .bf-hrow').count()) === 3 && (await txt('#bf-hist .bf-hall')) === 'All 100 sessions', '100 sessions: the column shows the latest 3 and “All 100 sessions”');
+ok(h3 < 1400, 'so the page stays short (' + h3 + ' px)');
+await p.click('#bf-hist .bf-hall');
+await p.waitForFunction(() => document.activeElement && document.activeElement.classList.contains('bf-hsearch'));
+ok((await p.locator('.sheet .bf-hrow').count()) === 100 && (await p.locator('.sheet .bf-hmonth').count()) > 5, 'the panel lists all 100, under month headings');
+ok(await p.evaluate(() => { const sh = document.querySelector('.sheet'); return sh.scrollHeight > sh.clientHeight; }) && (await p.evaluate(() => document.documentElement.scrollHeight)) === h3, 'the panel scrolls; the page doesn’t grow');
+await p.keyboard.type('nbme 15');
+ok((await p.locator('.sheet .bf-hrow').count()) === 1 && (await txt('.sheet .sub')).includes('1 shown'), 'search by name');
+await p.fill('.sheet .bf-hsearch', '');
+await p.locator('.sheet .bf-hrow .bf-hn').first().click();
+await p.keyboard.type('Latest one'); await p.keyboard.press('Enter');
+ok((await txt('.sheet .bf-hrow .bf-hn')) === 'Latest one' && (await txt('#bf-hist .bf-hrow .bf-hn')) === 'Latest one', 'rename in the panel updates the column too');
+await p.keyboard.press('Escape');
+ok(await p.isHidden('.sheet'), 'Esc closes the panel');
+
 // it only touches its own keys
 const keys = await p.evaluate(() => Object.keys(localStorage));
 ok(keys.every((k) => k === 'ck-tracker' || k.startsWith('thundertracker:')), 'only ck-tracker and thundertracker:* keys in storage: ' + keys.join(', '));

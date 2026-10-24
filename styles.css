@@ -951,5 +951,10 @@ html{scrollbar-gutter:stable} /* the timer page is short: keep the scrollbar's r
 .bf-hkey{display:flex;align-items:center;gap:5px;margin:8px 0 0;padding-top:10px;border-top:1px solid var(--line);font-size:.7rem}
 .bf-hkey i{width:8px;height:8px;border-radius:2px;background:var(--s2)}
 .bf-hkey i.over{background:var(--warn);margin-left:8px}
-.bf-hmore{align-self:flex-start;margin:6px 0 0}
+.bf-hall{justify-content:center;margin:2px 0 0;width:100%;font-size:.8rem;color:var(--brand)}
+.bf-hsearch{width:100%;padding:8px 10px;font-size:.88rem}
+.bf-hlist{display:flex;flex-direction:column}
+.bf-hmonth{padding:14px 0 2px}
+.bf-hmonth + .bf-hrow{border-top:0}
+.sheet .bf-hkey{margin-top:auto}
 @media (max-width:560px){.bf-go{flex-direction:column}.bf-name{padding:10px 12px}}

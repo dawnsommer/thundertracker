@@ -10,6 +10,7 @@
 import { $, fmtDate, h, svgIcon } from './util.js?v=20';
 import { toast, ui } from './store.js?v=20';
 import { showTab } from './shell.js?v=20';
+import { openSheet, sheetHead, sheetOpen } from './sheets.js?v=20';
 import * as T from './timer-engine.js?v=20';
 
 const CKEY = 'thundertracker:blockflow', SKEY = 'thundertracker:blockflow-session', HKEY = 'thundertracker:blockflow-history', MIN = 60000;
@@ -29,7 +30,7 @@ const pipOk = () => 'documentPictureInPicture' in window;
 export const live = () => !!(S && S.phase !== 'done');
 
 // ---- history: one record per finished session, merged record by record (timer-engine.js)
-let hist = T.normHistory(read(HKEY)), histAll = false, nameNext = '';
+let hist = T.normHistory(read(HKEY)), nameNext = '';
 const cloud = () => window.CKCloud || null; // not store.js's: this runs while store.js is still loading
 const saveHist = () => { write(HKEY, hist); if (cloud()) cloud().markDocDirty('blockflow'); drawHistory(); };
 if (cloud()) cloud().addDoc({ name: 'blockflow', file: 'thundertracker-blockflow.json', get: () => JSON.parse(JSON.stringify(hist)),
@@ -346,42 +347,69 @@ function setupView() {
   return root;
 }
 
-// ---- history list: newest first; tap a name to rename, × deletes (with undo)
+// ---- history: the 3 latest sessions beside the timer; all of them in a side panel that scrolls on its own
+// (so 100 sessions never make the page longer). Tap a name to rename, × deletes (with undo).
+const PEEK = 3;
+const histList = () => Object.values(hist.sessions).sort((a, b) => b.start - a.start);
+const histKey = () => h('p', { class: 'hint bf-hkey' }, h('i'), 'time per block against its plan', h('i', { class: 'over' }), 'ran over');
+function histRow(r) {
+  const qs = r.qd || r.q, spq = qs ? Math.round(r.used / 1000 / qs) : 0;
+  const name = h('button', { class: 'bf-hn', title: 'Rename', onclick: () => {
+    const inp = h('input', { class: 'bf-hn-in', type: 'text', maxlength: 60, value: r.name, placeholder: 'Session ' + String(r.n).padStart(2, '0'), 'aria-label': 'Session name' });
+    let done = false;
+    const fin = (ok) => { if (done) return; done = true; const v = inp.value.trim().slice(0, 60); if (ok && v !== r.name) { r.name = v; r.t = Math.max(Date.now(), r.t + 1); saveHist(); } else drawHistory(); };
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') fin(true); if (e.key === 'Escape') { e.stopPropagation(); fin(false); } });
+    inp.addEventListener('blur', () => fin(true));
+    name.replaceWith(inp); inp.focus(); inp.select();
+  } }, T.histName(r));
+  const bars = h('div', { class: 'bf-hbars', 'aria-hidden': 'true' }, r.plan.map((p, i) => {
+    const u = r.blk[i] || 0, x = p ? u / p : 0;
+    return h('i', { class: !u ? 'no' : x > 1.02 ? 'over' : '', title: 'Block ' + (i + 1) + ': ' + (u ? T.fmt(u) + ' of ' + T.fmt(p) : 'not reached') }, h('b', { style: 'height:' + Math.round(Math.min(1.3, x) / 1.3 * 100) + '%' }));
+  }));
+  return h('div', { class: 'bf-hrow', 'data-id': r.id },
+    h('div', { class: 'bf-hmain' }, name, h('span', { class: 'bf-hdate', text: fmtDate(dayOf(r.start)) + (r.mode === 'custom' ? ' · custom' : '') })),
+    h('div', { class: 'bf-hstat num' }, h('span', { text: qs + (qs < r.q ? '/' + r.q : '') + ' q · ' + spq + ' s/q' + (r.breaks ? ' · ' + plural(r.breaks, 'break') : '') }),
+      h('span', { text: T.fmt(r.used, true) + ' / ' + T.fmt(r.total, true) })),
+    bars,
+    h('button', { class: 'xs bf-hx', 'aria-label': 'Delete ' + T.histName(r), title: 'Delete', onclick: () => {
+      delete hist.sessions[r.id]; hist.del[r.id] = Math.max(Date.now(), r.t + 1); saveHist();
+      toast('Deleted ' + T.histName(r), () => { r.t = Math.max(Date.now(), hist.del[r.id] + 1); hist.sessions[r.id] = r; saveHist(); });
+    } }, '×'));
+}
 function drawHistory() {
+  if (sheetOpen && sheetOpen.key === 'bf-hist') sheetOpen.refresh();
   const box = ui.tab === 'timer' && $('bf-hist');
   if (!box) return;
-  const all = Object.values(hist.sessions).sort((a, b) => b.start - a.start);
+  const all = histList();
   const head = h('div', { class: 'bf-hhead' }, h('h3', { text: 'History' }), all.length ? h('span', { class: 'hint num', text: String(all.length) }) : null);
   if (!all.length) {
     box.replaceChildren(h('div', { class: 'card bf-hist' }, head, h('p', { class: 'hint bf-hempty', text: 'Finished sessions show up here with their date, pace and time per block. They sync with Google when you’re signed in.' })));
     return;
   }
-  const rows = (histAll ? all : all.slice(0, 8)).map((r) => {
-    const qs = r.qd || r.q, spq = qs ? Math.round(r.used / 1000 / qs) : 0;
-    const name = h('button', { class: 'bf-hn', title: 'Rename', onclick: () => {
-      const inp = h('input', { class: 'bf-hn-in', type: 'text', maxlength: 60, value: r.name, placeholder: 'Session ' + String(r.n).padStart(2, '0'), 'aria-label': 'Session name' });
-      let done = false;
-      const fin = (ok) => { if (done) return; done = true; const v = inp.value.trim().slice(0, 60); if (ok && v !== r.name) { r.name = v; r.t = Math.max(Date.now(), r.t + 1); saveHist(); } else drawHistory(); };
-      inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') fin(true); if (e.key === 'Escape') { e.stopPropagation(); fin(false); } });
-      inp.addEventListener('blur', () => fin(true));
-      name.replaceWith(inp); inp.focus(); inp.select();
-    } }, T.histName(r));
-    const bars = h('div', { class: 'bf-hbars', 'aria-hidden': 'true' }, r.plan.map((p, i) => {
-      const u = r.blk[i] || 0, x = p ? u / p : 0;
-      return h('i', { class: !u ? 'no' : x > 1.02 ? 'over' : '', title: 'Block ' + (i + 1) + ': ' + (u ? T.fmt(u) + ' of ' + T.fmt(p) : 'not reached') }, h('b', { style: 'height:' + Math.round(Math.min(1.3, x) / 1.3 * 100) + '%' }));
-    }));
-    return h('div', { class: 'bf-hrow', 'data-id': r.id },
-      h('div', { class: 'bf-hmain' }, name, h('span', { class: 'bf-hdate', text: fmtDate(dayOf(r.start)) + (r.mode === 'custom' ? ' · custom' : '') })),
-      h('div', { class: 'bf-hstat num' }, h('span', { text: qs + (qs < r.q ? '/' + r.q : '') + ' q · ' + spq + ' s/q' + (r.breaks ? ' · ' + plural(r.breaks, 'break') : '') }),
-        h('span', { text: T.fmt(r.used, true) + ' / ' + T.fmt(r.total, true) })),
-      bars,
-      h('button', { class: 'xs bf-hx', 'aria-label': 'Delete ' + T.histName(r), title: 'Delete', onclick: () => {
-        delete hist.sessions[r.id]; hist.del[r.id] = Math.max(Date.now(), r.t + 1); saveHist();
-        toast('Deleted ' + T.histName(r), () => { r.t = Math.max(Date.now(), hist.del[r.id] + 1); hist.sessions[r.id] = r; saveHist(); });
-      } }, '×'));
-  });
-  box.replaceChildren(h('div', { class: 'card bf-hist' }, head, rows,
-    h('p', { class: 'hint bf-hkey' }, h('i'), 'time per block against its plan', h('i', { class: 'over' }), 'ran over'), all.length > 8 ? h('button', { class: 'linkish bf-hmore', onclick: () => { histAll = !histAll; drawHistory(); } }, histAll ? 'Show fewer' : 'Show all ' + all.length) : null));
+  box.replaceChildren(h('div', { class: 'card bf-hist' }, head, all.slice(0, PEEK).map(histRow),
+    all.length > PEEK ? h('button', { class: 'btn ghost bf-hall', 'data-open': 'bf-hist', onclick: openHistory }, 'All ' + all.length + ' sessions') : null, histKey()));
+}
+// the full list: search by name, grouped by month, newest first
+const monthOf = ((f) => (ts) => f.format(new Date(ts)))(new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric' }));
+function openHistory() {
+  let q = '';
+  const list = h('div', { class: 'bf-hlist' });
+  const search = h('input', { type: 'search', class: 'sel bf-hsearch', placeholder: 'Search by name', 'aria-label': 'Search sessions by name', oninput: (e) => { q = e.target.value.trim().toLowerCase(); draw(); } });
+  const count = h('p', { class: 'sub' });
+  function draw() {
+    const all = histList(), shown = q ? all.filter((r) => T.histName(r).toLowerCase().includes(q)) : all;
+    count.textContent = plural(all.length, 'session') + (q ? ' · ' + shown.length + ' shown' : '');
+    const kids = [];
+    let month = '';
+    for (const r of shown) {
+      const m = monthOf(r.start);
+      if (m !== month) { month = m; kids.push(h('div', { class: 'eyebrow bf-hmonth', text: m })); }
+      kids.push(histRow(r));
+    }
+    list.replaceChildren(...(kids.length ? kids : [h('p', { class: 'hint', text: all.length ? 'No session matches “' + q + '”.' : 'No sessions yet.' })]));
+  }
+  draw();
+  openSheet('bf-hist', 'Session history', [sheetHead('BlockFlow', 'History'), count, search, list, histKey()], draw, '.bf-hsearch');
 }
 const dayOf = (ts) => { const d = new Date(ts); return new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
 
