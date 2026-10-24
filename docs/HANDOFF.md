@@ -1,8 +1,8 @@
 # Handoff: state of Thunder tracker (23 Oct 2026)
 
-**Live:** version 19 at https://dawnsommer.github.io/thundertracker/ (deployed 24 Oct 2026). All checks pass locally and on GitHub Actions.  
+**Live:** version 20 at https://dawnsommer.github.io/thundertracker/ (deployed 24 Oct 2026). All checks pass locally and on GitHub Actions.  
 Version 17 added the Passive study card on the overview and redesigned the AMBOSS articles card.  
-**Version 19 (24 Oct 2026)** added the BlockFlow exam timer (18) and its simplified setup card (19): summary numbers, a block strip that is also the break planner, one options row, the rest under More.
+**Versions 18–20 (24 Oct 2026)** added the BlockFlow exam timer (18), its simplified setup card (19), and its synced session history, two-column layout and the scrollbar-jump fix (20).
 
 Rules, architecture and conventions are in `CLAUDE.md`; user docs are in `README.md`.
 
