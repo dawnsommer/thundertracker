@@ -5,10 +5,10 @@
 // read the same session, so there is only ever one timer.
 // Local only (not synced): settings in thundertracker:blockflow, the session in thundertracker:blockflow-session.
 
-import { $, h, svgIcon } from './util.js?v=18';
-import { toast, ui } from './store.js?v=18';
-import { showTab } from './shell.js?v=18';
-import * as T from './timer-engine.js?v=18';
+import { $, h, svgIcon } from './util.js?v=19';
+import { toast, ui } from './store.js?v=19';
+import { showTab } from './shell.js?v=19';
+import * as T from './timer-engine.js?v=19';
 
 const CKEY = 'thundertracker:blockflow', SKEY = 'thundertracker:blockflow-session', MIN = 60000;
 const DEF = { mode: 'nbme', q: 40, pace: 90, per: 20, total: '', brk: 5, ext: 5, planned: [], auto: false, warn: 0, sound: true, vol: 70, notify: false, display: 'page' };
@@ -260,63 +260,68 @@ function confirmBtn(label, sure, fn) {
   return b;
 }
 
+// The setup: mode, what the plan comes to, the blocks (tap one to plan a break after it), the few
+// options you change often; the rest under More. Typing never rebuilds the inputs: refresh() redraws around them.
 function setupView() {
   const set = (k, v) => { cfg[k] = v; saveCfg(); refresh(); };
-  const seg = (k, choices) => h('div', { class: 'seg mode', role: 'group' }, choices.map(([v, label, dis]) =>
-    h('button', { 'aria-pressed': cfg[k] === v ? 'true' : 'false', 'data-v': v, disabled: dis || null, onclick: () => { set(k, v); root.querySelectorAll('[data-k="' + k + '"] button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === v ? 'true' : 'false')); } }, label)));
-  const numField = (k, label, attrs, hint) => h('div', { class: 'field' }, h('label', { for: 'bf-' + k, text: label }),
-    h('input', Object.assign({ id: 'bf-' + k, type: 'number', inputmode: 'numeric', value: cfg[k], oninput: (e) => set(k, e.target.value === '' ? '' : Number(e.target.value)) }, attrs)), hint ? h('p', { class: 'hint', text: hint }) : null);
-  const modeSeg = seg('mode', [['nbme', 'NBME'], ['custom', 'Custom · AMBOSS, qbanks']]); modeSeg.dataset.k = 'mode';
-  const custom = h('div', { class: 'bf-grid', id: 'bf-custom' },
-    numField('q', 'Questions', { min: 1, max: 1000 }), numField('pace', 'Seconds per question', { min: 5, max: 900 }),
-    numField('per', 'Questions per block', { min: 1, max: 1000 }), numField('total', 'Total time (min)', { min: 1, max: 1440, placeholder: 'from the pace' }, 'Optional: shared across the blocks'));
-  const preview = h('div', { class: 'bf-plan', id: 'bf-plan' }), breaks = h('div', { class: 'toolbar', id: 'bf-breaks' });
-  const startBtn = h('button', { class: 'btn primary bf-start', id: 'bf-start', onclick: begin });
+  const seg = (k, choices) => h('div', { class: 'seg mode', role: 'group', 'data-k': k }, choices.map(([v, label, dis]) =>
+    h('button', { 'data-v': v, disabled: dis || null, onclick: () => set(k, v) }, label)));
+  const num = (k, label, attrs) => h('label', { class: 'bf-num' }, h('span', { text: label }),
+    h('input', Object.assign({ id: 'bf-' + k, type: 'number', inputmode: 'numeric', value: cfg[k], oninput: (e) => set(k, e.target.value === '' ? '' : Number(e.target.value)) }, attrs)));
+  const row = (label, ...ctl) => h('div', { class: 'bf-mrow' }, h('span', { text: label }), h('span', { class: 'bf-mctl' }, ctl));
+  const sum = h('div', { class: 'bf-sum', id: 'bf-sum' }), strip = h('div', { class: 'bf-strip', id: 'bf-breaks' });
+  const note = h('span', { class: 'hint bf-note' });
+  const soundBtn = h('button', { class: 'icon-btn sm', id: 'bf-sound', onclick: () => { set('sound', !cfg.sound); setVol(); if (cfg.sound) audio(); } });
+  const vol = h('input', { type: 'range', min: 0, max: 100, value: cfg.vol, 'aria-label': 'Volume', class: 'bf-vol', oninput: (e) => { cfg.vol = Number(e.target.value); saveCfg(); setVol(); } });
+  const test = (type, label) => h('button', { class: 'pill', onclick: () => { const c = audio(); if (c) c.resume().then(() => play(type)).catch(() => {}); } }, label);
   const notifyNote = h('span', { class: 'hint' });
   const notifyBox = h('input', { type: 'checkbox', id: 'bf-notify', checked: cfg.notify || null, onchange: async (e) => {
     if (e.target.checked && window.Notification && Notification.permission === 'default') await Notification.requestPermission().catch(() => {});
-    set('notify', e.target.checked && !!window.Notification && Notification.permission === 'granted'); e.target.checked = cfg.notify; notes();
+    set('notify', e.target.checked && !!window.Notification && Notification.permission === 'granted'); e.target.checked = cfg.notify;
   } });
-  const notes = () => { notifyNote.textContent = !window.Notification ? 'Not available in this browser' : Notification.permission === 'denied' ? 'Blocked in the browser’s site settings' : 'Shown when the page is in the background'; notifyBox.disabled = !window.Notification || Notification.permission === 'denied'; };
-  const dispSeg = seg('display', [['page', 'In page'], ['pip', 'Picture-in-picture', !pipOk()]]); dispSeg.dataset.k = 'display';
-  const test = (type, label) => h('button', { class: 'pill', onclick: () => { const c = audio(); if (c) c.resume().then(() => play(type)).catch(() => {}); } }, label);
-  const vol = h('input', { type: 'range', min: 0, max: 100, value: cfg.vol, 'aria-label': 'Volume', class: 'bf-vol', oninput: (e) => { cfg.vol = Number(e.target.value); saveCfg(); setVol(); } });
+  const startBtn = h('button', { class: 'btn primary bf-start', id: 'bf-start', onclick: begin });
   const root = h('div', { class: 'card bf-setup' },
-    modeSeg,
-    h('p', { class: 'sub', id: 'bf-nbme-note', text: '200 questions in 10 blocks of 20, 30 minutes each, 5 hours in all. The blocks are pacing marks, not NBME’s own four sections of 50.' }),
-    custom, preview,
-    h('div', { class: 'bf-sec' }, h('h3', { text: 'Breaks' }),
-      h('div', { class: 'bf-grid' }, numField('brk', 'Break length (min)', { min: 1, max: 120 }), numField('ext', 'Extend by (min)', { min: 1, max: 60 })),
-      h('div', { class: 'field' }, h('span', { class: 'lab', text: 'Planned breaks: after block' }), breaks,
-        h('p', { class: 'hint', text: 'A planned break becomes the main button when that block ends. You can take a break after any block; it pauses the total.' }))),
-    h('div', { class: 'bf-sec bf-opts' },
-      h('div', { class: 'bf-opt' }, h('span', { class: 'lab', text: 'Sound' }),
-        h('label', { class: 'switch' }, h('input', { type: 'checkbox', id: 'bf-sound', checked: cfg.sound || null, onchange: (e) => { set('sound', e.target.checked); setVol(); if (cfg.sound) audio(); } }), 'On'), vol,
-        h('span', { class: 'toolbar bf-tests' }, h('span', { class: 'hint', text: 'Test' }), test('segEnd', 'Block end'), test('breakEnd', 'Break end'), test('totalEnd', 'Time up'), test('warn', 'Warning'))),
-      h('div', { class: 'bf-opt' }, h('span', { class: 'lab', text: 'Display' }), dispSeg,
-        h('span', { class: 'hint', text: pipOk() ? 'Picture-in-picture floats the timer above other windows.' : 'Picture-in-picture needs desktop Chrome or Edge.' }))),
-    h('details', { class: 'bf-adv', id: 'bf-adv' }, h('summary', { text: 'More options' }),
-      h('div', { class: 'bf-grid' },
-        h('div', { class: 'field' }, h('label', { for: 'bf-warn', text: 'Warning before a block ends' }),
-          h('select', { id: 'bf-warn', onchange: (e) => set('warn', Number(e.target.value)) }, [0, 1, 2, 5].map((m) => h('option', { value: m, selected: cfg.warn === m || null }, m ? m + ' min' : 'Off'))))),
-      h('label', { class: 'switch' }, h('input', { type: 'checkbox', id: 'bf-auto', checked: cfg.auto || null, onchange: (e) => set('auto', e.target.checked) }), 'Automatic: when a block ends, start its planned break or the next block by itself'),
-      h('label', { class: 'switch' }, notifyBox, 'Browser notifications', notifyNote)),
+    h('div', { class: 'bf-top' }, seg('mode', [['nbme', 'NBME'], ['custom', 'Custom']]), note),
+    sum,
+    h('div', { class: 'bf-custom', id: 'bf-custom' }, num('q', 'Questions', { min: 1, max: 1000 }), num('pace', 'Sec / question', { min: 5, max: 900 }),
+      num('per', 'Per block', { min: 1, max: 1000 }), num('total', 'Total min', { min: 1, max: 1440, placeholder: 'auto' })),
+    h('div', { class: 'bf-blocks' }, h('div', { class: 'bf-blocks-h' }, h('span', { class: 'lab', text: 'Blocks' }), h('span', { class: 'hint', text: 'Tap a block to plan a break after it' })), strip),
+    h('div', { class: 'bf-opts' },
+      h('label', { class: 'bf-inl' }, 'Break', h('input', { id: 'bf-brk', type: 'number', inputmode: 'numeric', min: 1, max: 120, value: cfg.brk, oninput: (e) => set('brk', Number(e.target.value) || 5) }), 'min'),
+      h('span', { class: 'bf-inl' }, soundBtn, vol),
+      seg('display', [['page', 'In page'], ['pip', 'Floating', !pipOk()]])),
+    h('details', { class: 'bf-more', id: 'bf-adv' }, h('summary', { text: 'More' }),
+      row('Extend a break by', h('label', { class: 'bf-inl' }, h('input', { id: 'bf-ext', type: 'number', inputmode: 'numeric', min: 1, max: 60, value: cfg.ext, oninput: (e) => set('ext', Number(e.target.value) || 5) }), 'min')),
+      row('Warn before a block ends', h('select', { class: 'sel', id: 'bf-warn', onchange: (e) => set('warn', Number(e.target.value)) }, [0, 1, 2, 5].map((m) => h('option', { value: m, selected: cfg.warn === m || null }, m ? m + ' min' : 'Off')))),
+      row('Start planned breaks and next blocks by themselves', h('input', { type: 'checkbox', id: 'bf-auto', class: 'bf-check', checked: cfg.auto || null, onchange: (e) => set('auto', e.target.checked), 'aria-label': 'Automatic' })),
+      row('Notify when the page is in the background', notifyNote, notifyBox),
+      row('Test sounds', test('segEnd', 'Block'), test('breakEnd', 'Break'), test('totalEnd', 'Time up'), test('warn', 'Warning'))),
     startBtn);
   function refresh() {
     const p = T.plan(cfg), n = p.segs.length, nb = cfg.mode === 'nbme';
+    root.querySelectorAll('[data-k] button').forEach((b) => b.setAttribute('aria-pressed', cfg[b.parentNode.dataset.k] === b.dataset.v ? 'true' : 'false'));
     root.querySelector('#bf-custom').hidden = nb;
-    root.querySelector('#bf-nbme-note').hidden = !nb;
-    preview.replaceChildren(h('b', { text: plural(n, 'block') + ' · ' + T.fmtDur(p.total) }),
-      ...p.segs.slice(0, 24).map((g) => h('span', { text: 'Q' + g.q0 + (g.q1 > g.q0 ? '–' + g.q1 : '') + ' · ' + T.fmt(g.dur) })), n > 24 ? h('span', { text: '…' }) : null);
-    preview.hidden = nb;
-    const keep = cfg.planned.filter((x) => x < n);
-    if (keep.length !== cfg.planned.length) { cfg.planned = keep; saveCfg(); }
-    breaks.replaceChildren(...Array.from({ length: Math.min(n - 1, 60) }, (_, i) => i + 1).map((b) => h('button', { class: 'pill num', 'aria-pressed': cfg.planned.includes(b) ? 'true' : 'false', 'aria-label': 'Break after block ' + b,
-      onclick: (e) => { cfg.planned = cfg.planned.includes(b) ? cfg.planned.filter((x) => x !== b) : cfg.planned.concat(b).sort((x, y) => x - y); saveCfg(); e.target.setAttribute('aria-pressed', cfg.planned.includes(b) ? 'true' : 'false'); } }, String(b))));
-    if (n < 2) breaks.replaceChildren(h('span', { class: 'hint', text: 'Only one block' }));
-    startBtn.textContent = 'Start ' + (nb ? 'NBME' : 'session') + ' · ' + plural(p.q, 'question');
+    note.textContent = nb ? 'Blocks are pacing marks, not NBME’s 4 sections' : 'AMBOSS, UWorld or any qbank';
+    const equal = p.segs.every((g) => g.dur === p.segs[0].dur);
+    sum.replaceChildren(...[[p.q, 'questions'], [n, (n === 1 ? 'block' : 'blocks') + (equal ? ' of ' + T.fmt(p.segs[0].dur) : '')], [T.fmt(p.total, true), 'total']]
+      .map(([v, l]) => h('div', null, h('b', { text: String(v) }), h('span', { text: l }))));
+    if (cfg.planned.some((x) => x >= n)) { cfg.planned = cfg.planned.filter((x) => x < n); saveCfg(); }
+    strip.classList.toggle('dense', n > 16);
+    strip.replaceChildren(...p.segs.map((g, i) => {
+      const on = cfg.planned.includes(i + 1), lastOne = i === n - 1, range = 'Q' + g.q0 + (g.q1 > g.q0 ? '–' + g.q1 : '') + ' · ' + T.fmt(g.dur);
+      return h('button', { style: 'flex:' + (g.q1 - g.q0 + 1), 'data-b': i + 1, class: on ? 'brk' : '', disabled: lastOne || null, title: range,
+        'aria-pressed': lastOne ? null : on ? 'true' : 'false', 'aria-label': 'Block ' + (i + 1) + ', ' + range + (lastOne ? '' : ', break after'),
+        onclick: () => { cfg.planned = on ? cfg.planned.filter((x) => x !== i + 1) : cfg.planned.concat(i + 1).sort((x, y) => x - y); saveCfg(); refresh(); } }, String(i + 1));
+    }));
+    soundBtn.innerHTML = cfg.sound ? ICON.sound : ICON.mute;
+    soundBtn.setAttribute('aria-pressed', cfg.sound ? 'false' : 'true');
+    soundBtn.setAttribute('aria-label', cfg.sound ? 'Sound on: tap to mute' : 'Sound off: tap to turn on');
+    vol.disabled = !cfg.sound;
+    notifyNote.textContent = !window.Notification ? 'Not available here' : Notification.permission === 'denied' ? 'Blocked in site settings' : '';
+    notifyBox.disabled = !window.Notification || Notification.permission === 'denied';
+    startBtn.textContent = 'Start · ' + plural(p.q, 'question') + ' · ' + T.fmt(p.total, true);
   }
-  refresh(); notes();
+  refresh();
   return root;
 }
 

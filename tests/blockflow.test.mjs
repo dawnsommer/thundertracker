@@ -37,17 +37,21 @@ await p.goto(BASE + '#timer');
 ok(await p.isVisible('#bf-body .bf-setup'), 'a direct link to #timer works');
 
 // setup: NBME default, custom plan preview with a partial last block
-ok((await txt('#bf-start')) === 'Start NBME · 200 questions' && await p.isHidden('#bf-custom'), 'NBME is the default: 200 questions');
-ok((await p.locator('#bf-breaks .pill').count()) === 9, 'planned breaks can follow blocks 1–9');
+ok((await txt('#bf-start')) === 'Start · 200 questions · 5:00:00' && await p.isHidden('#bf-custom'), 'NBME is the default: 200 questions, 5 hours');
+ok(/200\s*questions/.test(await txt('#bf-sum')) && (await txt('#bf-sum')).includes('blocks of 30:00') && (await txt('#bf-sum')).includes('5:00:00'), 'summary: 200 questions, 10 blocks of 30:00, 5:00:00');
+ok((await p.locator('#bf-breaks button').count()) === 10 && (await p.locator('#bf-breaks button:not([disabled])').count()) === 9, 'a strip of 10 blocks; a break can follow blocks 1–9');
 await p.click('[data-k="mode"] button[data-v="custom"]');
 await p.fill('#bf-q', '45');
-ok((await txt('#bf-plan')).startsWith('3 blocks · 1 h 7 min 30 s') && (await txt('#bf-plan')).includes('Q41–45 · 7:30'), 'custom 45 at 90 s: 3 blocks, last one 7:30, 67:30 in all');
+const titles = () => p.locator('#bf-breaks button').evaluateAll((bs) => bs.map((x) => x.title));
+ok((await titles()).join() === 'Q1–20 · 30:00,Q21–40 · 30:00,Q41–45 · 7:30' && (await txt('#bf-sum')).includes('1:07:30'), 'custom 45 at 90 s: 3 blocks, last one 7:30, 1:07:30 in all');
+ok(await p.locator('#bf-breaks button').nth(2).evaluate((x) => x.offsetWidth < x.previousElementSibling.offsetWidth / 2), 'the short last block is drawn short');
 await p.fill('#bf-total', '60');
-ok((await txt('#bf-plan')).includes('Q1–20 · 26:40') && (await txt('#bf-plan')).includes('1 h'), 'a total override is shared out: 26:40 per 20 questions');
+ok((await titles())[0] === 'Q1–20 · 26:40' && (await txt('#bf-sum')).includes('1:00:00'), 'a total override is shared out: 26:40 per 20 questions');
 await p.fill('#bf-total', '');
-ok((await p.locator('#bf-breaks .pill').count()) === 2, 'planned-break choices follow the number of blocks');
+ok((await p.locator('#bf-breaks button:not([disabled])').count()) === 2, 'planned-break choices follow the number of blocks');
 await p.click('[data-k="mode"] button[data-v="nbme"]');
-await p.click('#bf-breaks .pill >> text="2"');
+await p.click('#bf-breaks button[data-b="2"]');
+ok((await p.getAttribute('#bf-breaks button[data-b="2"]', 'aria-pressed')) === 'true', 'tapping block 2 plans a break after it');
 const cfg = await p.evaluate(() => JSON.parse(localStorage.getItem('thundertracker:blockflow')));
 ok(cfg.mode === 'nbme' && cfg.q === 45 && cfg.planned.join() === '2', 'settings saved locally under thundertracker:blockflow');
 await p.screenshot({ path: S + '/blockflow-setup.png', fullPage: true });

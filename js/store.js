@@ -1,10 +1,10 @@
 // Live state, saving to this browser, undo snapshots, toasts and the light/dark theme.
 
-import { $, clone, h, svgIcon } from './util.js?v=18';
-import { KEY } from './catalog.js?v=18';
-import { blank, norm, normSys, same, stamp, stampAll } from './model.js?v=18';
-import { refreshSheet } from './sheets.js?v=18';
-import { render, renderNotice } from './shell.js?v=18';
+import { $, clone, h, svgIcon } from './util.js?v=19';
+import { KEY } from './catalog.js?v=19';
+import { blank, norm, normSys, same, stamp, stampAll } from './model.js?v=19';
+import { refreshSheet } from './sheets.js?v=19';
+import { render, renderNotice } from './shell.js?v=19';
 
 export let state = blank();
 export const ui = { tab: 'overview', subj: 'all', st: 'all', addingFor: null, focusAdd: false, editForms: false, logAll: false, heatDay: '', weakAll: false, prevTab: 'overview', artArrange: false, calcOpen: false,
