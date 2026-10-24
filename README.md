@@ -34,6 +34,8 @@ The overview page brings this together:
 
 The printer button in the header (or `p`, or Settings → **Print summary**) prints a **one-page summary**: test date, target and outlook, every assessment with its score and weak systems, planned forms, the score trend, CMS by subject, qbanks, recurring weak systems and articles. It always prints black on white, even in dark mode, and your browser's own Print gives the same page.
 
+The stopwatch in the header (or `b`) opens **BlockFlow**, an exam timer for NBMEs and qbank blocks with exactly two clocks. Timer A counts each 20-question block down (30 minutes in NBME mode, 10 blocks for 200 questions); timer B counts your total answering time (5 hours) and keeps running from block to block. When a block's time is up it chimes; choose **Continue** (the next block starts at once) or **Take break** (the total pauses and timer A counts the break down; when the break ends it chimes again and the total stays paused until you start the next block or extend the break). You can finish a block early, pause at any point (Space), and plan breaks after particular blocks. **Custom** mode splits any number of questions into blocks at your pace (90 s per question by default), or shares out a total time you set. Sounds (block end, break end, time up, an optional warning) have a volume and a test button; browser notifications are optional. In desktop Chrome or Edge the timer can float above other windows (picture-in-picture), from the start or mid-session. The session is saved in this browser only (not synced): it survives a reload or a closed tab, and the clocks work from timestamps, so a background tab or a sleeping computer can't make them drift. A yellow dot on the stopwatch means a session is running.
+
 Use the moon/sun button in the header (or press `t`) to switch between light mode, dark mode and matching your device. **Settings** (the gear, or `,`) is a full page covering your plan, Google sync, appearance, qbanks, backup and import, shortcuts and erasing data.
 
 ## Your data
@@ -84,7 +86,7 @@ python3 -m http.server 8000
 
 ### Tests
 
-Browser tests live in `tests/` and run in a real Chromium against the static files. They cover the app, Google sync and version history (against a stand-in Worker and Drive), the sync merge on its own (`tests/merge.test.mjs`), the service worker's caching (repeat loads, deploys, slow networks), fixes found in reviews (`tests/regressions.test.mjs`), the built-in score conversions (`tests/score-models.test.mjs`, against their published expected values), the score calculator and planner, the printed summary (including a one-page check on Letter and A4), Exam Simulator import (with a made-up backup built by `tests/fixtures/sim-backup.mjs`), qbanks, articles, the weakness matrix, settings, app updates and sign-in errors.
+Browser tests live in `tests/` and run in a real Chromium against the static files. They cover the app, Google sync and version history (against a stand-in Worker and Drive), the sync merge on its own (`tests/merge.test.mjs`), the service worker's caching (repeat loads, deploys, slow networks), fixes found in reviews (`tests/regressions.test.mjs`), the built-in score conversions (`tests/score-models.test.mjs`, against their published expected values), the score calculator and planner, the printed summary (including a one-page check on Letter and A4), Exam Simulator import (with a made-up backup built by `tests/fixtures/sim-backup.mjs`), qbanks, articles, the weakness matrix, settings, app updates, sign-in errors, and the BlockFlow timer (`tests/timer-engine.test.mjs` for its clocks on their own, `tests/blockflow.test.mjs` for the page, with a fake clock).
 
 ```sh
 npm install
@@ -106,6 +108,7 @@ npm test -- sync core             # only tests whose file names start with these
 | `js/overview.js`, `js/assessments.js`, `js/cms.js`, `js/systems.js`, `js/qbank.js`, `js/articles.js`, `js/settings.js` | One module per page |
 | `js/passive.js`, `js/passive-catalog.js` | The Passive study tab and what it tracks |
 | `js/score-models.js`, `js/calculator.js`, `js/planner.js`, `js/print.js` | Built-in score conversions; score calculator and estimates; planned dates and calendar file; one-page printed summary |
+| `js/blockflow.js`, `js/timer-engine.js` | The BlockFlow exam timer (page, picture-in-picture, sounds, saving); its clock maths |
 | `js/sim-import.js`, `js/backup.js`, `js/updates.js` | Exam Simulator import; backup and CSV; app updates |
 | `js/config.js`, `js/cloud.js` | Public cloud settings; optional Google sign-in and Drive sync |
 | `sw.js` | Service worker for offline use |

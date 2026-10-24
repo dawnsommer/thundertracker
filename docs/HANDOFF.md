@@ -1,7 +1,8 @@
 # Handoff: state of Thunder tracker (23 Oct 2026)
 
 **Live:** version 17 at https://dawnsommer.github.io/thundertracker/. `main` = `1d1ff68` (plus these docs). All 474 checks pass locally and on GitHub Actions.  
-Version 17 added the Passive study card on the overview and redesigned the AMBOSS articles card.
+Version 17 added the Passive study card on the overview and redesigned the AMBOSS articles card.  
+**Not deployed yet:** version 18 on `claude/quirky-tesla-ttlai0` adds the BlockFlow exam timer (see below); deploy when the user says so.
 
 Rules, architecture and conventions are in `CLAUDE.md`; user docs are in `README.md`.
 
@@ -16,6 +17,7 @@ Rules, architecture and conventions are in `CLAUDE.md`; user docs are in `README
 | AMBOSS articles | Checklist with 5 read-throughs, custom articles and sections, arrange, grid/list view. |
 | Overview | Countdown, outlook and projection, trend chart, CMS bars, Up next, activity calendar (with planned days), weakness matrix (shaded by errors·unstable on assessments, % on qbanks). Right of the matrix: AMBOSS articles card (ring, read-through mix, section bars split by read-throughs, last read) and, when unlocked, the Passive study summary card (`pvSummary()` in passive.js, shared with the Passive tab). |
 | Passive study | Hidden tab, unlocked with a code in Settings → Extras (synced; Hide keeps progress). Divine Intervention (6 sections, 37 episodes from the user's checklist docx, add-ons and optional left out), PHYSEO (6 parts), plus **your own sections or podcasts and episodes**. 5 boxes each, notes switch, overview. Not part of Up next, the pace or the tiles; its summary card shows on the overview. |
+| BlockFlow timer | Header stopwatch (or `b`) → `#timer` page (like Settings, not a tab). NBME mode (200 q, 10 × 20-q blocks of 30 min, 300 min, NBME section marks at Q50/100/150) and Custom (questions, s/question, per block, optional total shared by questions). Two clocks only: A = block, then the break countdown; B = total, paused through breaks and break overrun. Continue / Take break / Extend / finish early / pause (Space) / End (two taps). Planned breaks, optional auto mode, warning, Web Audio chimes pre-scheduled on the audio clock, notifications, Document PiP. `js/timer-engine.js` (pure) + `js/blockflow.js`. Local only: `thundertracker:blockflow(-session)`; a Web Lock picks one tab to sound alerts; other tabs follow via storage events. |
 | Data | localStorage first; optional Google Drive sync (shared ThunderShadow sign-in) with daily version history (10 kept, restore in Settings); JSON and CSV backups; Exam Simulator import; printable one-page summary (`p`). |
 | Performance | Cache-first versioned files (repeat load: 1 request), module preloads, cached date formatters (overview 26 → 10 ms). |
 

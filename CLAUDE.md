@@ -7,7 +7,7 @@ The repo is **public**. Read `docs/HANDOFF.md` for the current state, history an
 - **Never commit personal data.** That includes the user's Exam Simulator backup, real scores and uploaded files; use the synthetic fixture in `tests/fixtures/sim-backup.mjs`. No secrets in the frontend (`js/config.js` holds only public settings).
 - **Don't write the Passive study unlock code anywhere in the repo.** It's checked as a hash in `js/passive.js`; the user knows it.
 - **Shared origin.** dawnsommer.github.io also hosts ThunderShadow and other apps, and they all share one localStorage and one Cache Storage. This app only touches:
-  - the `ck-tracker` localStorage key and `thundertracker:*` keys;
+  - the `ck-tracker` localStorage key and `thundertracker:*` keys (BlockFlow: `thundertracker:blockflow` settings and `thundertracker:blockflow-session`, local only, not synced);
   - Drive appDataFolder files named `thundertracker-*`;
   - caches named `ck-tracker-*`.
 
@@ -22,7 +22,7 @@ The repo is **public**. Read `docs/HANDOFF.md` for the current state, history an
 - Modules (one per concern):
   - Core: `util` (helpers, `h()` element builder, cached date formatters), `catalog` (forms, CMS subjects, systems, resources, version), `model` (data shape: `norm`, change stamps, `merge`, `REC`), `store` (live `state`, `save`, `flush`, `toast`, `ui`), `data` (derived lists and stats), `sheets` (side panels, weak-system picker), `shell` (tabs, `render()`, `tabsNow()`).
   - One module per page: `overview`, `assessments`, `cms`, `systems`, `qbank`, `articles`, `settings`, `passive` (data in `passive-catalog`).
-  - Features: `calculator` plus `score-models` (score estimates), `planner` (planned dates, .ics), `print` (one-page summary), `sim-import` (Exam Simulator), `backup`, `updates` (service worker registration, update notice, Reload latest version).
+  - Features: `calculator` plus `score-models` (score estimates), `planner` (planned dates, .ics), `print` (one-page summary), `sim-import` (Exam Simulator), `backup`, `updates` (service worker registration, update notice, Reload latest version), `blockflow` (the exam timer page `#timer`, opened from the header stopwatch; one session, saved locally, drawn in the page and an optional Document Picture-in-Picture window) with its pure clock maths in `timer-engine` (timestamps, never tick counting; Node-tested).
   - Cycles are fine: function declarations are hoisted. Reassign another module's state only through its setters (`setState`, `setSaved`, `setSettingsRefresh`).
 - **Rendering.** `render()` redraws the visible tab from `state`. Sheets redraw through their `refresh` callback; settings through `settingsRefresh`, which must not interrupt typing. `ui` holds view-only state; `state.prefs` is saved.
 - **Saving.** `save()` batches for 300 ms, then `flush()`: stamp, write localStorage, then `cloud().markDirty()`.

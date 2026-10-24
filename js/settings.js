@@ -1,17 +1,17 @@
 // The Settings page.
 
-import { $, daysUntil, fmtDate, fmtLong, fmtN, fmtPct, h, isDate, plural } from './util.js?v=17';
-import { APP_VERSION } from './catalog.js?v=17';
-import { blank, norm, stampAll } from './model.js?v=17';
-import { applyTheme, cloud, save, setState, snapshot, state, toast, ui } from './store.js?v=17';
-import { qbStats } from './data.js?v=17';
-import { numField, refreshSheet } from './sheets.js?v=17';
-import { render, showTab, tabsNow } from './shell.js?v=17';
-import { openQbank } from './qbank.js?v=17';
-import { exportCsv, exportJson } from './backup.js?v=17';
-import { reloadLatest } from './updates.js?v=17';
-import { printSummary } from './print.js?v=17';
-import { codeOk, passiveOn } from './passive.js?v=17';
+import { $, daysUntil, fmtDate, fmtLong, fmtN, fmtPct, h, isDate, plural } from './util.js?v=18';
+import { APP_VERSION } from './catalog.js?v=18';
+import { blank, norm, stampAll } from './model.js?v=18';
+import { applyTheme, cloud, save, setState, snapshot, state, toast, ui } from './store.js?v=18';
+import { qbStats } from './data.js?v=18';
+import { numField, refreshSheet } from './sheets.js?v=18';
+import { render, showTab, tabsNow } from './shell.js?v=18';
+import { openQbank } from './qbank.js?v=18';
+import { exportCsv, exportJson } from './backup.js?v=18';
+import { reloadLatest } from './updates.js?v=18';
+import { printSummary } from './print.js?v=18';
+import { codeOk, passiveOn } from './passive.js?v=18';
 
 // Built once each time you open it; live parts redraw through settingsRefresh so typing isn't interrupted.
 export let settingsRefresh = null;
@@ -170,7 +170,7 @@ export function buildSettings() {
 
   const keysDl = h('dl', { class: 'keys' });
   // the tab count changes when Passive study is unlocked
-  const drawKeys = () => keysDl.replaceChildren(...[['1 – ' + tabsNow().length, 'Switch tabs'], [',', 'Open settings'], ['t', 'Light / dark'], ['p', 'Print a one-page summary'], ['Esc', 'Close a panel, or leave settings'], ['← →', 'Move between tabs (when a tab is focused)']]
+  const drawKeys = () => keysDl.replaceChildren(...[['1 – ' + tabsNow().length, 'Switch tabs'], [',', 'Open settings'], ['b', 'BlockFlow exam timer (Space pauses it there)'], ['t', 'Light / dark'], ['p', 'Print a one-page summary'], ['Esc', 'Close a panel, or leave settings'], ['← →', 'Move between tabs (when a tab is focused)']]
     .flatMap(([k, d]) => [h('dt', null, h('kbd', { text: k })), h('dd', { text: d })]));
   const SECTIONS = [
     ['set-plan', 'Plan'], ['set-sync', 'Google sync'], ['set-look', 'Appearance'], ['set-qbanks', 'Qbanks'],
