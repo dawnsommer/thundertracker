@@ -1,10 +1,10 @@
 // Live state, saving to this browser, undo snapshots, toasts and the light/dark theme.
 
-import { $, clone, h, svgIcon } from './util.js?v=20';
-import { KEY } from './catalog.js?v=20';
-import { blank, norm, normSys, same, stamp, stampAll } from './model.js?v=20';
-import { refreshSheet } from './sheets.js?v=20';
-import { render, renderNotice } from './shell.js?v=20';
+import { $, clone, h, svgIcon } from './util.js?v=21';
+import { KEY } from './catalog.js?v=21';
+import { blank, norm, normSys, same, stamp, stampAll } from './model.js?v=21';
+import { refreshSheet } from './sheets.js?v=21';
+import { render, renderNotice } from './shell.js?v=21';
 
 export let state = blank();
 export const ui = { tab: 'overview', subj: 'all', st: 'all', addingFor: null, focusAdd: false, editForms: false, logAll: false, heatDay: '', weakAll: false, prevTab: 'overview', artArrange: false, calcOpen: false,
@@ -13,7 +13,7 @@ export let saveTimer = null, storageOk = true, storageMsg = '';
 export let saved = blank(); // copy of what is in storage, used to stamp what changed
 export const cloud = () => window.CKCloud || null;
 
-export const item = (id) => state.items[id] || { status: 0, score: '', pct: '', date: '', notes: '', weak: [], weakPct: {}, weakN: {}, plan: '' };
+export const item = (id) => state.items[id] || { status: 0, score: '', pct: '', date: '', notes: '', weak: [], weakPct: {}, weakN: {}, plan: '', retake: null };
 export const sysItem = (id) => state.systems[id] || normSys(null);
 
 // Header status: local save state first, then Google sync state when signed in.

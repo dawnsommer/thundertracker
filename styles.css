@@ -612,6 +612,11 @@ button.wm-row:hover{background:color-mix(in srgb,var(--hl-soft) 40%,transparent)
 .err-line:empty{display:none}
 .row .sc b.est{color:var(--muted);font-weight:500;font-style:italic}
 .est-line{margin-top:-8px}
+/* a retake of a form: under the first attempt in the editor, and "↻ 256 · 78%" under the score in the list */
+.retake-box:empty{display:none}
+.retake-box .two{margin-bottom:12px}
+.retake-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.row .sc small.retake{color:var(--brand);overflow-wrap:anywhere}
 .est-line:empty{display:none}
 .row .dt.plan{color:var(--brand)}
 .row .dt.overdue{color:var(--warn)}

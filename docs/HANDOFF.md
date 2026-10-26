@@ -1,4 +1,4 @@
-# Handoff: state of Thunder tracker (23 Oct 2026)
+# Handoff: state of Thunder tracker (26 Oct 2026)
 
 **Live:** version 20 at https://dawnsommer.github.io/thundertracker/ (deployed 24 Oct 2026). All checks pass locally and on GitHub Actions.  
 Version 17 added the Passive study card on the overview and redesigned the AMBOSS articles card.  
@@ -9,7 +9,7 @@ Rules, architecture and conventions are in `CLAUDE.md`; user docs are in `README
 ## What exists (built Oct 2026, roughly in order)
 | Area | What it does |
 |---|---|
-| Assessments | NBME 6–16, UWSA 1–3, Free 120 (2019/2021/2023), AMBOSS SA 1. Score, %, date, status, notes (own line under weak systems), weak systems with errors/unstable counts. **Edit list** removes and restores forms (scores kept). Planned dates, spread plan, .ics export. |
+| Assessments | NBME 6–16, UWSA 1–3, Free 120 (2019/2021/2023), AMBOSS SA 1. Score, %, date, status, notes (own line under weak systems), weak systems with errors/unstable counts. **Edit list** removes and restores forms (scores kept). Planned dates, spread plan, .ics export. **Retakes** (one per form, `retake` on the item: score, %, date): shown under the first attempt as ↻ in the list; the stats, trend and outlook keep using the first attempt. |
 | Score calculator | Assessments tab, hidden until opened. Built-in unofficial per-form conversions (`js/score-models.js`): Excel formulas for NBME 6–8, NBMEScore.com for 9–15 (plus Reddit fits for 15), NBMEcalc chart for 16, two sources each for UWSA 1/2, the user's formula for Free 120 2023. Sources side by side, choose one per form, user conversions, a fit to the user's own forms. Expected values tested. |
 | CMS | 8 subjects, Oct 2026 releases (Neuro 10–11, EM 4, FM 6–7); retired forms count as older (hidden unless taken or Show older forms). Edit list. |
 | Systems | Status, confidence, UWorld %, notes. **Resources** picker (Sketchy, CKNotes, Inner Circle, Self-Made Notes, UWincorrects, Bootcamp Notes, FirstAid; synced; default: the first 3). |

@@ -1,14 +1,14 @@
 // The Assessments tab (NBME, UWSA, Free 120) and the assessment editor.
 
-import { $, avg, daysUntil, fmtDate, fmtPct, h, isDate, nn, num, today } from './util.js?v=20';
-import { FORM_ST, GROUPS } from './catalog.js?v=20';
-import { item, save, snapshot, state, toast, ui } from './store.js?v=20';
-import { addForm, band, pctOf, scaledOf, taken, testForms, toggleRemove, weakNames } from './data.js?v=20';
-import { closeSheet, numField, openSheet, sheetHead, weakPicker } from './sheets.js?v=20';
-import { render } from './shell.js?v=20';
-import { statusPill } from './overview.js?v=20';
-import { estimateScore, estText, toggleCalculator } from './calculator.js?v=20';
-import { modelsFor } from './score-models.js?v=20';
+import { $, avg, daysUntil, fmtDate, fmtPct, h, isDate, nn, num, today } from './util.js?v=21';
+import { FORM_ST, GROUPS } from './catalog.js?v=21';
+import { item, save, snapshot, state, toast, ui } from './store.js?v=21';
+import { addForm, band, pctOf, scaledOf, taken, testForms, toggleRemove, weakNames } from './data.js?v=21';
+import { closeSheet, numField, openSheet, sheetHead, weakPicker } from './sheets.js?v=21';
+import { render } from './shell.js?v=21';
+import { statusPill } from './overview.js?v=21';
+import { estimateScore, estText, toggleCalculator } from './calculator.js?v=21';
+import { modelsFor } from './score-models.js?v=21';
 
 export function renderTests() {
   const eb = $('edit-tests');
@@ -40,8 +40,9 @@ export function renderTests() {
       // no 3-digit score yet: show an estimate from % correct, if one is available
       const est = s3 == null && p != null ? estimateScore(f, p) : null;
       const planned = !taken(f) && it.plan, overdue = planned && daysUntil(it.plan) < 0;
+      const re = it.retake ? retakeLines(g, it.retake) : [];
       return h('button', { class: 'row', 'data-open': f.id, onclick: () => openForm(f),
-        'aria-label': f.full + ', ' + FORM_ST[it.status] + (s3 != null ? ', score ' + s3 : '') + (p != null ? ', ' + fmtPct(p) + ' correct' : '') },
+        'aria-label': f.full + ', ' + FORM_ST[it.status] + (s3 != null ? ', score ' + s3 : '') + (p != null ? ', ' + fmtPct(p) + ' correct' : '') + (re.length ? ', retake ' + re.join(', ') : '') },
         h('span', { class: 'nm' }, f.label, f.old ? h('span', { class: 'old', text: 'older' }) : null),
         h('span', { style: 'min-width:0' }, statusPill(it.status, FORM_ST),
           // weak systems, then your notes on their own line
@@ -50,7 +51,8 @@ export function renderTests() {
         h('span', { class: 'sc' + (main == null && p == null ? ' none' : '') },
           g.scaled && est ? h('b', { class: 'est', title: 'Estimated from % correct (' + est.how + ')', text: '≈' + est.score })
             : g.scaled ? h('b', { class: band('score', s3), text: s3 != null ? String(s3) : '—' }) : h('b', { text: p != null ? fmtPct(p) : '—' }),
-          g.scaled && p != null ? h('small', { text: fmtPct(p) }) : !g.scaled && est ? h('small', { class: 'est', title: 'Estimated 3-digit score (' + est.how + ')', text: '≈' + est.score }) : null),
+          g.scaled && p != null ? h('small', { text: fmtPct(p) }) : !g.scaled && est ? h('small', { class: 'est', title: 'Estimated 3-digit score (' + est.how + ')', text: '≈' + est.score }) : null,
+          ...re.map((t) => h('small', { class: 'retake', title: 'Retake', text: t }))),
         planned ? h('span', { class: 'dt plan' + (overdue ? ' overdue' : ''), title: overdue ? 'Planned date has passed' : 'Planned', text: (overdue ? 'was ' : 'plan ') + fmtDate(it.plan) })
           : h('span', { class: 'dt', text: fmtDate(it.date) }));
     });
@@ -77,6 +79,14 @@ export function renderTests() {
       h('p', { class: 'sub', text: g.desc }),
       h('div', { class: 'rows' }, rows, ui.editTests ? null : add));
   }));
+}
+
+// A retake's lines under the first attempt: "↻ 256" then "78%" (the score only for 3-digit forms; a % alone gets the ↻)
+function retakeLines(g, r) {
+  const s = g.scaled ? num(r.score) : null, p = num(r.pct), out = [];
+  if (s != null) out.push('↻ ' + s);
+  if (p != null) out.push(s != null ? fmtPct(p) : '↻ ' + fmtPct(p));
+  return out;
 }
 
 export function openForm(f) {
@@ -118,6 +128,34 @@ export function openForm(f) {
   notesIn.addEventListener('input', () => patch({ notes: notesIn.value }));
   drawStep(); drawConv();
 
+  // a retake of this form: its own score, % and date. The first attempt above stays what the stats use.
+  const reBox = h('div', { class: 'retake-box' });
+  let reKey = '', reIn = null;
+  const reKeyOf = () => (cur().retake ? 'on' : cur().status > 0 ? 'add' : '');
+  const reSet = (p) => patch({ retake: Object.assign({ score: '', pct: '', date: '' }, cur().retake, p) });
+  const drawRetake = () => {
+    reKey = reKeyOf(); reIn = null;
+    if (reKey === 'add') {
+      reBox.replaceChildren(h('button', { class: 'linkish', onclick: () => { patch({ retake: { score: '', pct: '', date: today() } }); drawRetake(); } }, '+ Add retake'));
+      return;
+    }
+    if (!reKey) { reBox.replaceChildren(); return; }
+    const r = cur().retake;
+    const rScore = scaled ? numField('ed-re-score', 'Retake score', { inputmode: 'numeric', step: '1', placeholder: 'e.g. 252', value: r.score }, 1, 300, true,
+      (raw) => reSet({ score: raw })) : null;
+    const rPct = numField('ed-re-pct', 'Retake % correct', { inputmode: 'decimal', step: 'any', placeholder: scaled ? 'e.g. 78' : 'e.g. 85', value: r.pct }, 0, 100, false,
+      (raw) => reSet({ pct: raw }));
+    const rDate = h('input', { type: 'date', id: 'ed-re-date', value: r.date });
+    rDate.addEventListener('change', () => reSet({ date: isDate(rDate.value) }));
+    const rDateField = h('div', { class: 'field' }, h('label', { for: 'ed-re-date', text: 'Retake date' }), rDate);
+    reIn = { score: rScore && rScore.inp, pct: rPct.inp, date: rDate };
+    reBox.replaceChildren(
+      h('div', { class: 'retake-head' }, h('span', { class: 'lab', text: 'Retake' }),
+        h('button', { class: 'linkish', onclick: () => { const undo = snapshot(); patch({ retake: null }); drawRetake(); toast(f.full + ' retake removed', undo); } }, 'Remove retake')),
+      scaled ? h('div', { class: 'two' }, rScore.field, rPct.field) : h('div', { class: 'two' }, rPct.field, rDateField),
+      scaled ? rDateField : null);
+  };
+
   const dateField = h('div', { class: 'field' }, h('label', { for: 'ed-date', text: 'Date taken' }), dateIn);
   const planIn = isCms ? null : h('input', { type: 'date', id: 'ed-plan', value: cur().plan });
   if (planIn) planIn.addEventListener('change', () => patch({ plan: isDate(planIn.value) }));
@@ -141,6 +179,7 @@ export function openForm(f) {
     scaled ? h('div', { class: 'two' }, score.field, pct.field) : h('div', { class: 'two' }, pct.field, dateField),
     scaled ? h('div', { class: 'two' }, dateField, planField) : planField ? h('div', { class: 'two' }, planField, h('div')) : null,
     conv, estLine,
+    reBox,
     weakBox ? h('div', { class: 'field' }, h('span', { class: 'lab', text: 'Weak systems in this form' }), weakBox,
       h('p', { class: 'hint', text: 'Tap the systems you missed most. Systems that keep coming up across forms show on the overview.' })) : null,
     h('div', { class: 'field' }, h('label', { for: 'ed-notes', text: 'Notes' }), notesIn),
@@ -152,8 +191,16 @@ export function openForm(f) {
     if (a !== dateIn) dateIn.value = cur().date;
     if (planIn && a !== planIn) planIn.value = cur().plan;
     if (a !== notesIn) notesIn.value = cur().notes;
+    // a retake added, removed (or undone) rebuilds its block; otherwise only the values are kept in step
+    if (reKeyOf() !== reKey) drawRetake();
+    else if (reIn) {
+      if (reIn.score && a !== reIn.score) reIn.score.value = cur().retake.score;
+      if (a !== reIn.pct) reIn.pct.value = cur().retake.pct;
+      if (a !== reIn.date) reIn.date.value = cur().retake.date;
+    }
     drawStep(); drawConv(); drawWeak();
   }, scaled ? '#ed-score' : '#ed-pct');
+  drawRetake();
 }
 $('calc-btn').addEventListener('click', () => toggleCalculator());
 $('edit-tests').addEventListener('click', () => { ui.editTests = !ui.editTests; ui.addingFor = null; render(); });

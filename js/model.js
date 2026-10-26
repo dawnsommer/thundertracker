@@ -1,13 +1,20 @@
 // The saved data shape: normalising old saves and imported files, change stamps, and the record-by-record merge used by Google sync.
 
-import { arr, clone, ID_RE, inRange, int, ints, isDate, num, obj, safeUrl, stampOf, str, uid } from './util.js?v=20';
-import { GROUPS, MERGE, PASSES, QBANKS, RESOURCES, RESOURCES_DEFAULT, SUBJ } from './catalog.js?v=20';
-import { PV_PASSES } from './passive-catalog.js?v=20';
+import { arr, clone, ID_RE, inRange, int, ints, isDate, num, obj, safeUrl, stampOf, str, uid } from './util.js?v=21';
+import { GROUPS, MERGE, PASSES, QBANKS, RESOURCES, RESOURCES_DEFAULT, SUBJ } from './catalog.js?v=21';
+import { PV_PASSES } from './passive-catalog.js?v=21';
 
 export function normItem(x) {
   x = obj(x);
   return { status: int(x.status, 0, 3), score: str(x.score, 12), pct: str(x.pct, 12), date: isDate(x.date), notes: str(x.notes),
-    weak: weakList(x.weak), weakPct: weakPcts(x.weakPct), weakN: weakCounts(x.weakN), plan: isDate(x.plan), t: stampOf(x.t) };
+    weak: weakList(x.weak), weakPct: weakPcts(x.weakPct), weakN: weakCounts(x.weakN), plan: isDate(x.plan), retake: normRetake(x.retake), t: stampOf(x.t) };
+}
+// A re-attempt of a form you've taken: its own score, % and date. The first attempt stays in `score`/`pct`/`date`
+// and is what the stats use; null when there's no retake.
+export function normRetake(x) {
+  x = obj(x);
+  const r = { score: str(x.score, 12), pct: str(x.pct, 12), date: isDate(x.date) };
+  return r.score || r.pct || r.date ? r : null;
 }
 // weak systems, and the optional % correct you scored in each (shades the weakness matrix)
 const weakList = (w) => [...new Set(arr(w).filter((x) => typeof x === 'string' && ID_RE.test(x)))].slice(0, 60);
