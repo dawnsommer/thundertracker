@@ -1,8 +1,8 @@
 // The saved data shape: normalising old saves and imported files, change stamps, and the record-by-record merge used by Google sync.
 
-import { arr, clone, ID_RE, inRange, int, ints, isDate, num, obj, safeUrl, stampOf, str, uid } from './util.js?v=21';
-import { GROUPS, MERGE, PASSES, QBANKS, RESOURCES, RESOURCES_DEFAULT, SUBJ } from './catalog.js?v=21';
-import { PV_PASSES } from './passive-catalog.js?v=21';
+import { arr, clone, ID_RE, inRange, int, ints, isDate, num, obj, safeUrl, stampOf, str, uid } from './util.js?v=22';
+import { GROUPS, MERGE, PASSES, QBANKS, RESOURCES, RESOURCES_DEFAULT, SUBJ } from './catalog.js?v=22';
+import { PV_PASSES } from './passive-catalog.js?v=22';
 
 export function normItem(x) {
   x = obj(x);

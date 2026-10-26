@@ -1,14 +1,14 @@
 // The Assessments tab (NBME, UWSA, Free 120) and the assessment editor.
 
-import { $, avg, daysUntil, fmtDate, fmtPct, h, isDate, nn, num, today } from './util.js?v=21';
-import { FORM_ST, GROUPS } from './catalog.js?v=21';
-import { item, save, snapshot, state, toast, ui } from './store.js?v=21';
-import { addForm, band, pctOf, scaledOf, taken, testForms, toggleRemove, weakNames } from './data.js?v=21';
-import { closeSheet, numField, openSheet, sheetHead, weakPicker } from './sheets.js?v=21';
-import { render } from './shell.js?v=21';
-import { statusPill } from './overview.js?v=21';
-import { estimateScore, estText, toggleCalculator } from './calculator.js?v=21';
-import { modelsFor } from './score-models.js?v=21';
+import { $, avg, daysUntil, fmtDate, fmtPct, h, isDate, nn, num, today } from './util.js?v=22';
+import { FORM_ST, GROUPS } from './catalog.js?v=22';
+import { item, save, snapshot, state, toast, ui } from './store.js?v=22';
+import { addForm, band, pctOf, scaledOf, taken, testForms, toggleRemove, weakNames } from './data.js?v=22';
+import { closeSheet, numField, openSheet, sheetHead, weakPicker } from './sheets.js?v=22';
+import { render } from './shell.js?v=22';
+import { statusPill } from './overview.js?v=22';
+import { estimateScore, estText, toggleCalculator } from './calculator.js?v=22';
+import { modelsFor } from './score-models.js?v=22';
 
 export function renderTests() {
   const eb = $('edit-tests');
@@ -40,9 +40,9 @@ export function renderTests() {
       // no 3-digit score yet: show an estimate from % correct, if one is available
       const est = s3 == null && p != null ? estimateScore(f, p) : null;
       const planned = !taken(f) && it.plan, overdue = planned && daysUntil(it.plan) < 0;
-      const re = it.retake ? retakeLines(g, it.retake) : [];
+      const rp = it.retake ? retakeParts(g, it.retake) : null;
       return h('button', { class: 'row', 'data-open': f.id, onclick: () => openForm(f),
-        'aria-label': f.full + ', ' + FORM_ST[it.status] + (s3 != null ? ', score ' + s3 : '') + (p != null ? ', ' + fmtPct(p) + ' correct' : '') + (re.length ? ', retake ' + re.join(', ') : '') },
+        'aria-label': f.full + ', ' + FORM_ST[it.status] + (s3 != null ? ', score ' + s3 : '') + (p != null ? ', ' + fmtPct(p) + ' correct' : '') + (rp ? ', retake' + (rp.s != null ? ' ' + rp.s : '') + (rp.p != null ? ', ' + fmtPct(rp.p) + ' correct' : '') : '') },
         h('span', { class: 'nm' }, f.label, f.old ? h('span', { class: 'old', text: 'older' }) : null),
         h('span', { style: 'min-width:0' }, statusPill(it.status, FORM_ST),
           // weak systems, then your notes on their own line
@@ -51,10 +51,9 @@ export function renderTests() {
         h('span', { class: 'sc' + (main == null && p == null ? ' none' : '') },
           g.scaled && est ? h('b', { class: 'est', title: 'Estimated from % correct (' + est.how + ')', text: '≈' + est.score })
             : g.scaled ? h('b', { class: band('score', s3), text: s3 != null ? String(s3) : '—' }) : h('b', { text: p != null ? fmtPct(p) : '—' }),
-          g.scaled && p != null ? h('small', { text: fmtPct(p) }) : !g.scaled && est ? h('small', { class: 'est', title: 'Estimated 3-digit score (' + est.how + ')', text: '≈' + est.score }) : null,
-          ...re.map((t) => h('small', { class: 'retake', title: 'Retake', text: t }))),
+          g.scaled && p != null ? h('small', { text: fmtPct(p) }) : !g.scaled && est ? h('small', { class: 'est', title: 'Estimated 3-digit score (' + est.how + ')', text: '≈' + est.score }) : null),
         planned ? h('span', { class: 'dt plan' + (overdue ? ' overdue' : ''), title: overdue ? 'Planned date has passed' : 'Planned', text: (overdue ? 'was ' : 'plan ') + fmtDate(it.plan) })
-          : h('span', { class: 'dt', text: fmtDate(it.date) }));
+          : h('span', { class: 'dt', text: fmtDate(it.date) }), it.retake ? retakeRow(g, it.retake) : null);
     });
     let add;
     if (ui.addingFor === g.key) {
@@ -81,12 +80,19 @@ export function renderTests() {
   }));
 }
 
-// A retake's lines under the first attempt: "↻ 256" then "78%" (the score only for 3-digit forms; a % alone gets the ↻)
-function retakeLines(g, r) {
-  const s = g.scaled ? num(r.score) : null, p = num(r.pct), out = [];
-  if (s != null) out.push('↻ ' + s);
-  if (p != null) out.push(s != null ? fmtPct(p) : '↻ ' + fmtPct(p));
-  return out;
+// a retake's score (3-digit forms only) and % correct; null where it isn't there
+function retakeParts(g, r) {
+  return { s: g.scaled ? num(r.score) : null, p: num(r.pct) };
+}
+// the retake on a line under the first attempt: the same columns (score, %, date), in the brand colour
+function retakeRow(g, r) {
+  const { s, p } = retakeParts(g, r);
+  return h('span', { class: 'retake-row', title: 'Retake' },
+    h('span', { class: 'nm', text: '↻ Retake' }),
+    h('span', { class: 'mid' }),
+    h('span', { class: 'sc' }, h('b', { class: 'rt', text: s != null ? String(s) : p != null ? fmtPct(p) : '—' }),
+      s != null && p != null ? h('small', { text: fmtPct(p) }) : null),
+    h('span', { class: 'dt', text: fmtDate(r.date) }));
 }
 
 export function openForm(f) {

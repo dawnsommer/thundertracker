@@ -1,19 +1,19 @@
 // Tabs, routing and the top-level render.
 
-import { $, fmtK, h, sum } from './util.js?v=21';
-import { TABS } from './catalog.js?v=21';
-import { state, storageMsg, sysItem, ui } from './store.js?v=21';
-import { allArticles, allCms, allSystems, allTests, artItem, taken } from './data.js?v=21';
-import { closeSheet, sheetOpen } from './sheets.js?v=21';
-import { renderOverview } from './overview.js?v=21';
-import { renderTests } from './assessments.js?v=21';
-import { renderCms } from './cms.js?v=21';
-import { renderSystems } from './systems.js?v=21';
-import { renderArticles } from './articles.js?v=21';
-import { renderQbank } from './qbank.js?v=21';
-import { passiveOn, pvStats, renderPassive } from './passive.js?v=21';
-import { renderTimer } from './blockflow.js?v=21';
-import { buildSettings, setSettingsRefresh, settingsRefresh } from './settings.js?v=21';
+import { $, fmtK, h, sum } from './util.js?v=22';
+import { TABS } from './catalog.js?v=22';
+import { state, storageMsg, sysItem, ui } from './store.js?v=22';
+import { allArticles, allCms, allSystems, allTests, artItem, taken } from './data.js?v=22';
+import { closeSheet, sheetOpen } from './sheets.js?v=22';
+import { renderOverview } from './overview.js?v=22';
+import { renderTests } from './assessments.js?v=22';
+import { renderCms } from './cms.js?v=22';
+import { renderSystems } from './systems.js?v=22';
+import { renderArticles } from './articles.js?v=22';
+import { renderQbank } from './qbank.js?v=22';
+import { passiveOn, pvStats, renderPassive } from './passive.js?v=22';
+import { renderTimer } from './blockflow.js?v=22';
+import { buildSettings, setSettingsRefresh, settingsRefresh } from './settings.js?v=22';
 
 export const VIEWS = TABS.concat('passive', 'settings', 'timer');
 // the tabs in the strip right now: Passive study only once it's unlocked in Settings → Extras

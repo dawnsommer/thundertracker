@@ -2,6 +2,7 @@
 // keeps driving the stats. Pure checks first (the data shape and sync), then the editor and list in the browser.
 import { chromium } from 'playwright';
 import { merge, norm, stamp } from '../js/model.js?v=test';
+import { fmtDate } from '../js/util.js?v=test';
 
 const BASE = process.env.BASE_URL; // the app, served by tests/run.mjs
 const S = process.env.OUT_DIR;
@@ -39,7 +40,12 @@ await p.reload(); await p.waitForTimeout(200);
 await p.keyboard.press('2'); // Assessments
 
 const row = () => p.locator('[data-open="nbme-12"]').textContent();
-const retakeLines = () => p.locator('[data-open="nbme-12"] small.retake').allTextContents();
+// the retake line under the first attempt: [score, %, date], or [] when there's none
+const retakeLines = async () => {
+  const r = p.locator('[data-open="nbme-12"] .retake-row');
+  if (!(await r.count())) return [];
+  return [await r.locator('b.rt').textContent(), await r.locator('.sc small').textContent(), await r.locator('.dt').textContent()];
+};
 ok((await retakeLines()).length === 0, 'no retake line before one is added');
 await p.click('[data-open="nbme-12"]');
 await p.waitForSelector('.retake-box .linkish');
@@ -59,19 +65,20 @@ await p.fill('#ed-re-score', '252');
 await p.keyboard.press('Escape');
 await p.waitForTimeout(100);
 const lines = await retakeLines();
-ok(JSON.stringify(lines) === '["↻ 252","78%"]', 'the list shows the retake under the first attempt: ' + JSON.stringify(lines));
+ok(lines[0] === '252' && lines[1] === '78%' && lines[2] === fmtDate(d(0)), 'the list shows the retake on its own line: score, %, date: ' + JSON.stringify(lines));
 ok((await row()).includes('240') && (await row()).includes('70%'), 'and still shows the first attempt');
 const stat = await p.textContent('.group:has([data-open="nbme-12"]) .stat');
 ok(stat.includes('avg 240'), 'group average uses the first attempt only: ' + stat.replace(/\s+/g, ' '));
 
 // survives a reload
 await p.reload(); await p.waitForTimeout(200); await p.keyboard.press('2');
-ok((await retakeLines()).join() === '↻ 252,78%', 'retake still shown after reload');
+ok((await retakeLines()).slice(0, 2).join() === '252,78%', 'retake still shown after reload');
 
 // a phone: the list fits without sideways scroll
 await p.setViewportSize({ width: 390, height: 844 });
 await p.waitForTimeout(150);
 ok(await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'no sideways scroll at phone width');
+ok(await p.locator('[data-open="nbme-12"] .retake-row .dt').isVisible(), 'the retake date shows at phone width');
 await p.locator('#tests').screenshot({ path: S + '/retake-phone.png' });
 await p.setViewportSize({ width: 1280, height: 900 });
 await p.waitForTimeout(150);

@@ -1,27 +1,27 @@
 // Entry point: keyboard shortcuts and start-up. Loads every other module.
 
-import { clone } from './util.js?v=21';
-import { merge, norm, same } from './model.js?v=21';
-import { applyTheme, cloud, cycleTheme, flush, load, paintStatus, persistQuiet, saveTimer, setSave, setSaved, setState, state, storageOk, toast, ui } from './store.js?v=21';
-import { closeSheet, refreshSheet, sheetOpen } from './sheets.js?v=21';
-import { render, renderNotice, showTab, tabsNow, VIEWS } from './shell.js?v=21';
-import { drawTrend } from './overview.js?v=21';
-import { leaveSettings, openSettings, settingsRefresh } from './settings.js?v=21';
+import { clone } from './util.js?v=22';
+import { merge, norm, same } from './model.js?v=22';
+import { applyTheme, cloud, cycleTheme, flush, load, paintStatus, persistQuiet, saveTimer, setSave, setSaved, setState, state, storageOk, toast, ui } from './store.js?v=22';
+import { closeSheet, refreshSheet, sheetOpen } from './sheets.js?v=22';
+import { render, renderNotice, showTab, tabsNow, VIEWS } from './shell.js?v=22';
+import { drawTrend } from './overview.js?v=22';
+import { leaveSettings, openSettings, settingsRefresh } from './settings.js?v=22';
 
-import './data.js?v=21';
-import './assessments.js?v=21';
-import './cms.js?v=21';
-import './systems.js?v=21';
-import './articles.js?v=21';
-import './qbank.js?v=21';
-import './sim-import.js?v=21';
-import './backup.js?v=21';
-import './updates.js?v=21';
-import './calculator.js?v=21';
-import './planner.js?v=21';
-import './passive.js?v=21';
-import { openTimer } from './blockflow.js?v=21';
-import { printSummary } from './print.js?v=21';
+import './data.js?v=22';
+import './assessments.js?v=22';
+import './cms.js?v=22';
+import './systems.js?v=22';
+import './articles.js?v=22';
+import './qbank.js?v=22';
+import './sim-import.js?v=22';
+import './backup.js?v=22';
+import './updates.js?v=22';
+import './calculator.js?v=22';
+import './planner.js?v=22';
+import './passive.js?v=22';
+import { openTimer } from './blockflow.js?v=22';
+import { printSummary } from './print.js?v=22';
 
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && sheetOpen) { closeSheet(); return; }

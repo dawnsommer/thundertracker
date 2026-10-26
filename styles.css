@@ -612,11 +612,22 @@ button.wm-row:hover{background:color-mix(in srgb,var(--hl-soft) 40%,transparent)
 .err-line:empty{display:none}
 .row .sc b.est{color:var(--muted);font-weight:500;font-style:italic}
 .est-line{margin-top:-8px}
-/* a retake of a form: under the first attempt in the editor, and "↻ 256 · 78%" under the score in the list */
+/* a retake of a form: in the editor under the first attempt, and in the list a line under it, in the same columns */
 .retake-box:empty{display:none}
 .retake-box .two{margin-bottom:12px}
 .retake-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
-.row .sc small.retake{color:var(--brand);overflow-wrap:anywhere}
+.row .retake-row{grid-column:1/-1;display:grid;grid-template-columns:7.25rem minmax(0,1fr) 5.5rem 6.5rem;gap:12px;align-items:center}
+.row .retake-row .nm{font-weight:600;color:var(--brand)}
+.row .retake-row .mid{display:block}
+.row .retake-row .sc{align-items:flex-end}
+.row .retake-row .sc b.rt{color:var(--brand);font-weight:600}
+.row .retake-row .dt{display:block;text-align:right}
+@media (max-width:560px){
+  .row .retake-row{grid-template-columns:6.6rem minmax(0,1fr) 3.8rem;gap:10px}
+  .row .retake-row .mid{display:none}
+  .row .retake-row .sc{grid-column:3;grid-row:1}
+  .row .retake-row .dt{grid-column:1;grid-row:2;text-align:left}
+}
 .est-line:empty{display:none}
 .row .dt.plan{color:var(--brand)}
 .row .dt.overdue{color:var(--warn)}
