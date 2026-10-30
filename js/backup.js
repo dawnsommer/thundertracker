@@ -1,14 +1,14 @@
 // Backup export/import and CSV export.
 
-import { $, h, today } from './util.js?v=22';
-import { FORM_ST, GROUPS, PASSES, SUBJ, SYS_ST } from './catalog.js?v=22';
-import { norm, stampAll } from './model.js?v=22';
-import { applyTheme, cloud, flush, item, save, setState, snapshot, state, sysItem, toast } from './store.js?v=22';
-import { allSystems, artItem, bankStats, cmsForms, testForms, weakNames } from './data.js?v=22';
-import { refreshSheet } from './sheets.js?v=22';
-import { render } from './shell.js?v=22';
-import { orderedSections } from './articles.js?v=22';
-import { importSimulator } from './sim-import.js?v=22';
+import { $, h, today } from './util.js?v=23';
+import { FORM_ST, GROUPS, PASSES, SUBJ, SYS_ST } from './catalog.js?v=23';
+import { norm, stampAll } from './model.js?v=23';
+import { applyTheme, cloud, flush, item, save, setState, snapshot, state, sysItem, toast } from './store.js?v=23';
+import { allSystems, artItem, bankStats, cmsForms, testForms, weakNames } from './data.js?v=23';
+import { refreshSheet } from './sheets.js?v=23';
+import { render } from './shell.js?v=23';
+import { orderedSections } from './articles.js?v=23';
+import { importSimulator } from './sim-import.js?v=23';
 
 export function download(name, text, type) {
   const url = URL.createObjectURL(new Blob([text], { type }));
@@ -29,10 +29,12 @@ export function exportCsv() {
   GROUPS.forEach((g) => testForms(g, true).forEach((f) => {
     const it = item(f.id);
     rows.push(['assessment', g.short, f.label, FORM_ST[it.status], g.scaled ? it.score : '', it.pct, f.qs, it.date, it.notes, weakNames(it.weak)]);
+    if (it.retake) rows.push(['retake', g.short, f.label, '', g.scaled ? it.retake.score : '', it.retake.pct, f.qs, it.retake.date]);
   }));
   SUBJ.forEach((s) => cmsForms(s, true, true).forEach((f) => {
     const it = item(f.id);
     if (!f.removed || it.status) rows.push(['cms', s.name, f.label, FORM_ST[it.status], '', it.score, 50, it.date, it.notes]);
+    if (it.retake) rows.push(['retake', s.name, f.label, '', '', it.retake.pct, 50, it.retake.date]);
   }));
   allSystems().forEach((sy) => {
     const it = sysItem(sy.id);

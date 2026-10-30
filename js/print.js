@@ -2,12 +2,12 @@
 // trend, CMS by subject, qbanks, recurring weak systems and articles. Built fresh right before printing
 // (the Print button, or the browser's own Print), and only shown on paper.
 
-import { $, avg, daysUntil, fmtDate, fmtK, fmtLong, fmtPct, h, nn, num, plural, today } from './util.js?v=22';
-import { FORM_ST, PASSES, SUBJ } from './catalog.js?v=22';
-import { item, state, sysItem } from './store.js?v=22';
-import { allArticles, allCms, allSystems, allTests, artItem, chrono, cmsForms, outlook, pctOf, qbStats, scaledOf, shortSys, taken, weakNames, weakPattern } from './data.js?v=22';
-import { estimateScore } from './calculator.js?v=22';
-import { plannedForms } from './planner.js?v=22';
+import { $, avg, daysUntil, fmtDate, fmtK, fmtLong, fmtPct, h, nn, num, plural, today } from './util.js?v=23';
+import { FORM_ST, PASSES, SUBJ } from './catalog.js?v=23';
+import { item, state, sysItem } from './store.js?v=23';
+import { allArticles, allCms, allSystems, allTests, artItem, chrono, cmsForms, outlook, pctOf, qbStats, retakeOf, scaledOf, shortSys, taken, weakNames, weakPattern } from './data.js?v=23';
+import { estimateScore } from './calculator.js?v=23';
+import { plannedForms } from './planner.js?v=23';
 
 const MAX_ROWS = 18; // assessments that fit on the page; the oldest drop off first
 
@@ -50,15 +50,21 @@ export function buildSummary() {
   const outSmall = o.proj != null ? 'projected for test day' : o.recent != null ? (o.pts.length >= 3 ? 'average of last 3' : 'average') : 'no 3-digit scores yet';
 
   const shown = done.slice(-MAX_ROWS);
-  const rows = shown.map((f) => {
+  const rows = shown.flatMap((f) => {
     const it = item(f.id), s3 = scaledOf(f), p = pctOf(f);
     const est = s3 == null && p != null ? estimateScore(f, p) : null;
-    return h('tr', null,
+    const rt = retakeOf(f);
+    return [h('tr', null,
       h('td', { class: 'nw', text: f.full }), h('td', { class: 'nw', text: fmtDate(it.date) }),
       h('td', { class: 'n', text: s3 != null ? String(s3) : est ? '≈' + est.score : '' }),
       h('td', { class: 'n', text: p != null ? fmtPct(p) : '' }),
       h('td', { text: FORM_ST[it.status] }),
-      h('td', { class: 'wk', text: weakNames(it.weak) }));
+      h('td', { class: 'wk', text: weakNames(it.weak) })),
+    ...(rt ? [h('tr', null,
+      h('td', { class: 'nw', text: '↻ retake' }), h('td', { class: 'nw', text: fmtDate(rt.date) }),
+      h('td', { class: 'n', text: rt.s != null ? String(rt.s) : '' }),
+      h('td', { class: 'n', text: rt.p != null ? fmtPct(rt.p) : '' }),
+      h('td'), h('td'))] : [])];
   });
   const planned = plannedForms();
 

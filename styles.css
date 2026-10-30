@@ -974,3 +974,6 @@ html{scrollbar-gutter:stable} /* the timer page is short: keep the scrollbar's r
 .bf-hmonth + .bf-hrow{border-top:0}
 .sheet .bf-hkey{margin-top:auto}
 @media (max-width:560px){.bf-go{flex-direction:column}.bf-name{padding:10px 12px}}
+/* retakes: a solid dot on the trend, a dashed swatch in its legend, a ↻ on CMS chips */
+.legend i.lg-re,#trend-legend i.lg-re{background:none;border:2px dashed var(--muted);box-sizing:border-box}
+.chip .rt-mark{margin-left:4px;color:var(--brand);font-size:.8em}

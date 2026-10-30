@@ -95,5 +95,34 @@ ok(await p.locator('.retake-box .linkish', { hasText: 'Add retake' }).count() ==
 await p.keyboard.press('Escape');
 ok((await retakeLines()).length === 0, 'and the list drops the retake line');
 
+// --- the trend, calendar, print and CSV all know about the retake
+const seed2 = { v: 2, items: { 'nbme-12': { status: 2, score: '240', pct: '70', date: d(-30), retake: { score: '255', pct: '80', date: d(-5) } },
+  'nbme-13': { status: 2, score: '245', pct: '72', date: d(-20) }, 'cms-med-4': { status: 2, score: '70', date: d(-9), retake: { pct: '85', date: d(-2) } } } };
+await p.evaluate((x) => localStorage.setItem('ck-tracker', JSON.stringify(x)), seed2);
+await p.reload(); await p.waitForTimeout(300);
+await p.keyboard.press('1'); // Overview
+await p.waitForSelector('#trend svg');
+ok(await p.locator('#trend circle.pt-re').count() === 1 && await p.locator('#trend circle.pt').count() === 2, 'the trend draws the retake as its own point beside the first attempts');
+ok((await p.locator('#trend svg').getAttribute('aria-label')).includes('NBME 12 retake 255'), 'the trend’s text alternative names the retake');
+ok((await p.textContent('#trend-legend')).includes('Retake'), 'the legend explains the retake mark');
+await p.click('#chart-mode button[data-mode="pct"]');
+ok(await p.locator('#trend circle.pt-re').count() === 1, 'the % correct trend shows it too');
+await p.click('#chart-mode button[data-mode="score"]');
+await p.locator('#trend').screenshot({ path: S + '/retake-trend.png' });
+const out = await p.evaluate(async () => { const m = await import(document.querySelector('script[type=module]').src.replace('main.js', 'data.js')); return { n: m.outlook().pts.length, re: m.outlook().pts.some((x) => x.re) }; });
+ok(out.n === 2 && !out.re, 'the outlook and projection keep using first attempts only');
+const act = await p.evaluate(async () => { const m = await import(document.querySelector('script[type=module]').src.replace('main.js', 'overview.js')); const a = m.activityByDay(); return [...a.values()].flatMap((x) => x.tests.concat(x.cms)).filter((t) => /retake/.test(t)); });
+ok(act.length === 2, 'the activity calendar lists both retakes on their days: ' + JSON.stringify(act));
+await p.keyboard.press('3'); // CMS
+ok(await p.locator('.chip .rt-mark').count() === 1, 'a retaken CMS form carries a ↻ mark');
+const csv = await (async () => {
+  await p.evaluate(() => { location.hash = '#settings'; }); await p.waitForTimeout(200);
+  const [dl] = await Promise.all([p.waitForEvent('download'), p.locator('button', { hasText: 'Export CSV' }).first().click()]);
+  return (await import('node:fs')).readFileSync(await dl.path(), 'utf8');
+})().catch((e) => 'ERR ' + e.message);
+const printed = await p.evaluate(async () => { const m = await import(document.querySelector('script[type=module]').src.replace('main.js', 'print.js')); return m.buildSummary().textContent; });
+ok(/↻ retake/.test(printed) && printed.includes('255'), 'the printed summary lists the retake under its form');
+ok(/retake,NBME,.*255,80/.test(csv) && /retake,.*85/.test(csv), 'the CSV export has retake rows');
+
 ok(errs.length === 0, 'no page errors: ' + errs.join(' | '));
 await browser.close();

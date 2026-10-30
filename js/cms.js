@@ -1,11 +1,11 @@
 // The CMS forms tab.
 
-import { $, avg, fmtPct, h, nn } from './util.js?v=22';
-import { FORM_ST, SUBJ } from './catalog.js?v=22';
-import { item, save, snapshot, state, toast, ui } from './store.js?v=22';
-import { addForm, band, cmsForms, pctOf, taken, toggleRemove } from './data.js?v=22';
-import { render } from './shell.js?v=22';
-import { openForm } from './assessments.js?v=22';
+import { $, avg, fmtPct, h, nn } from './util.js?v=23';
+import { FORM_ST, SUBJ } from './catalog.js?v=23';
+import { item, save, snapshot, state, toast, ui } from './store.js?v=23';
+import { addForm, band, cmsForms, pctOf, retakeOf, taken, toggleRemove } from './data.js?v=23';
+import { render } from './shell.js?v=23';
+import { openForm } from './assessments.js?v=23';
 
 export function renderCms() {
   $('cms-subj').replaceChildren(
@@ -29,7 +29,7 @@ export function renderCms() {
     const done = visibleAll.filter(taken).length;
     const a = avg(visibleAll.map(pctOf).filter(nn));
     const chips = forms.map((f) => {
-      const it = item(f.id), v = pctOf(f);
+      const it = item(f.id), v = pctOf(f), rt = retakeOf(f);
       if (ui.editForms) {
         return h('button', { class: 'chip editing ' + (f.removed ? 'removed' : 's' + it.status), 'aria-label': (f.removed ? 'Restore ' : 'Remove ') + s.name + ' ' + f.label,
           onclick: () => {
@@ -42,8 +42,8 @@ export function renderCms() {
           h('span', { class: 'sc none', text: f.removed ? 'Removed' : v != null ? fmtPct(v) : FORM_ST[it.status] }),
           h('span', { class: 'steps', 'aria-hidden': 'true' }, h('i'), h('i'), h('i')));
       }
-      return h('button', { class: 'chip s' + it.status, 'data-open': f.id, onclick: () => openForm(f), 'aria-label': s.name + ' ' + f.label + ', ' + FORM_ST[it.status] + (v != null ? ', ' + fmtPct(v) : '') },
-        h('span', { class: 'nm' }, f.label, f.old ? h('span', { class: 'old', text: 'older' }) : null),
+      return h('button', { class: 'chip s' + it.status, 'data-open': f.id, onclick: () => openForm(f), 'aria-label': s.name + ' ' + f.label + ', ' + FORM_ST[it.status] + (v != null ? ', ' + fmtPct(v) : '') + (rt ? ', retake' + (rt.p != null ? ' ' + fmtPct(rt.p) : '') : '') },
+        h('span', { class: 'nm' }, f.label, f.old ? h('span', { class: 'old', text: 'older' }) : null, rt ? h('span', { class: 'rt-mark', title: 'Retaken' + (rt.p != null ? ': ' + fmtPct(rt.p) : ''), text: '↻' }) : null),
         v != null ? h('span', { class: 'sc ' + band('cms', v), text: fmtPct(v) }) : h('span', { class: 'sc none', text: FORM_ST[it.status] }),
         h('span', { class: 'steps', 'aria-hidden': 'true' }, h('i'), h('i'), h('i')));
     });

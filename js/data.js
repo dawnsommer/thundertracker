@@ -1,11 +1,11 @@
 // Derived views of the state: form lists, scores, qbank stats, weak-system patterns and articles.
 
-import { avg, dayNum, daysUntil, num, sum, today } from './util.js?v=22';
-import { ARTICLE_SECTIONS, GROUPS, SUBJ, SYSTEMS } from './catalog.js?v=22';
-import { item, save, state } from './store.js?v=22';
-import { render } from './shell.js?v=22';
-import { openForm } from './assessments.js?v=22';
-import { openQbank } from './qbank.js?v=22';
+import { avg, dayNum, daysUntil, num, sum, today } from './util.js?v=23';
+import { ARTICLE_SECTIONS, GROUPS, SUBJ, SYSTEMS } from './catalog.js?v=23';
+import { item, save, state } from './store.js?v=23';
+import { render } from './shell.js?v=23';
+import { openForm } from './assessments.js?v=23';
+import { openQbank } from './qbank.js?v=23';
 
 export function testForms(g, includeHidden) {
   const rm = new Set(state.removed);
@@ -110,10 +110,27 @@ export const chrono = (a, b) => {
   if (db && !da) return 1;
   return ORDER(a.f) - ORDER(b.f);
 };
-export function trendPoints(mode) {
-  return allTests().filter((f) => mode === 'pct' || f.g.scaled)
-    .map((f) => ({ f, it: item(f.id), v: mode === 'pct' ? pctOf(f) : scaledOf(f) }))
-    .filter((p) => p.v != null).sort(chrono);
+// A form's retake as an attempt: its 3-digit score (scaled forms only), % correct and date; null when there's none.
+// A retake without a date of its own sits right after the first attempt.
+export function retakeOf(f) {
+  const it = item(f.id), r = it.retake;
+  if (!r || !(it.status > 0)) return null;
+  const s = f.kind === 'test' && f.g.scaled ? num(r.score) : null, p = num(r.pct);
+  return s == null && p == null ? null : { s, p, date: r.date || it.date };
+}
+// The points of the trend, in the order you took them. The outlook and projection use first attempts only
+// (a retake sees questions you've already seen); the chart passes withRetakes to draw them too, as `re: true` points.
+export function trendPoints(mode, withRetakes) {
+  const pts = [];
+  for (const f of allTests()) {
+    if (mode !== 'pct' && !f.g.scaled) continue;
+    const it = item(f.id), v = mode === 'pct' ? pctOf(f) : scaledOf(f);
+    if (v != null) pts.push({ f, it, v });
+    const r = withRetakes ? retakeOf(f) : null, rv = r && (mode === 'pct' ? r.p : r.s);
+    if (rv != null) pts.push({ f, it: Object.assign({}, it, { date: r.date }), v: rv, re: true, first: v });
+  }
+  // on the same day a retake follows its own first attempt
+  return pts.sort((a, b) => chrono(a, b) || (a.f === b.f ? (a.re ? 1 : -1) : 0));
 }
 // Score outlook: latest, best, recent average and a straight-line projection to test day.
 export function outlook() {

@@ -1,16 +1,16 @@
 // The Overview tab: tiles, score trend, CMS bars, Up next, activity calendar and the weakness matrix.
 
-import { $, avg, dayNum, daysUntil, fmtDate, fmtK, fmtLong, fmtN, fmtPct, fromDay, h, monthShort, nn, num, plural, today, weekday } from './util.js?v=22';
-import { GROUPS, PASS, SUBJ, SYS_ST } from './catalog.js?v=22';
-import { cloud, item, save, state, sysItem, ui } from './store.js?v=22';
-import { allArticles, allCms, allSystems, allTests, artItem, band, cmsForms, isEmpty, outlook, pctOf, qbStats, scaledOf, shortSys, taken, trendPoints, weakPattern } from './data.js?v=22';
-import { render, showTab } from './shell.js?v=22';
-import { openForm } from './assessments.js?v=22';
-import { openSystem } from './systems.js?v=22';
-import { renderArtSummary } from './articles.js?v=22';
-import { openSettings, signIn } from './settings.js?v=22';
-import { lastText, passiveOn, pvStats, pvSummary } from './passive.js?v=22';
-import { inDays, openPlanner, plannedForms } from './planner.js?v=22';
+import { $, avg, dayNum, daysUntil, fmtDate, fmtK, fmtLong, fmtN, fmtPct, fromDay, h, monthShort, nn, num, plural, today, weekday } from './util.js?v=23';
+import { GROUPS, PASS, SUBJ, SYS_ST } from './catalog.js?v=23';
+import { cloud, item, save, state, sysItem, ui } from './store.js?v=23';
+import { allArticles, allCms, allSystems, allTests, artItem, band, cmsForms, isEmpty, outlook, pctOf, qbStats, retakeOf, scaledOf, shortSys, taken, trendPoints, weakPattern } from './data.js?v=23';
+import { render, showTab } from './shell.js?v=23';
+import { openForm } from './assessments.js?v=23';
+import { openSystem } from './systems.js?v=23';
+import { renderArtSummary } from './articles.js?v=23';
+import { openSettings, signIn } from './settings.js?v=23';
+import { lastText, passiveOn, pvStats, pvSummary } from './passive.js?v=23';
+import { inDays, openPlanner, plannedForms } from './planner.js?v=23';
 
 export function tile(label, big, small, frac, note) {
   return h('div', { class: 'tile' },
@@ -216,9 +216,10 @@ export function drawTrend() {
   document.querySelectorAll('#chart-mode button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.mode === mode ? 'true' : 'false'));
   $('trend-sub').textContent = mode === 'pct' ? '% correct on NBME, UWSA and Free 120, in the order you took them' : 'NBME and UWSA 3-digit scores, in the order you took them';
   const box = $('trend');
-  const pts = trendPoints(mode);
+  const pts = trendPoints(mode, true);
   const present = GROUPS.filter((g) => pts.some((p) => p.f.g === g));
-  $('trend-legend').replaceChildren(...present.map((g) => h('span', null, h('i', { style: 'background:var(--ser-' + g.key + ')' }), g.short)));
+  $('trend-legend').replaceChildren(...present.map((g) => h('span', null, h('i', { style: 'background:var(--ser-' + g.key + ')' }), g.short)),
+    ...(pts.some((p) => p.re) ? [h('span', null, h('i', { class: 'lg-re' }), 'Retake')] : []));
   $('trend-note').replaceChildren();
   box.replaceChildren();
   if (!pts.length) {
@@ -230,7 +231,7 @@ export function drawTrend() {
   const ns = 'http://www.w3.org/2000/svg';
   const s = (tag, a) => { const e = document.createElementNS(ns, tag); for (const k in a) e.setAttribute(k, a[k]); return e; };
   const txt = (a, t) => { const e = s('text', a); e.textContent = t; return e; };
-  const svg = s('svg', { viewBox: `0 0 ${W} ${H}`, width: '100%', role: 'img', 'aria-label': (mode === 'pct' ? 'Percent correct' : 'Score') + ' trend: ' + pts.map((p) => p.f.full + ' ' + p.v + (mode === 'pct' ? '%' : '')).join(', ') });
+  const svg = s('svg', { viewBox: `0 0 ${W} ${H}`, width: '100%', role: 'img', 'aria-label': (mode === 'pct' ? 'Percent correct' : 'Score') + ' trend: ' + pts.map((p) => p.f.full + (p.re ? ' retake ' : ' ') + p.v + (mode === 'pct' ? '%' : '')).join(', ') });
   const vals = pts.map((p) => p.v), tgt = num(state.prefs.target);
   let lo, hi;
   if (mode === 'pct') {
@@ -257,26 +258,32 @@ export function drawTrend() {
     if (tgt) ref(tgt, 'var(--good)', 'Target ' + tgt, true);
   }
   for (const g of present) {
-    const idx = pts.map((p, i) => (p.f.g === g ? i : -1)).filter((i) => i >= 0);
+    const idx = pts.map((p, i) => (p.f.g === g && !p.re ? i : -1)).filter((i) => i >= 0);
     if (idx.length < 2) continue;
     const d = idx.map((i, k) => (k ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(pts[i].v).toFixed(1)).join(' ');
     svg.append(s('path', { d, fill: 'none', stroke: 'var(--ser-' + g.key + ')', 'stroke-width': 2.5, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', opacity: .9 }));
   }
+  // a retake hangs off its first attempt on a dashed line
+  pts.forEach((p, i) => {
+    const from = p.re ? pts.findIndex((q) => q.f === p.f && !q.re) : -1;
+    if (from >= 0) svg.append(s('line', { x1: x(from), y1: y(p.first), x2: x(i), y2: y(p.v), stroke: 'var(--ser-' + p.f.g.key + ')', 'stroke-width': 1.5, 'stroke-dasharray': '3 3', opacity: .8 }));
+  });
   const every = Math.ceil(pts.length / Math.max(1, Math.floor((W - m.l - m.r) / 44)));
   const tip = h('div', { class: 'tip', hidden: true });
   pts.forEach((p, i) => {
     const last = i === pts.length - 1, col = 'var(--ser-' + p.f.g.key + ')';
-    svg.append(s('circle', { cx: x(i), cy: y(p.v), r: last ? 5.5 : 4, fill: last ? 'var(--hl)' : 'var(--panel)', stroke: last ? 'var(--ink)' : col, 'stroke-width': 2 }));
-    if (i % every === 0 || last) svg.append(txt({ x: x(i), y: H - 10, 'text-anchor': 'middle', fill: 'var(--muted)', 'font-size': 11, 'font-family': 'var(--f-mono)' }, p.f.tag));
+    svg.append(s('circle', { cx: x(i), cy: y(p.v), r: last ? 5.5 : 4, fill: last ? 'var(--hl)' : p.re ? col : 'var(--panel)', stroke: last ? 'var(--ink)' : col, 'stroke-width': 2, class: p.re ? 'pt-re' : 'pt' }));
+    if (i % every === 0 || last) svg.append(txt({ x: x(i), y: H - 10, 'text-anchor': 'middle', fill: 'var(--muted)', 'font-size': 11, 'font-family': 'var(--f-mono)' }, (p.re ? '↻' : '') + p.f.tag));
     if (last || pts.length <= 8) svg.append(txt({ x: x(i), y: y(p.v) - 10, 'text-anchor': 'middle', fill: 'var(--ink)', 'font-size': 11.5, 'font-weight': 600, 'font-family': 'var(--f-mono)' }, Math.round(p.v) + (mode === 'pct' ? '%' : '')));
     const hit = s('circle', { cx: x(i), cy: y(p.v), r: 14, fill: 'transparent', style: 'cursor:pointer' });
     hit.addEventListener('mouseenter', () => {
-      const s3 = scaledOf(p.f), pc = pctOf(p.f);
+      const r = p.re ? retakeOf(p.f) : null;
+      const s3 = r ? r.s : scaledOf(p.f), pc = r ? r.p : pctOf(p.f);
       tip.hidden = false;
-      tip.replaceChildren(h('span', { text: p.f.full + (p.it.date ? ' · ' + fmtDate(p.it.date) : '') + '  ' }),
+      tip.replaceChildren(h('span', { text: p.f.full + (p.re ? ' retake' : '') + (p.it.date ? ' · ' + fmtDate(p.it.date) : '') + '  ' }),
         h('b', { text: [s3 != null ? String(s3) : null, pc != null ? fmtPct(pc) : null].filter(Boolean).join(' · ') }));
-      const r = box.getBoundingClientRect(), sr = svg.getBoundingClientRect();
-      tip.style.left = Math.min(Math.max(80, (x(i) / W) * sr.width), r.width - 80) + 'px';
+      const br = box.getBoundingClientRect(), sr = svg.getBoundingClientRect();
+      tip.style.left = Math.min(Math.max(80, (x(i) / W) * sr.width), br.width - 80) + 'px';
       tip.style.top = ((y(p.v) / H) * sr.height) + 'px';
     });
     hit.addEventListener('mouseleave', () => (tip.hidden = true));
@@ -299,8 +306,10 @@ export function activityByDay() {
   const act = new Map();
   const get = (d) => { if (!act.has(d)) act.set(d, { q: 0, src: {}, tests: [], cms: [], sys: [], arts: [] }); return act.get(d); };
   state.log.forEach((e) => { const a = get(e.date); a.q += e.q; a.src[e.src] = (a.src[e.src] || 0) + e.q; });
-  allTests().forEach((f) => { const it = item(f.id), s3 = scaledOf(f), p = pctOf(f); if (it.status > 0 && it.date) get(it.date).tests.push(f.full + (s3 != null ? ' · ' + s3 : p != null ? ' · ' + fmtPct(p) : '')); });
-  SUBJ.flatMap((s) => cmsForms(s, true)).forEach((f) => { const it = item(f.id), p = pctOf(f); if (it.status > 0 && it.date) get(it.date).cms.push(f.full + (p != null ? ' · ' + fmtPct(p) : '')); });
+  allTests().forEach((f) => { const it = item(f.id), s3 = scaledOf(f), p = pctOf(f); if (it.status > 0 && it.date) get(it.date).tests.push(f.full + (s3 != null ? ' · ' + s3 : p != null ? ' · ' + fmtPct(p) : ''));
+    const r = retakeOf(f); if (r && r.date) get(r.date).tests.push(f.full + ' retake' + (r.s != null ? ' · ' + r.s : r.p != null ? ' · ' + fmtPct(r.p) : '')); });
+  SUBJ.flatMap((s) => cmsForms(s, true)).forEach((f) => { const it = item(f.id), p = pctOf(f); if (it.status > 0 && it.date) get(it.date).cms.push(f.full + (p != null ? ' · ' + fmtPct(p) : ''));
+    const r = retakeOf(f); if (r && r.date) get(r.date).cms.push(f.full + ' retake' + (r.p != null ? ' · ' + fmtPct(r.p) : '')); });
   allSystems().forEach((sy) => { const it = sysItem(sy.id); if (it.day) get(it.day).sys.push(sy.name + ' (' + SYS_ST[it.status].toLowerCase() + ')'); });
   allArticles().forEach((ar) => { const it = artItem(ar.id); if (it.reads && it.date) get(it.date).arts.push(ar.name); });
   return act;
