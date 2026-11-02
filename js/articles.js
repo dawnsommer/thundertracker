@@ -1,11 +1,11 @@
 // The AMBOSS articles tab.
 
-import { $, fmtDate, h, isDate, plural, ring, safeUrl, sum, svgIcon, today, uid } from './util.js?v=25';
-import { PASSES } from './catalog.js?v=25';
-import { save, snapshot, state, toast, ui } from './store.js?v=25';
-import { allSystems, artItem, artSections, artUrl } from './data.js?v=25';
-import { closeSheet, openSheet, refreshSheet, sheetHead } from './sheets.js?v=25';
-import { render, showTab } from './shell.js?v=25';
+import { $, fmtDate, h, isDate, plural, ring, safeUrl, sum, svgIcon, today, uid } from './util.js?v=26';
+import { PASSES } from './catalog.js?v=26';
+import { save, snapshot, state, toast, ui } from './store.js?v=26';
+import { allSystems, artItem, artSections, artUrl } from './data.js?v=26';
+import { closeSheet, openSheet, refreshSheet, sheetHead } from './sheets.js?v=26';
+import { render, showTab } from './shell.js?v=26';
 
 export function setReads(id, n) {
   const cur = artItem(id);

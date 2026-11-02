@@ -670,12 +670,12 @@ button.wm-row:hover{background:color-mix(in srgb,var(--hl-soft) 40%,transparent)
 .pr-stat span{font-size:7pt;text-transform:uppercase;letter-spacing:.04em;color:#666}
 .pr-stat b{font:700 12.5pt/1.15 var(--f-mono)}
 .pr-stat small{font-size:7pt;color:#555}
-.pr-cols{display:grid;grid-template-columns:1.65fr 1fr;gap:12px;align-items:start}
+.pr-cols{display:grid;grid-template-columns:minmax(0,1.85fr) minmax(0,1fr);gap:14px;align-items:start}
 .pr-sec{margin-bottom:8px;break-inside:avoid}
 .pr-sec h2{font:700 9.5pt/1.2 var(--f-display);margin:0 0 3px;padding-bottom:2px;border-bottom:1px solid #bbb}
 .pr-table{width:100%;border-collapse:collapse}
 .pr-table th{text-align:left;font-size:7pt;text-transform:uppercase;letter-spacing:.03em;color:#666;font-weight:600;padding:1px 4px 2px 0}
-.pr-table td{padding:1.5px 4px 1.5px 0;border-top:.5px solid #e2e2e2;vertical-align:top}
+.pr-table td{padding:1px 4px 1px 0;line-height:1.28;border-top:.5px solid #e2e2e2;vertical-align:top}
 .pr-table td.n{font-family:var(--f-mono);text-align:right;white-space:nowrap;padding-right:7px}
 .pr-table th.n{text-align:right;padding-right:7px}
 .pr-table td.nw{white-space:nowrap;padding-right:7px}
@@ -690,10 +690,10 @@ button.wm-row:hover{background:color-mix(in srgb,var(--hl-soft) 40%,transparent)
 .pr-p2{break-before:page}
 .pr-head2{align-items:baseline}
 .pr-head2 h1{font-size:11pt}
-.pr-sub{margin:0 0 6px}
+.pr-sec h2 small{font:400 7pt var(--f-body);color:#777;margin-left:8px}
 /* weakness waffle (page 2): same grammar as the overview's matrix, fixed print colours */
-.pw{display:flex;flex-direction:column;gap:2px}
-.pw-row{display:grid;gap:2px;align-items:center;break-inside:avoid}
+.pw{display:flex;flex-direction:column;gap:1.5px;margin-top:4px}
+.pw-row{display:grid;gap:1.5px 2px;align-items:center;break-inside:avoid}
 .pw-head{align-items:end;margin-bottom:2px}
 .pw-col{font:6.5pt/1 var(--f-mono);color:#666;writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;justify-self:center}
 .pw-col.qb{color:#1d5f8a}
@@ -715,7 +715,7 @@ button.wm-row:hover{background:color-mix(in srgb,var(--hl-soft) 40%,transparent)
 .pw-bar i{display:block;height:100%;background:#c0392b}
 .pw-row:not(.rec) .pw-bar i{background:#a9b0b8}
 .pw-recent{display:inline-block;width:5.5px;height:5.5px;border-radius:50%;background:#d98a00;flex:none}
-.pw-legend{display:flex;flex-wrap:wrap;gap:3px 14px;margin:7px 0 0;color:#555;font-size:7pt}
+.pw-legend{display:flex;flex-wrap:wrap;gap:2px 12px;margin:6px 0 0;color:#555;font-size:6.8pt}
 .pw-legend span{display:inline-flex;align-items:center;gap:4px}
 .pw-legend .pw-cell{width:9px;height:9px}
 .pw-legend .pw-cell + .pw-cell{margin-left:-2px}

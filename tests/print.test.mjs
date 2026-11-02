@@ -108,6 +108,25 @@ for (const format of ['Letter', 'A4']) {
   if (S && format === 'Letter') fs.writeFileSync(S + '/summary-long.pdf', pdf);
 }
 
+// the most this user expects: 20 forms, all retaken, every one of the 17 systems weak somewhere → still one page
+const max20 = JSON.parse(JSON.stringify(heavy)); delete max20['nbme-20'];
+const sys17 = ['cardio', 'resp', 'gi', 'renal', 'endo', 'heme', 'id', 'immuno', 'rheum', 'neuro', 'psych', 'repro', 'peds', 'surg', 'emtox', 'biostat', 'ethics'].map((x) => 'sys-' + x);
+Object.keys(max20).filter((k) => !k.startsWith('cms-')).forEach((k, i) => { max20[k].weak = sys17.filter((_, j) => (i + j) % 3 !== 0); });
+await p.emulateMedia({ media: 'screen' });
+await p.evaluate(({ max20 }) => { const st = JSON.parse(localStorage.getItem('ck-tracker')); st.items = max20; st.extraAssess = { nbme: [17, 18, 19] };
+  st.qbanks.push({ id: 'kaplan', name: 'Kaplan', bank: '2000', done: '2000', unit: 'q', acc: '61', finished: '2026-10-20', weak: ['sys-ethics'] });
+  localStorage.setItem('ck-tracker', JSON.stringify(st)); }, { max20 });
+await p.reload();
+await p.emulateMedia({ media: 'print' });
+await p.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
+ok((await p.locator('#print-sheet .pr-assess tbody tr').count()) === 20 && (await p.locator('#print-sheet .pw-row:not(.pw-head)').count()) === 17, '20 forms and all 17 systems in the waffle');
+ok(!(await p.$('#print-sheet .pr-two')), '20 forms with retakes and 17 weak systems: one-page layout');
+for (const format of ['Letter', 'A4']) {
+  const pdf = await p.pdf({ format, printBackground: true });
+  ok(pages(pdf) === 1, format + ': 20 forms, retakes, 17 systems on one page (' + pages(pdf) + ')');
+  if (S && format === 'Letter') fs.writeFileSync(S + '/summary-max.pdf', pdf);
+}
+
 // longer still (35 forms): the waffle moves to page 2
 const huge = JSON.parse(JSON.stringify(heavy)), extra = Array.from({ length: 14 }, (_, i) => 21 + i);
 extra.forEach((n, i) => { huge['nbme-' + n] = { status: 2, pct: String(70 + i % 10), score: String(240 + i), date: d(-20 + i), weak: allSys.slice(i % 5, i % 5 + 6), retake: { pct: '80', date: d(-5) } }; });
@@ -119,7 +138,7 @@ await p.emulateMedia({ media: 'print' });
 await p.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
 ok(await p.isVisible('#print-sheet .pr-two'), 'a history too long for one page switches to two');
 ok((await p.locator('#print-sheet .pr-assess tbody tr').count()) === heavyForms.length + extra.length, 'all 35 forms listed');
-ok((await p.locator('#print-sheet .pr-p2 .pw-row:not(.pw-head)').count()) === allSys.length, 'page 2: the waffle');
+ok((await p.locator('#print-sheet .pr-p2 .pw-row:not(.pw-head)').count()) === allSys.length + 1, 'page 2: the waffle (Kaplan adds Ethics)');
 ok((await p.textContent('#print-sheet')).includes('charted on page 2'), 'the table points to page 2');
 for (const format of ['Letter', 'A4']) {
   const pdf = await p.pdf({ format, printBackground: true });

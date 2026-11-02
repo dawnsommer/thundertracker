@@ -1,11 +1,11 @@
 // The CMS forms tab.
 
-import { $, avg, fmtPct, h, nn } from './util.js?v=25';
-import { FORM_ST, SUBJ } from './catalog.js?v=25';
-import { item, save, snapshot, state, toast, ui } from './store.js?v=25';
-import { addForm, band, cmsForms, pctOf, retakeOf, taken, toggleRemove } from './data.js?v=25';
-import { render } from './shell.js?v=25';
-import { openForm } from './assessments.js?v=25';
+import { $, avg, fmtPct, h, nn } from './util.js?v=26';
+import { FORM_ST, SUBJ } from './catalog.js?v=26';
+import { item, save, snapshot, state, toast, ui } from './store.js?v=26';
+import { addForm, band, cmsForms, pctOf, retakeOf, taken, toggleRemove } from './data.js?v=26';
+import { render } from './shell.js?v=26';
+import { openForm } from './assessments.js?v=26';
 
 export function renderCms() {
   $('cms-subj').replaceChildren(
