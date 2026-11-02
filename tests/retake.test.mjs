@@ -121,7 +121,7 @@ const csv = await (async () => {
   return (await import('node:fs')).readFileSync(await dl.path(), 'utf8');
 })().catch((e) => 'ERR ' + e.message);
 const printed = await p.evaluate(async () => { const m = await import(document.querySelector('script[type=module]').src.replace('main.js', 'print.js')); return m.buildSummary().textContent; });
-ok(/↻ retake/.test(printed) && printed.includes('255'), 'the printed summary lists the retake under its form');
+ok(/↻ 255/.test(printed), 'the printed summary shows the retake beside its form');
 ok(/retake,NBME,.*255,80/.test(csv) && /retake,.*85/.test(csv), 'the CSV export has retake rows');
 
 ok(errs.length === 0, 'no page errors: ' + errs.join(' | '));

@@ -1,14 +1,14 @@
 // A printable summary: test date and outlook, every assessment, the score trend, CMS by subject, qbanks,
-// recurring weak systems and articles. One page while it fits; a long history gets a second page with the
-// weak systems as a waffle chart. Built fresh right before printing (the Print button, or the browser's own
+// articles and the recurring weak systems as a waffle chart. One page while it fits; otherwise the waffle
+// moves to a second page. Built fresh right before printing (the Print button, or the browser's own
 // Print), and only shown on paper.
 
-import { $, avg, daysUntil, fmtDate, fmtK, fmtLong, fmtPct, h, nn, num, plural, today } from './util.js?v=24';
-import { FORM_ST, PASSES, SUBJ } from './catalog.js?v=24';
-import { item, state, sysItem } from './store.js?v=24';
-import { allArticles, allCms, allSystems, allTests, artItem, chrono, cmsForms, outlook, pctOf, qbStats, retakeOf, scaledOf, shortSys, taken, weakNames, weakPattern, weakShade } from './data.js?v=24';
-import { estimateScore } from './calculator.js?v=24';
-import { plannedForms } from './planner.js?v=24';
+import { $, avg, daysUntil, fmtDate, fmtK, fmtLong, fmtPct, h, nn, num, plural, today } from './util.js?v=25';
+import { FORM_ST, PASSES, SUBJ } from './catalog.js?v=25';
+import { item, state, sysItem } from './store.js?v=25';
+import { allArticles, allCms, allSystems, allTests, artItem, chrono, cmsForms, outlook, pctOf, qbStats, retakeOf, scaledOf, shortSys, taken, weakPattern, weakShade } from './data.js?v=25';
+import { estimateScore } from './calculator.js?v=25';
+import { plannedForms } from './planner.js?v=25';
 
 // Printable area in mm (11 × 10 mm margins) of Letter and A4, less a little slack. Letter is wider, A4 taller;
 // the summary keeps to one page only when it fits both.
@@ -22,6 +22,7 @@ function trendSvg(pts, target, W = 340, H = 110) {
   const lo = Math.floor((Math.min(...vals) - 5) / 10) * 10, hi = Math.ceil((Math.max(...vals) + 5) / 10) * 10;
   const x = (i) => m.l + (pts.length === 1 ? (W - m.l - m.r) / 2 : i * (W - m.l - m.r) / (pts.length - 1));
   const y = (v) => m.t + (hi - v) / (hi - lo || 1) * (H - m.t - m.b);
+  const step = Math.ceil(pts.length / Math.floor((W - m.l - m.r) / 24)); // labels never crowd
   const svg = s('svg', { viewBox: `0 0 ${W} ${H}`, class: 'pr-trend', role: 'img', 'aria-label': 'Score trend' });
   for (let v = lo; v <= hi; v += (hi - lo > 40 ? 20 : 10)) {
     svg.append(s('line', { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), stroke: '#ddd', 'stroke-width': .6 }));
@@ -34,7 +35,7 @@ function trendSvg(pts, target, W = 340, H = 110) {
   svg.append(s('polyline', { points: pts.map((p, i) => x(i) + ',' + y(p.v)).join(' '), fill: 'none', stroke: '#222', 'stroke-width': 1.4 }));
   pts.forEach((p, i) => {
     svg.append(s('circle', { cx: x(i), cy: y(p.v), r: 2.4, fill: '#fff', stroke: '#222', 'stroke-width': 1.2 }));
-    svg.append(s('text', { x: x(i), y: H - 4, 'text-anchor': 'middle', 'font-size': 7, fill: '#777' }, p.f.tag));
+    if ((pts.length - 1 - i) % step === 0) svg.append(s('text', { x: x(i), y: H - 4, 'text-anchor': 'middle', 'font-size': 7, fill: '#777' }, p.f.tag));
   });
   return svg;
 }
@@ -44,7 +45,7 @@ function trendSvg(pts, target, W = 340, H = 110) {
 // labelled with your error counts or %, and how many times in all. Cells shrink to fit every column.
 function weakWaffle(wp) {
   const { rows, sources } = wp, total = sources.length;
-  const cell = Math.max(7, Math.min(17, Math.floor(500 / total) - 2)), label = cell >= 13;
+  const cell = Math.max(7, Math.min(15, Math.floor(500 / total) - 2)), label = cell >= 13;
   const nT = sources.filter((x) => x.kind === 'test').length, nQ = total - nT;
   // a thin gap column sets the finished qbanks apart from the assessments
   const gap = (i) => nT && nQ && i === nT ? [h('span')] : [];
@@ -76,8 +77,9 @@ function weakWaffle(wp) {
       h('span', { text: 'bold = 2× or more' }))];
 }
 
-// `two`: the two-page layout for a long history. Page 1 keeps the numbers (every assessment on one line,
-// CMS, qbanks, articles); page 2 has the score trend at full width and the recurring weak systems as a waffle.
+// One layout: every assessment on one line (its retake beside it, how many systems were weak), CMS, qbanks,
+// the score trend and articles beside it, and the recurring weak systems as a waffle across the bottom.
+// `two` only when that doesn't fit one page: the waffle moves to page 2.
 export function buildSummary(two = false) {
   const P = state.prefs, ex = P.examDate, dl = ex ? daysUntil(ex) : null, tgt = num(P.target);
   const o = outlook(), qb = qbStats(), wp = weakPattern();
@@ -91,36 +93,28 @@ export function buildSummary(two = false) {
   const outBig = o.proj != null ? String(Math.round(o.proj)) : o.recent != null ? String(Math.round(o.recent)) : '—';
   const outSmall = o.proj != null ? 'projected for test day' : o.recent != null ? (o.pts.length >= 3 ? 'average of last 3' : 'average') : 'no 3-digit scores yet';
 
-  // On two pages a retake shares its form's line and the weak systems move to the waffle (the table keeps
-  // how many were marked); on one page a retake gets its own line under the first attempt.
-  const rows = done.flatMap((f) => {
+  const anyRetake = done.some((f) => retakeOf(f)), anyWeak = done.some((f) => item(f.id).weak.length);
+  const rows = done.map((f) => {
     const it = item(f.id), s3 = scaledOf(f), p = pctOf(f);
     const est = s3 == null && p != null ? estimateScore(f, p) : null;
     const rt = retakeOf(f);
-    const first = [h('td', { class: 'nw', text: f.full }), h('td', { class: 'nw', text: fmtDate(it.date) }),
+    return h('tr', null, h('td', { class: 'nw', text: f.full }), h('td', { class: 'nw', text: fmtDate(it.date) }),
       h('td', { class: 'n', text: s3 != null ? String(s3) : est ? '≈' + est.score : '' }),
-      h('td', { class: 'n', text: p != null ? fmtPct(p) : '' })];
-    if (two) return [h('tr', null, first,
-      h('td', { class: 'nw pr-rt', text: rt ? '↻ ' + [rt.s, rt.p != null ? fmtPct(rt.p) : null].filter(nn).join(' · ') + ' · ' + fmtDate(rt.date) : '' }),
+      h('td', { class: 'n', text: p != null ? fmtPct(p) : '' }),
+      anyRetake ? h('td', { class: 'nw pr-rt', text: rt ? '↻ ' + [rt.s, rt.p != null ? fmtPct(rt.p) : null].filter(nn).join(' · ') + ' · ' + fmtDate(rt.date) : '' }) : null,
       h('td', { class: 'nw', text: FORM_ST[it.status] }),
-      h('td', { class: 'n', text: it.weak.length ? String(it.weak.length) : '' }))];
-    return [h('tr', null, first, h('td', { class: 'nw', text: FORM_ST[it.status] }), h('td', { class: 'wk', text: weakNames(it.weak) })),
-      ...(rt ? [h('tr', { class: 'pr-re' },
-        h('td', { class: 'nw', text: '↻ retake' }), h('td', { class: 'nw', text: fmtDate(rt.date) }),
-        h('td', { class: 'n', text: rt.s != null ? String(rt.s) : '' }),
-        h('td', { class: 'n', text: rt.p != null ? fmtPct(rt.p) : '' }),
-        h('td'), h('td'))] : [])];
+      anyWeak ? h('td', { class: 'n', text: it.weak.length ? String(it.weak.length) : '' }) : null);
   });
   const planned = plannedForms();
-  const heads = two ? ['Form', 'Date', 'Score', '%', 'Retake', 'Status', 'Weak'] : ['Form', 'Date', 'Score', '%', 'Status', 'Weak systems'];
+  const heads = ['Form', 'Date', 'Score', '%', anyRetake ? 'Retake' : null, 'Status', anyWeak ? 'Weak' : null].filter(Boolean);
 
   const assess = h('section', { class: 'pr-sec pr-assess' }, h('h2', { text: 'Assessments' }),
     done.length ? h('table', { class: 'pr-table' },
-      h('thead', null, h('tr', null, heads.map((x, i) => h('th', { class: i === 2 || i === 3 || x === 'Weak' ? 'n' : '', text: x })))),
+      h('thead', null, h('tr', null, heads.map((x) => h('th', { class: ['Score', '%', 'Weak'].includes(x) ? 'n' : '', text: x })))),
       h('tbody', null, rows)) : h('p', { class: 'pr-muted', text: 'No assessments taken yet.' }),
     planned.length ? h('p', { class: 'pr-line' }, h('b', { text: 'Planned: ' }), planned.slice(0, 8).map((f) => f.full + ' ' + fmtDate(item(f.id).plan)).join(' · ')) : null,
-    h('p', { class: 'pr-muted', text: '≈ = estimated from % correct.' + (two ? ' Weak = systems marked weak; they are charted on page 2.' : '') }));
-  const trend = o.pts.length >= 2 ? sec('Score trend', two ? trendSvg(o.pts, tgt, 700, 150) : trendSvg(o.pts, tgt)) : null;
+    done.length ? h('p', { class: 'pr-muted', text: '≈ = estimated from % correct.' + (anyWeak ? ' Weak = systems marked weak (charted ' + (two ? 'on page 2' : 'below') + ').' : '') }) : null);
+  const trend = o.pts.length >= 2 ? sec('Score trend', trendSvg(o.pts, tgt, 340, 120)) : null;
 
   const cmsSec = sec('CMS by subject', h('table', { class: 'pr-table' },
     h('tbody', null, SUBJ.map((s) => {
@@ -132,15 +126,11 @@ export function buildSummary(two = false) {
       h('td', { class: 'n', text: b.pctDone != null ? fmtPct(b.pctDone) + ' done' : b.done ? fmtK(b.done) + ' Qs' : '—' }),
       h('td', { class: 'n', text: b.acc != null ? fmtPct(b.acc) : '—' }))))) : h('p', { class: 'pr-muted', text: 'No qbanks yet.' }),
     qb.total ? h('p', { class: 'pr-line', text: fmtK(qb.total) + ' questions' + (qb.acc != null ? ' · ' + fmtPct(qb.acc) + ' correct overall' : '') + (qb.week ? ' · ' + qb.week + ' this week' : '') }) : null);
-  const recurring = wp.rows.filter((r) => r.hits.length >= 2);
-  const weakSec = two
-    ? sec('Recurring weak systems', recurring.length
-      ? h('p', { class: 'pr-line' }, recurring.slice(0, 5).map((r) => shortSys(r.sy.name) + ' ' + r.hits.length + '×').join(' · '))
-      : h('p', { class: 'pr-muted', text: 'No system has come up weak twice yet.' }), h('p', { class: 'pr-muted', text: 'Full chart on page 2.' }))
-    : sec('Recurring weak systems', wp.rows.length
-      ? h('ol', { class: 'pr-weak' }, wp.rows.slice(0, 8).map((r) => h('li', null, h('b', { text: shortSys(r.sy.name) }), ' ' + r.hits.length + '× — ' + r.hits.slice(-6).map((x) => x.tag).join(', ') + (r.hits.length > 6 ? ' …' : ''))))
-      : h('p', { class: 'pr-muted', text: 'None marked yet.' }));
   const artSec = sec('AMBOSS articles', h('p', { class: 'pr-line', text: read + ' of ' + arts.length + ' read' + (fin ? ' · ' + fin + ' read ' + PASSES + '×' : '') }));
+  const weakSec = h('section', { class: 'pr-sec pr-weaksec' }, h('h2', { text: 'Recurring weak systems' }),
+    wp.rows.length
+      ? [h('p', { class: 'pr-muted pr-sub', text: plural(wp.nTests, 'assessment') + (wp.nBanks ? ' and ' + plural(wp.nBanks, 'finished qbank') : '') + ' marked · columns oldest → newest' }), ...weakWaffle(wp)]
+      : h('p', { class: 'pr-muted', text: 'None marked yet.' }));
 
   const head = h('header', { class: 'pr-head' },
     h('div', null, h('h1', null, 'Thunder tracker'), h('p', { text: 'USMLE Step 2 CK · summary printed ' + fmtLong(today()) })),
@@ -155,18 +145,9 @@ export function buildSummary(two = false) {
     stat('Systems revised', sRev + '/' + sys.length, ''),
     stat('Articles read', read + '/' + arts.length, ''));
 
-  if (!two) return h('div', { class: 'pr-page' }, head, stats,
-    h('div', { class: 'pr-cols' }, h('div', { class: 'pr-col' }, assess, trend), h('div', { class: 'pr-col' }, cmsSec, qbSec, weakSec, artSec)));
-
-  return h('div', { class: 'pr-page pr-two' },
-    h('div', { class: 'pr-p1' }, head, stats,
-      h('div', { class: 'pr-cols' }, h('div', { class: 'pr-col' }, assess), h('div', { class: 'pr-col' }, cmsSec, qbSec, weakSec, artSec))),
-    h('div', { class: 'pr-p2' },
-      h('header', { class: 'pr-head pr-head2' }, h('h1', null, 'Thunder tracker'), h('p', { text: 'Page 2 · ' + fmtLong(today()) })),
-      trend,
-      sec('Recurring weak systems', wp.rows.length
-        ? [h('p', { class: 'pr-muted pr-sub', text: plural(wp.nTests, 'assessment') + (wp.nBanks ? ' and ' + plural(wp.nBanks, 'finished qbank') : '') + ' marked · columns oldest → newest' }), ...weakWaffle(wp)]
-        : h('p', { class: 'pr-muted', text: 'None marked yet.' }))));
+  return h('div', { class: 'pr-page' + (two ? ' pr-two' : '') }, head, stats,
+    h('div', { class: 'pr-cols' }, h('div', { class: 'pr-col' }, assess), h('div', { class: 'pr-col' }, cmsSec, qbSec, trend, artSec)),
+    two ? h('div', { class: 'pr-p2' }, h('header', { class: 'pr-head pr-head2' }, h('h1', null, 'Thunder tracker'), h('p', { text: 'Page 2 · ' + fmtLong(today()) })), weakSec) : weakSec);
 }
 
 // One page when everything fits (measured off screen at each printable width), otherwise two.

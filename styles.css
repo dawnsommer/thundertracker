@@ -679,21 +679,17 @@ button.wm-row:hover{background:color-mix(in srgb,var(--hl-soft) 40%,transparent)
 .pr-table td.n{font-family:var(--f-mono);text-align:right;white-space:nowrap;padding-right:7px}
 .pr-table th.n{text-align:right;padding-right:7px}
 .pr-table td.nw{white-space:nowrap;padding-right:7px}
-.pr-table td.wk{color:#8a1c1c;font-size:7.8pt}
-.pr-table tr.pr-re td{border-top-style:dotted;color:#444}
 .pr-table td.pr-rt{font-family:var(--f-mono);font-size:7.6pt;color:#444}
 .pr-line{margin:3px 0 0}
 .pr-muted{margin:3px 0 0;color:#777;font-size:7.5pt}
-.pr-weak{margin:0;padding-left:16px}
-.pr-weak li{margin:1px 0}
 .pr-trend{width:100%;height:auto;display:block}
-/* two pages: a long assessment list may run on (its header row repeats); page 2 always starts fresh */
+/* the waffle runs across the bottom; on two pages it starts page 2 (a very long assessment list may run on) */
+.pr-weaksec{margin-top:2px}
 .pr-two .pr-assess{break-inside:auto}
 .pr-two .pr-table tr{break-inside:avoid}
 .pr-p2{break-before:page}
 .pr-head2{align-items:baseline}
 .pr-head2 h1{font-size:11pt}
-.pr-p2 .pr-sec{margin-bottom:12px}
 .pr-sub{margin:0 0 6px}
 /* weakness waffle (page 2): same grammar as the overview's matrix, fixed print colours */
 .pw{display:flex;flex-direction:column;gap:2px}

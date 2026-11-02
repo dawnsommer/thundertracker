@@ -53,7 +53,9 @@ ok(txt.includes('≈'), 'a form without a 3-digit score shows an estimate');
 ok(txt.includes('Planned: NBME 16'), 'planned forms listed');
 ok(txt.includes('Internal Medicine') && txt.includes('10/10'), 'CMS by subject');
 ok(txt.includes('UWorld ✓') && txt.includes('AMBOSS'), 'qbanks, finished marked');
-ok(/Renal\s*\d+×/.test(txt) || /Endocrine\s*\d+×/.test(txt), 'recurring weak systems ranked');
+ok((await p.locator('#print-sheet .pr-weaksec .pw-row:not(.pw-head)').count()) === 8, 'recurring weak systems as a waffle on the page, a row per marked system (8)');
+ok(!(await p.$('#print-sheet .pr-two')), 'a typical history stays on one page');
+ok(!txt.includes('Pulmonary, Gastrointestinal'), 'no weak-system names under each form (the waffle shows them)');
 ok(!txt.includes('Long notes'), 'notes are left off');
 ok(await p.isVisible('#print-sheet svg.pr-trend'), 'score trend drawn');
 for (const format of ['Letter', 'A4']) {
@@ -88,26 +90,42 @@ await p.reload();
 await p.emulateMedia({ media: 'print' });
 await p.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
 ok(!(await p.isVisible('#print-sheet.pr-measure')), 'the measuring class is removed after choosing the layout');
-ok(await p.isVisible('#print-sheet .pr-two'), 'a long history switches to the two-page layout');
 const ht = await p.textContent('#print-sheet');
 const nRows = await p.locator('#print-sheet .pr-assess tbody tr').count();
 ok(nRows === heavyForms.length, 'every assessment is listed, none dropped (' + nRows + ')');
 ok((await p.locator('#print-sheet .pr-assess td.pr-rt', { hasText: '↻' }).count()) === heavyForms.length, 'each retake on its form\'s line');
-ok(!ht.includes('not shown'), 'no "older forms not shown"');
-const wRows = await p.locator('#print-sheet .pr-p2 .pw-row:not(.pw-head)').count();
-ok(wRows === allSys.length, 'page 2: a waffle row for every weak system (' + wRows + ')');
-ok((await p.locator('#print-sheet .pr-p2 .pw-head .pw-col').count()) === heavyForms.length + 2, 'page 2: a column per assessment and finished qbank');
+ok(!(await p.$('#print-sheet .pr-two')), '21 forms with retakes still fit the one-page layout');
+const wRows = await p.locator('#print-sheet .pw-row:not(.pw-head)').count();
+ok(wRows === allSys.length, 'waffle: a row for every weak system (' + wRows + ')');
+ok((await p.locator('#print-sheet .pw-head .pw-col').count()) === heavyForms.length + 2, 'waffle: a column per assessment and finished qbank');
 ok((await p.locator('#print-sheet .pw-cell.on.sh3').count()) > 0 && (await p.locator('#print-sheet .pw-cell.on.qb').count()) > 0, 'waffle shades error counts and qbank cells');
-ok(await p.isVisible('#print-sheet .pr-p2 svg.pr-trend'), 'page 2: the score trend at full width');
-ok(ht.includes('Full chart on page 2'), 'page 1 points to the chart');
+ok(ht.includes('charted below'), 'the table points to the chart below');
 const wide = await p.evaluate(() => [...document.querySelectorAll('#print-sheet .pw-row')].every((r) => r.scrollWidth <= r.parentElement.clientWidth + 1));
 ok(wide, 'the waffle fits the page width');
 for (const format of ['Letter', 'A4']) {
   const pdf = await p.pdf({ format, printBackground: true });
-  ok(pages(pdf) === 2, format + ': long history prints on two pages (' + pages(pdf) + ')');
+  ok(pages(pdf) === 1, format + ': 21 forms with retakes and the waffle fit on one page (' + pages(pdf) + ')');
+  if (S && format === 'Letter') fs.writeFileSync(S + '/summary-long.pdf', pdf);
+}
+
+// longer still (35 forms): the waffle moves to page 2
+const huge = JSON.parse(JSON.stringify(heavy)), extra = Array.from({ length: 14 }, (_, i) => 21 + i);
+extra.forEach((n, i) => { huge['nbme-' + n] = { status: 2, pct: String(70 + i % 10), score: String(240 + i), date: d(-20 + i), weak: allSys.slice(i % 5, i % 5 + 6), retake: { pct: '80', date: d(-5) } }; });
+await p.emulateMedia({ media: 'screen' });
+await p.evaluate(({ huge, e, extra }) => { const st = JSON.parse(localStorage.getItem('ck-tracker')); st.items = huge; st.extraAssess = { nbme: [17, 18, 19, 20].concat(extra) };
+  localStorage.setItem('ck-tracker', JSON.stringify(st)); }, { huge, e: d(24), extra });
+await p.reload();
+await p.emulateMedia({ media: 'print' });
+await p.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
+ok(await p.isVisible('#print-sheet .pr-two'), 'a history too long for one page switches to two');
+ok((await p.locator('#print-sheet .pr-assess tbody tr').count()) === heavyForms.length + extra.length, 'all 35 forms listed');
+ok((await p.locator('#print-sheet .pr-p2 .pw-row:not(.pw-head)').count()) === allSys.length, 'page 2: the waffle');
+ok((await p.textContent('#print-sheet')).includes('charted on page 2'), 'the table points to page 2');
+for (const format of ['Letter', 'A4']) {
+  const pdf = await p.pdf({ format, printBackground: true });
+  ok(pages(pdf) === 2, format + ': 35 forms print on two pages (' + pages(pdf) + ')');
   if (S && format === 'Letter') fs.writeFileSync(S + '/summary-two-pages.pdf', pdf);
 }
-await p.screenshot({ path: (S || '.') + '/print-summary-two.png', fullPage: true });
 
 // an empty tracker prints a sensible page too
 await p.emulateMedia({ media: 'screen' });
