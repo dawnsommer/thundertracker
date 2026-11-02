@@ -1,16 +1,16 @@
 // The Overview tab: tiles, score trend, CMS bars, Up next, activity calendar and the weakness matrix.
 
-import { $, avg, dayNum, daysUntil, fmtDate, fmtK, fmtLong, fmtN, fmtPct, fromDay, h, monthShort, nn, num, plural, today, weekday } from './util.js?v=23';
-import { GROUPS, PASS, SUBJ, SYS_ST } from './catalog.js?v=23';
-import { cloud, item, save, state, sysItem, ui } from './store.js?v=23';
-import { allArticles, allCms, allSystems, allTests, artItem, band, cmsForms, isEmpty, outlook, pctOf, qbStats, retakeOf, scaledOf, shortSys, taken, trendPoints, weakPattern } from './data.js?v=23';
-import { render, showTab } from './shell.js?v=23';
-import { openForm } from './assessments.js?v=23';
-import { openSystem } from './systems.js?v=23';
-import { renderArtSummary } from './articles.js?v=23';
-import { openSettings, signIn } from './settings.js?v=23';
-import { lastText, passiveOn, pvStats, pvSummary } from './passive.js?v=23';
-import { inDays, openPlanner, plannedForms } from './planner.js?v=23';
+import { $, avg, dayNum, daysUntil, fmtDate, fmtK, fmtLong, fmtN, fmtPct, fromDay, h, monthShort, nn, num, plural, today, weekday } from './util.js?v=24';
+import { GROUPS, PASS, SUBJ, SYS_ST } from './catalog.js?v=24';
+import { cloud, item, save, state, sysItem, ui } from './store.js?v=24';
+import { allArticles, allCms, allSystems, allTests, artItem, band, cmsForms, isEmpty, outlook, pctOf, qbStats, retakeOf, scaledOf, shortSys, taken, trendPoints, weakPattern, weakShade } from './data.js?v=24';
+import { render, showTab } from './shell.js?v=24';
+import { openForm } from './assessments.js?v=24';
+import { openSystem } from './systems.js?v=24';
+import { renderArtSummary } from './articles.js?v=24';
+import { openSettings, signIn } from './settings.js?v=24';
+import { lastText, passiveOn, pvStats, pvSummary } from './passive.js?v=24';
+import { inDays, openPlanner, plannedForms } from './planner.js?v=24';
 
 export function tile(label, big, small, frac, note) {
   return h('div', { class: 'tile' },
@@ -120,15 +120,7 @@ export function renderWeak(box) {
     return;
   }
   const recurring = rows.filter((r) => r.hits.length >= 2);
-  const shadeFor = (src, sy) => {
-    const c = src.n && src.n[sy.id];
-    if (c) {
-      const w = c.e + c.u / 2;
-      return { kind: 'n', cls: w >= 5 ? ' sh3' : w >= 3 ? ' sh2' : ' sh1', text: c.e + (c.u ? '·' + c.u : ''), tip: c.e + ' wrong' + (c.u ? ', ' + c.u + ' unstable' : '') };
-    }
-    const p = num(src.pct[sy.id]) ?? (src.kind === 'qbank' && src.full.startsWith('UWorld') ? num(sysItem(sy.id).uw) : null);
-    return p == null ? null : { kind: 'pct', cls: p < 55 ? ' sh3' : p < 65 ? ' sh2' : ' sh1', text: String(Math.round(p)), tip: fmtPct(p) + ' correct' };
-  };
+  const shadeFor = weakShade;
   const kinds = new Set(rows.flatMap((r) => r.hits.map((src) => (shadeFor(src, r.sy) || {}).kind)).filter(Boolean));
   const shown = ui.weakAll ? rows : rows.slice(0, 10);
   const total = sources.length;

@@ -1,11 +1,11 @@
 // Derived views of the state: form lists, scores, qbank stats, weak-system patterns and articles.
 
-import { avg, dayNum, daysUntil, num, sum, today } from './util.js?v=23';
-import { ARTICLE_SECTIONS, GROUPS, SUBJ, SYSTEMS } from './catalog.js?v=23';
-import { item, save, state } from './store.js?v=23';
-import { render } from './shell.js?v=23';
-import { openForm } from './assessments.js?v=23';
-import { openQbank } from './qbank.js?v=23';
+import { avg, dayNum, daysUntil, fmtPct, num, sum, today } from './util.js?v=24';
+import { ARTICLE_SECTIONS, GROUPS, SUBJ, SYSTEMS } from './catalog.js?v=24';
+import { item, save, state, sysItem } from './store.js?v=24';
+import { render } from './shell.js?v=24';
+import { openForm } from './assessments.js?v=24';
+import { openQbank } from './qbank.js?v=24';
 
 export function testForms(g, includeHidden) {
   const rm = new Set(state.removed);
@@ -58,6 +58,18 @@ export function weakPattern() {
     tests: hits.filter((x) => x.kind === 'test').length, banks: hits.filter((x) => x.kind === 'qbank').length, recent: hits.some((x) => latest.has(x.key)) }))
     .filter((r) => r.sy).sort((a, b) => b.hits.length - a.hits.length || b.recent - a.recent || a.sy.name.localeCompare(b.sy.name));
   return { rows, sources, nTests: tests.length, nBanks: sources.length - tests.length };
+}
+// Shading for one weak cell, darker = weaker: on an assessment, the errors you counted in that system (an
+// unstable question counts half: under 3 · 3–4 · 5+); otherwise your % in it (65+ · 55–64 · under 55;
+// UWorld falls back to the system's UWorld %). Shared by the weakness matrix and the printed summary.
+export function weakShade(src, sy) {
+  const c = src.n && src.n[sy.id];
+  if (c) {
+    const w = c.e + c.u / 2;
+    return { kind: 'n', cls: w >= 5 ? ' sh3' : w >= 3 ? ' sh2' : ' sh1', text: c.e + (c.u ? '·' + c.u : ''), tip: c.e + ' wrong' + (c.u ? ', ' + c.u + ' unstable' : '') };
+  }
+  const p = num(src.pct[sy.id]) ?? (src.kind === 'qbank' && src.full.startsWith('UWorld') ? num(sysItem(sy.id).uw) : null);
+  return p == null ? null : { kind: 'pct', cls: p < 55 ? ' sh3' : p < 65 ? ' sh2' : ' sh1', text: String(Math.round(p)), tip: fmtPct(p) + ' correct' };
 }
 export const artItem = (id) => state.articles[id] || { reads: 0, date: '', notes: '', t: 0 };
 // Checklist sections first (with any articles you added to them), then your own sections.

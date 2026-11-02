@@ -69,6 +69,46 @@ await p.evaluate(() => { document.documentElement.dataset.theme = 'dark'; window
 const colors = await p.evaluate(() => [getComputedStyle(document.body).backgroundColor, getComputedStyle(document.getElementById('print-sheet')).color]);
 ok(colors[0] === 'rgb(255, 255, 255)' && colors[1] === 'rgb(17, 17, 17)', 'dark theme still prints black on white: ' + colors);
 
+// a long history: every form taken and retaken, extra NBMEs, long weak lists → two pages, the weak systems as a waffle
+const heavy = JSON.parse(JSON.stringify(items));
+const allSys = sys.concat(['neuro', 'psych', 'repro', 'peds'].map((x) => 'sys-' + x)); // 13, each marked weak somewhere
+const heavyForms = forms.concat(['nbme-17', 'nbme-18', 'nbme-19', 'nbme-20']);
+heavyForms.forEach((id, i) => {
+  heavy[id] = { status: 2, pct: String(58 + i), date: d(-120 + i * 4), weak: allSys.slice(i % 6, i % 6 + 8),
+    weakN: { [allSys[i % 6]]: { e: 6, u: 1 }, [allSys[i % 6 + 1]]: { e: 2, u: 0 } },
+    score: id.startsWith('f120') ? undefined : String(210 + i * 2), retake: { pct: String(66 + i), score: id.startsWith('f120') ? undefined : String(220 + i * 2), date: d(-100 + i * 4) } };
+});
+await p.emulateMedia({ media: 'screen', colorScheme: 'light' });
+await p.evaluate(() => { delete document.documentElement.dataset.theme; });
+await p.evaluate(({ heavy, e }) => localStorage.setItem('ck-tracker', JSON.stringify({ v: 2, prefs: { examDate: e, target: '255' }, items: heavy,
+  extraAssess: { nbme: [17, 18, 19, 20] },
+  qbanks: [{ id: 'uworld', name: 'UWorld', bank: '3800', done: '100', unit: 'pct', acc: '65', finished: '2026-10-01', weak: ['sys-renal', 'sys-endo', 'sys-neuro'], weakPct: { 'sys-renal': '52' } },
+    { id: 'amboss', name: 'AMBOSS', bank: '3509', done: '3509', unit: 'q', acc: '69', finished: '2026-10-10', weak: ['sys-gi', 'sys-psych'] }] })), { heavy, e: d(24) });
+await p.reload();
+await p.emulateMedia({ media: 'print' });
+await p.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
+ok(!(await p.isVisible('#print-sheet.pr-measure')), 'the measuring class is removed after choosing the layout');
+ok(await p.isVisible('#print-sheet .pr-two'), 'a long history switches to the two-page layout');
+const ht = await p.textContent('#print-sheet');
+const nRows = await p.locator('#print-sheet .pr-assess tbody tr').count();
+ok(nRows === heavyForms.length, 'every assessment is listed, none dropped (' + nRows + ')');
+ok((await p.locator('#print-sheet .pr-assess td.pr-rt', { hasText: '↻' }).count()) === heavyForms.length, 'each retake on its form\'s line');
+ok(!ht.includes('not shown'), 'no "older forms not shown"');
+const wRows = await p.locator('#print-sheet .pr-p2 .pw-row:not(.pw-head)').count();
+ok(wRows === allSys.length, 'page 2: a waffle row for every weak system (' + wRows + ')');
+ok((await p.locator('#print-sheet .pr-p2 .pw-head .pw-col').count()) === heavyForms.length + 2, 'page 2: a column per assessment and finished qbank');
+ok((await p.locator('#print-sheet .pw-cell.on.sh3').count()) > 0 && (await p.locator('#print-sheet .pw-cell.on.qb').count()) > 0, 'waffle shades error counts and qbank cells');
+ok(await p.isVisible('#print-sheet .pr-p2 svg.pr-trend'), 'page 2: the score trend at full width');
+ok(ht.includes('Full chart on page 2'), 'page 1 points to the chart');
+const wide = await p.evaluate(() => [...document.querySelectorAll('#print-sheet .pw-row')].every((r) => r.scrollWidth <= r.parentElement.clientWidth + 1));
+ok(wide, 'the waffle fits the page width');
+for (const format of ['Letter', 'A4']) {
+  const pdf = await p.pdf({ format, printBackground: true });
+  ok(pages(pdf) === 2, format + ': long history prints on two pages (' + pages(pdf) + ')');
+  if (S && format === 'Letter') fs.writeFileSync(S + '/summary-two-pages.pdf', pdf);
+}
+await p.screenshot({ path: (S || '.') + '/print-summary-two.png', fullPage: true });
+
 // an empty tracker prints a sensible page too
 await p.emulateMedia({ media: 'screen' });
 await p.evaluate(() => localStorage.setItem('ck-tracker', JSON.stringify({ v: 2 }))); await p.reload();

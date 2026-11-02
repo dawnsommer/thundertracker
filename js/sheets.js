@@ -1,9 +1,9 @@
 // Side panels (editor sheets) and the form controls they share.
 
-import { $, h, num } from './util.js?v=23';
-import { allSystems, shortSys } from './data.js?v=23';
-import { render } from './shell.js?v=23';
-import { settingsRefresh } from './settings.js?v=23';
+import { $, h, num } from './util.js?v=24';
+import { allSystems, shortSys } from './data.js?v=24';
+import { render } from './shell.js?v=24';
+import { settingsRefresh } from './settings.js?v=24';
 
 // Tap-to-toggle system chips, shared by assessments and qbanks.
 // getPct/setPct (optional): the % correct you scored in each weak system, which shades the weakness matrix.

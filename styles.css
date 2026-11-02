@@ -649,40 +649,80 @@ button.wm-row:hover{background:color-mix(in srgb,var(--hl-soft) 40%,transparent)
 .heat .hc.fut[data-day]{cursor:pointer}
 
 /* ---- printable one-page summary (js/print.js): only on paper, always black on white */
-#print-sheet{display:none}
+#print-sheet{display:none;font:8.6pt/1.35 var(--f-body);color:#111;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+/* print.js measures the one-page layout off screen at the printable width before choosing one or two pages */
+#print-sheet.pr-measure{display:block;position:fixed;left:-10000px;top:0;visibility:hidden;pointer-events:none}
 @media print{
   @page{size:auto;margin:11mm 10mm}
   html,body{background:#fff !important;color:#111 !important}
   body > *:not(#print-sheet){display:none !important}
-  #print-sheet{display:block;font:8.6pt/1.35 var(--f-body);color:#111;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .pr-page{max-width:100%}
-  .pr-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;border-bottom:1.5px solid #111;padding-bottom:5px;margin-bottom:7px}
-  .pr-head h1{font:700 15pt/1.1 var(--f-display);margin:0}
-  .pr-head p{margin:2px 0 0;color:#555}
-  .pr-exam{display:flex;flex-direction:column;align-items:flex-end;gap:1px}
-  .pr-exam b{font-size:10pt}
-  .pr-exam span{color:#555}
-  .pr-stats{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-bottom:8px}
-  .pr-stat{border:1px solid #ccc;border-radius:5px;padding:4px 6px;display:flex;flex-direction:column;break-inside:avoid}
-  .pr-stat span{font-size:7pt;text-transform:uppercase;letter-spacing:.04em;color:#666}
-  .pr-stat b{font:700 12.5pt/1.15 var(--f-mono)}
-  .pr-stat small{font-size:7pt;color:#555}
-  .pr-cols{display:grid;grid-template-columns:1.65fr 1fr;gap:12px;align-items:start}
-  .pr-sec{margin-bottom:8px;break-inside:avoid}
-  .pr-sec h2{font:700 9.5pt/1.2 var(--f-display);margin:0 0 3px;padding-bottom:2px;border-bottom:1px solid #bbb}
-  .pr-table{width:100%;border-collapse:collapse}
-  .pr-table th{text-align:left;font-size:7pt;text-transform:uppercase;letter-spacing:.03em;color:#666;font-weight:600;padding:1px 4px 2px 0}
-  .pr-table td{padding:1.5px 4px 1.5px 0;border-top:.5px solid #e2e2e2;vertical-align:top}
-  .pr-table td.n{font-family:var(--f-mono);text-align:right;white-space:nowrap;padding-right:7px}
-  .pr-table th.n{text-align:right;padding-right:7px}
-  .pr-table td.nw{white-space:nowrap;padding-right:7px}
-  .pr-table td.wk{color:#8a1c1c;font-size:7.8pt}
-  .pr-line{margin:3px 0 0}
-  .pr-muted{margin:3px 0 0;color:#777;font-size:7.5pt}
-  .pr-weak{margin:0;padding-left:16px}
-  .pr-weak li{margin:1px 0}
-  .pr-trend{width:100%;height:auto;display:block}
+  #print-sheet{display:block}
 }
+.pr-page{max-width:100%}
+.pr-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;border-bottom:1.5px solid #111;padding-bottom:5px;margin-bottom:7px}
+.pr-head h1{font:700 15pt/1.1 var(--f-display);margin:0}
+.pr-head p{margin:2px 0 0;color:#555}
+.pr-exam{display:flex;flex-direction:column;align-items:flex-end;gap:1px}
+.pr-exam b{font-size:10pt}
+.pr-exam span{color:#555}
+.pr-stats{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-bottom:8px}
+.pr-stat{border:1px solid #ccc;border-radius:5px;padding:4px 6px;display:flex;flex-direction:column;break-inside:avoid}
+.pr-stat span{font-size:7pt;text-transform:uppercase;letter-spacing:.04em;color:#666}
+.pr-stat b{font:700 12.5pt/1.15 var(--f-mono)}
+.pr-stat small{font-size:7pt;color:#555}
+.pr-cols{display:grid;grid-template-columns:1.65fr 1fr;gap:12px;align-items:start}
+.pr-sec{margin-bottom:8px;break-inside:avoid}
+.pr-sec h2{font:700 9.5pt/1.2 var(--f-display);margin:0 0 3px;padding-bottom:2px;border-bottom:1px solid #bbb}
+.pr-table{width:100%;border-collapse:collapse}
+.pr-table th{text-align:left;font-size:7pt;text-transform:uppercase;letter-spacing:.03em;color:#666;font-weight:600;padding:1px 4px 2px 0}
+.pr-table td{padding:1.5px 4px 1.5px 0;border-top:.5px solid #e2e2e2;vertical-align:top}
+.pr-table td.n{font-family:var(--f-mono);text-align:right;white-space:nowrap;padding-right:7px}
+.pr-table th.n{text-align:right;padding-right:7px}
+.pr-table td.nw{white-space:nowrap;padding-right:7px}
+.pr-table td.wk{color:#8a1c1c;font-size:7.8pt}
+.pr-table tr.pr-re td{border-top-style:dotted;color:#444}
+.pr-table td.pr-rt{font-family:var(--f-mono);font-size:7.6pt;color:#444}
+.pr-line{margin:3px 0 0}
+.pr-muted{margin:3px 0 0;color:#777;font-size:7.5pt}
+.pr-weak{margin:0;padding-left:16px}
+.pr-weak li{margin:1px 0}
+.pr-trend{width:100%;height:auto;display:block}
+/* two pages: a long assessment list may run on (its header row repeats); page 2 always starts fresh */
+.pr-two .pr-assess{break-inside:auto}
+.pr-two .pr-table tr{break-inside:avoid}
+.pr-p2{break-before:page}
+.pr-head2{align-items:baseline}
+.pr-head2 h1{font-size:11pt}
+.pr-p2 .pr-sec{margin-bottom:12px}
+.pr-sub{margin:0 0 6px}
+/* weakness waffle (page 2): same grammar as the overview's matrix, fixed print colours */
+.pw{display:flex;flex-direction:column;gap:2px}
+.pw-row{display:grid;gap:2px;align-items:center;break-inside:avoid}
+.pw-head{align-items:end;margin-bottom:2px}
+.pw-col{font:6.5pt/1 var(--f-mono);color:#666;writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;justify-self:center}
+.pw-col.qb{color:#1d5f8a}
+.pw-name{display:flex;align-items:center;gap:4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding-right:4px}
+.pw-row.rec .pw-name{font-weight:700}
+.pw-cell{display:inline-flex;align-items:center;justify-content:center;border-radius:2.5px;background:#eef0f2;font:600 6pt/1 var(--f-mono);color:#fff}
+.pw-cell.on{background:#c0392b}
+.pw-cell.on.sh1{background:#efc3bd;color:#5a1610}
+.pw-cell.on.sh2{background:#d6695c}
+.pw-cell.on.sh3{background:#8e2318}
+.pw-cell.on.qb{background:#2e7fb5}
+.pw-cell.on.qb.sh1{background:#bcd8ea;color:#0f3550}
+.pw-cell.on.qb.sh2{background:#5d9dc8}
+.pw-cell.on.qb.sh3{background:#1c5479}
+.pw-tot{display:flex;align-items:center;gap:5px;font:7.5pt var(--f-mono);padding-left:5px}
+.pw-head .pw-tot{font-size:6.5pt;color:#666}
+.pw-tot b{min-width:1.6em;text-align:right}
+.pw-bar{flex:1;height:3.5px;border-radius:2px;background:#eef0f2;overflow:hidden}
+.pw-bar i{display:block;height:100%;background:#c0392b}
+.pw-row:not(.rec) .pw-bar i{background:#a9b0b8}
+.pw-recent{display:inline-block;width:5.5px;height:5.5px;border-radius:50%;background:#d98a00;flex:none}
+.pw-legend{display:flex;flex-wrap:wrap;gap:3px 14px;margin:7px 0 0;color:#555;font-size:7pt}
+.pw-legend span{display:inline-flex;align-items:center;gap:4px}
+.pw-legend .pw-cell{width:9px;height:9px}
+.pw-legend .pw-cell + .pw-cell{margin-left:-2px}
 
 /* passive study (js/passive.js): Divine Intervention on the left, overview + PHYSEO beside it (stacked on phones).
    Each source has its own accent (--pv); boxes and the notes switch are compact versions of the article boxes. */
