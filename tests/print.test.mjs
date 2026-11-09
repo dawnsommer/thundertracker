@@ -20,7 +20,7 @@ forms.forEach((id, i) => {
   if (!id.startsWith('f120') && i !== 5) items[id].score = String(215 + i * 2);
 });
 items['nbme-16'] = { status: 0, plan: d(10) };
-const cms = { med: 10, surg: 9, peds: 9, obgyn: 10, psych: 8, neuro: 9, fm: 5, em: 3 };
+const cms = { med: 10, surg: 9, peds: 9, obgyn: 12, psych: 8, neuro: 9, fm: 5, em: 3 };
 Object.entries(cms).forEach(([k, n]) => { for (let i = 1; i <= n; i++) items['cms-' + k + '-' + i] = { status: 1, score: String(62 + (i * 3) % 30), date: d(-60 + i) }; });
 await p.goto(BASE);
 await p.evaluate(({ items, e }) => localStorage.setItem('ck-tracker', JSON.stringify({ v: 2, prefs: { examDate: e, target: '255' }, items,

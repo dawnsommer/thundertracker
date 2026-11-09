@@ -3,12 +3,12 @@
 // moves to a second page. Built fresh right before printing (the Print button, or the browser's own
 // Print), and only shown on paper.
 
-import { $, avg, daysUntil, fmtDate, fmtK, fmtLong, fmtPct, h, nn, num, plural, today } from './util.js?v=26';
-import { FORM_ST, PASSES, SUBJ } from './catalog.js?v=26';
-import { item, state, sysItem } from './store.js?v=26';
-import { allArticles, allCms, allSystems, allTests, artItem, chrono, cmsForms, outlook, pctOf, qbStats, retakeOf, scaledOf, shortSys, taken, weakPattern, weakShade } from './data.js?v=26';
-import { estimateScore } from './calculator.js?v=26';
-import { plannedForms } from './planner.js?v=26';
+import { $, avg, daysUntil, fmtDate, fmtK, fmtLong, fmtPct, h, nn, num, plural, today } from './util.js?v=27';
+import { FORM_ST, PASSES, SUBJ } from './catalog.js?v=27';
+import { item, state, sysItem } from './store.js?v=27';
+import { allArticles, allCms, allSystems, allTests, artItem, chrono, cmsForms, outlook, pctOf, qbStats, retakeOf, scaledOf, shortSys, taken, weakPattern, weakShade } from './data.js?v=27';
+import { estimateScore } from './calculator.js?v=27';
+import { plannedForms } from './planner.js?v=27';
 
 // Printable area in mm (11 × 10 mm margins) of Letter and A4, less a little slack. Letter is wider, A4 taller;
 // the summary keeps to one page only when it fits both.
