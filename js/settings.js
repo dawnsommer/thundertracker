@@ -1,17 +1,18 @@
 // The Settings page.
 
-import { $, daysUntil, fmtDate, fmtLong, fmtN, fmtPct, h, isDate, plural } from './util.js?v=27';
-import { APP_VERSION } from './catalog.js?v=27';
-import { blank, norm, stampAll } from './model.js?v=27';
-import { applyTheme, cloud, save, setState, snapshot, state, toast, ui } from './store.js?v=27';
-import { qbStats } from './data.js?v=27';
-import { numField, refreshSheet } from './sheets.js?v=27';
-import { render, showTab, tabsNow } from './shell.js?v=27';
-import { openQbank } from './qbank.js?v=27';
-import { exportCsv, exportJson } from './backup.js?v=27';
-import { reloadLatest } from './updates.js?v=27';
-import { printSummary } from './print.js?v=27';
-import { codeOk, passiveOn } from './passive.js?v=27';
+import { $, daysUntil, fmtDate, fmtLong, fmtN, fmtPct, h, isDate, plural } from './util.js?v=28';
+import { APP_VERSION } from './catalog.js?v=28';
+import { blank, norm, stampAll } from './model.js?v=28';
+import { applyTheme, cloud, save, setState, snapshot, state, toast, ui } from './store.js?v=28';
+import { qbStats } from './data.js?v=28';
+import { numField, refreshSheet } from './sheets.js?v=28';
+import { render, showTab, tabsNow } from './shell.js?v=28';
+import { openQbank } from './qbank.js?v=28';
+import { exportCsv, exportJson } from './backup.js?v=28';
+import { reloadLatest } from './updates.js?v=28';
+import { printSummary } from './print.js?v=28';
+import { codeOk, passiveOn } from './passive.js?v=28';
+import { ambossOn } from './amboss.js?v=28';
 
 // Built once each time you open it; live parts redraw through settingsRefresh so typing isn't interrupted.
 export let settingsRefresh = null;
@@ -109,14 +110,20 @@ export function buildSettings() {
   const exBox = h('div', { class: 'set-body', id: 'st-extras' });
   let exShown = null;
   const drawExtras = () => {
-    if (exShown === passiveOn()) return; // redraw only when it changes, so typing isn't interrupted
-    exShown = passiveOn();
-    if (exShown) {
-      exBox.replaceChildren(h('div', { class: 'set-row' },
-        h('div', null, h('b', { text: 'Passive study' }), h('small', { text: 'Divine Intervention podcasts and PHYSEO, as a tab · on for your devices that sync' })),
-        h('div', { class: 'btnrow' },
-          h('button', { class: 'btn', onclick: () => showTab('passive', true) }, 'Open'),
-          h('button', { class: 'btn ghost', id: 'st-lock', onclick: () => { state.prefs.passive = false; save(); render(); toast('Passive study hidden — your progress is kept'); } }, 'Hide'))));
+    const key = passiveOn() + ',' + ambossOn();
+    if (exShown === key) return; // redraw only when it changes, so typing isn't interrupted
+    exShown = key;
+    if (passiveOn() || ambossOn()) {
+      // once unlocked, each extra has its own switch; hiding both brings the code back
+      const row = (id, name, about, on, tab, set) => h('div', { class: 'set-row', id: 'st-ex-' + id },
+        h('div', null, h('b', { text: name }), h('small', { text: about })),
+        h('div', { class: 'btnrow' }, on
+          ? [h('button', { class: 'btn', onclick: () => showTab(tab, true) }, 'Open'),
+            h('button', { class: 'btn ghost', id: id === 'passive' ? 'st-lock' : 'st-amb-hide', onclick: () => { set(false); save(); render(); toast(name + ' hidden' + (id === 'passive' ? ' — your progress is kept' : '')); } }, 'Hide')]
+          : h('button', { class: 'btn', id: 'st-' + id + '-show', onclick: () => { set(true); save(); render(); toast(name + ' is on — it’s now a tab'); } }, 'Show')));
+      exBox.replaceChildren(
+        row('passive', 'Passive study', 'Divine Intervention podcasts and PHYSEO, as a tab · on for your devices that sync', passiveOn(), 'passive', (v) => { state.prefs.passive = v; }),
+        row('amboss', 'AMBOSS tracker', 'Your AMBOSS block accuracy, misses and review questions, as a tab and an overview card · read from your AMBOSS tracker page', ambossOn(), 'amboss', (v) => { state.prefs.amboss = v; }));
       return;
     }
     const code = h('input', { type: 'text', id: 'st-code', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', placeholder: 'Code', 'aria-label': 'Code' });
@@ -161,8 +168,8 @@ export function buildSettings() {
     clearTimeout(armTimer);
     delete resetBtn.dataset.arm; resetBtn.textContent = 'Erase all data';
     const undo = snapshot();
-    const theme = state.prefs.theme, passive = state.prefs.passive;
-    setState(blank()); state.prefs.theme = theme; state.prefs.passive = passive; // display settings stay
+    const { theme, passive, amboss } = state.prefs;
+    setState(blank()); Object.assign(state.prefs, { theme, passive, amboss }); // display settings stay
     stampAll(state, Date.now());
     save(); render(); refreshSheet();
     toast('All data erased', undo);

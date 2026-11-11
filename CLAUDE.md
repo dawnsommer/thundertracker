@@ -11,6 +11,8 @@ The repo is **public**. Read `docs/HANDOFF.md` for the current state, history an
   - Drive appDataFolder files named `thundertracker-*` (the state, its daily copies, and `thundertracker-blockflow.json` for BlockFlow's history);
   - caches named `ck-tracker-*`.
 
+  It also reads (never writes) the user's AMBOSS tracker page at `../amboss-tracker/` (their public repo `dawnsommer/amboss-tracker`, rebuilt by their local MogiAmboss tool). Its data is personal: don't copy it into this repo; tests use `tests/fixtures/amboss-page.mjs`.
+
   ThunderShadow's `cloudflareWorkerSession` is read-only (shared sign-in). Never clear all storage or caches.
 - **Deploying = the user says "deploy".** Then fast-forward `main` to the work branch, push, and confirm both GitHub Actions runs (pages build and deployment, and Tests) succeed. Do this only when asked, or when the user says to deploy in the same turn. Commit and push to the session's work branch as you go.
 - Before deploying an app change, run `node tools/release.mjs`. It bumps `VERSION` in sw.js, `APP_VERSION`, and every `?v=` in index.html and all imports. It also rewrites the service worker's offline file list, `APP_FILES` and the modulepreload links. A docs-only change needs no bump.
@@ -21,7 +23,7 @@ The repo is **public**. Read `docs/HANDOFF.md` for the current state, history an
   - **Every import carries the same `?v=N`**, otherwise a module loads twice with separate state. `tests/static.test.mjs` checks this.
 - Modules (one per concern):
   - Core: `util` (helpers, `h()` element builder, cached date formatters), `catalog` (forms, CMS subjects, systems, resources, version), `model` (data shape: `norm`, change stamps, `merge`, `REC`), `store` (live `state`, `save`, `flush`, `toast`, `ui`), `data` (derived lists and stats), `sheets` (side panels, weak-system picker), `shell` (tabs, `render()`, `tabsNow()`).
-  - One module per page: `overview`, `assessments`, `cms`, `systems`, `qbank`, `articles`, `settings`, `passive` (data in `passive-catalog`).
+  - One module per page: `overview`, `assessments`, `cms`, `systems`, `qbank`, `articles`, `settings`, `passive` (data in `passive-catalog`), `amboss` (the AMBOSS tracker extra; pure parsing and stats in `amboss-data`, Node-tested).
   - Features: `calculator` plus `score-models` (score estimates), `planner` (planned dates, .ics), `print` (printed summary with the weakness waffle; two pages only when one doesn't fit), `sim-import` (Exam Simulator), `backup`, `updates` (service worker registration, update notice, Reload latest version), `blockflow` (the exam timer page `#timer`, opened from the header stopwatch; one session, saved locally, drawn in the page and an optional Document Picture-in-Picture window) with its pure clock maths in `timer-engine` (timestamps, never tick counting; Node-tested).
   - Cycles are fine: function declarations are hoisted. Reassign another module's state only through its setters (`setState`, `setSaved`, `setSettingsRefresh`).
 - **Rendering.** `render()` redraws the visible tab from `state`. Sheets redraw through their `refresh` callback; settings through `settingsRefresh`, which must not interrupt typing. `ui` holds view-only state; `state.prefs` is saved.

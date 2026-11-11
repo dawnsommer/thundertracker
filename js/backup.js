@@ -1,14 +1,14 @@
 // Backup export/import and CSV export.
 
-import { $, h, today } from './util.js?v=27';
-import { FORM_ST, GROUPS, PASSES, SUBJ, SYS_ST } from './catalog.js?v=27';
-import { norm, stampAll } from './model.js?v=27';
-import { applyTheme, cloud, flush, item, save, setState, snapshot, state, sysItem, toast } from './store.js?v=27';
-import { allSystems, artItem, bankStats, cmsForms, testForms, weakNames } from './data.js?v=27';
-import { refreshSheet } from './sheets.js?v=27';
-import { render } from './shell.js?v=27';
-import { orderedSections } from './articles.js?v=27';
-import { importSimulator } from './sim-import.js?v=27';
+import { $, h, today } from './util.js?v=28';
+import { FORM_ST, GROUPS, PASSES, SUBJ, SYS_ST } from './catalog.js?v=28';
+import { norm, stampAll } from './model.js?v=28';
+import { applyTheme, cloud, flush, item, save, setState, snapshot, state, sysItem, toast } from './store.js?v=28';
+import { allSystems, artItem, bankStats, cmsForms, testForms, weakNames } from './data.js?v=28';
+import { refreshSheet } from './sheets.js?v=28';
+import { render } from './shell.js?v=28';
+import { orderedSections } from './articles.js?v=28';
+import { importSimulator } from './sim-import.js?v=28';
 
 export function download(name, text, type) {
   const url = URL.createObjectURL(new Blob([text], { type }));

@@ -1,25 +1,27 @@
 // Tabs, routing and the top-level render.
 
-import { $, fmtK, h, sum } from './util.js?v=27';
-import { TABS } from './catalog.js?v=27';
-import { state, storageMsg, sysItem, ui } from './store.js?v=27';
-import { allArticles, allCms, allSystems, allTests, artItem, taken } from './data.js?v=27';
-import { closeSheet, sheetOpen } from './sheets.js?v=27';
-import { renderOverview } from './overview.js?v=27';
-import { renderTests } from './assessments.js?v=27';
-import { renderCms } from './cms.js?v=27';
-import { renderSystems } from './systems.js?v=27';
-import { renderArticles } from './articles.js?v=27';
-import { renderQbank } from './qbank.js?v=27';
-import { passiveOn, pvStats, renderPassive } from './passive.js?v=27';
-import { renderTimer } from './blockflow.js?v=27';
-import { buildSettings, setSettingsRefresh, settingsRefresh } from './settings.js?v=27';
+import { $, fmtK, h, sum } from './util.js?v=28';
+import { TABS } from './catalog.js?v=28';
+import { state, storageMsg, sysItem, ui } from './store.js?v=28';
+import { allArticles, allCms, allSystems, allTests, artItem, taken } from './data.js?v=28';
+import { closeSheet, sheetOpen } from './sheets.js?v=28';
+import { renderOverview } from './overview.js?v=28';
+import { renderTests } from './assessments.js?v=28';
+import { renderCms } from './cms.js?v=28';
+import { renderSystems } from './systems.js?v=28';
+import { renderArticles } from './articles.js?v=28';
+import { renderQbank } from './qbank.js?v=28';
+import { passiveOn, pvStats, renderPassive } from './passive.js?v=28';
+import { ambCount, ambossOn, renderAmboss } from './amboss.js?v=28';
+import { renderTimer } from './blockflow.js?v=28';
+import { buildSettings, setSettingsRefresh, settingsRefresh } from './settings.js?v=28';
 
-export const VIEWS = TABS.concat('passive', 'settings', 'timer');
-// the tabs in the strip right now: Passive study only once it's unlocked in Settings → Extras
-export const tabsNow = () => (passiveOn() ? TABS.concat('passive') : TABS);
+export const VIEWS = TABS.concat('passive', 'amboss', 'settings', 'timer');
+// the tabs in the strip right now: Passive study and AMBOSS only once they're on in Settings → Extras
+const EXTRAS = [['passive', passiveOn], ['amboss', ambossOn]];
+export const tabsNow = () => TABS.concat(EXTRAS.filter(([, on]) => on()).map(([t]) => t));
 export function showTab(t, push) {
-  if (!VIEWS.includes(t) || (t === 'passive' && !passiveOn())) t = 'overview';
+  if (!VIEWS.includes(t) || EXTRAS.some(([x, on]) => t === x && !on())) t = 'overview';
   const entering = t === 'settings' && ui.tab !== 'settings';
   if (t !== 'settings') setSettingsRefresh(null);
   ui.tab = t;
@@ -61,6 +63,7 @@ export function render() {
   if (ui.tab === 'qbank') renderQbank();
   if (ui.tab === 'articles') renderArticles();
   if (ui.tab === 'passive') { if (passiveOn()) renderPassive(); else { showTab('overview'); return; } }
+  if (ui.tab === 'amboss') { if (ambossOn()) renderAmboss(); else { showTab('overview'); return; } }
   if (ui.tab === 'settings' && settingsRefresh) settingsRefresh();
   if (ui.tab === 'timer') renderTimer();
 }
@@ -81,4 +84,6 @@ export function renderCounts() {
   $('ct-art').textContent = arts.filter((a) => artItem(a.id).reads > 0).length + '/' + arts.length;
   $('tab-passive').hidden = !passiveOn();
   if (passiveOn()) { const p = pvStats(); $('ct-pv').textContent = (p.dipDone + p.phDone + p.ownDone) + '/' + (p.dipTotal + p.phTotal + p.ownTotal); }
+  $('tab-amboss').hidden = !ambossOn();
+  if (ambossOn()) $('ct-amb').textContent = ambCount();
 }

@@ -1,16 +1,17 @@
 // The Overview tab: tiles, score trend, CMS bars, Up next, activity calendar and the weakness matrix.
 
-import { $, avg, dayNum, daysUntil, fmtDate, fmtK, fmtLong, fmtN, fmtPct, fromDay, h, monthShort, nn, num, plural, today, weekday } from './util.js?v=27';
-import { GROUPS, PASS, SUBJ, SYS_ST } from './catalog.js?v=27';
-import { cloud, item, save, state, sysItem, ui } from './store.js?v=27';
-import { allArticles, allCms, allSystems, allTests, artItem, band, cmsForms, isEmpty, outlook, pctOf, qbStats, retakeOf, scaledOf, shortSys, taken, trendPoints, weakPattern, weakShade } from './data.js?v=27';
-import { render, showTab } from './shell.js?v=27';
-import { openForm } from './assessments.js?v=27';
-import { openSystem } from './systems.js?v=27';
-import { renderArtSummary } from './articles.js?v=27';
-import { openSettings, signIn } from './settings.js?v=27';
-import { lastText, passiveOn, pvStats, pvSummary } from './passive.js?v=27';
-import { inDays, openPlanner, plannedForms } from './planner.js?v=27';
+import { $, avg, dayNum, daysUntil, fmtDate, fmtK, fmtLong, fmtN, fmtPct, fromDay, h, monthShort, nn, num, plural, today, weekday } from './util.js?v=28';
+import { GROUPS, PASS, SUBJ, SYS_ST } from './catalog.js?v=28';
+import { cloud, item, save, state, sysItem, ui } from './store.js?v=28';
+import { allArticles, allCms, allSystems, allTests, artItem, band, cmsForms, isEmpty, outlook, pctOf, qbStats, retakeOf, scaledOf, shortSys, taken, trendPoints, weakPattern, weakShade } from './data.js?v=28';
+import { render, showTab } from './shell.js?v=28';
+import { openForm } from './assessments.js?v=28';
+import { openSystem } from './systems.js?v=28';
+import { renderArtSummary } from './articles.js?v=28';
+import { openSettings, signIn } from './settings.js?v=28';
+import { lastText, passiveOn, pvStats, pvSummary } from './passive.js?v=28';
+import { ambossOn, renderAmbCard } from './amboss.js?v=28';
+import { inDays, openPlanner, plannedForms } from './planner.js?v=28';
 
 export function tile(label, big, small, frac, note) {
   return h('div', { class: 'tile' },
@@ -103,6 +104,9 @@ export function renderOverview() {
       h('div', { class: 'art-foot' }, last ? h('span', { class: 'pv-last', text: lastText(last) }) : h('span'),
         h('button', { class: 'btn', onclick: () => showTab('passive', true) }, 'Open passive study'))));
   }
+  // AMBOSS tracker: once it's on in Settings → Extras
+  $('amb-mini-card').hidden = !ambossOn();
+  if (ambossOn()) renderAmbCard($('amb-mini'));
 }
 
 // Weakness matrix: a row per system, a column per marked assessment (oldest → newest) and finished qbank.

@@ -1,9 +1,9 @@
 // Importing a Step Exam Simulator progress backup.
 
-import { $, arr, fmtDate, fmtPct, h, num, obj, plural, slug, str, sum, today } from './util.js?v=27';
-import { GROUPS, SUBJ } from './catalog.js?v=27';
-import { item, save, snapshot, state, toast } from './store.js?v=27';
-import { closeSheet, openSheet, sheetHead } from './sheets.js?v=27';
+import { $, arr, fmtDate, fmtPct, h, num, obj, plural, slug, str, sum, today } from './util.js?v=28';
+import { GROUPS, SUBJ } from './catalog.js?v=28';
+import { item, save, snapshot, state, toast } from './store.js?v=28';
+import { closeSheet, openSheet, sheetHead } from './sheets.js?v=28';
 
 // Reads the Step Exam Simulator's progress backup (a .zip of <form>_progress_save.json files plus
 // progress_metadata.json, or those JSON files picked directly) and fills in the matching tracker forms.

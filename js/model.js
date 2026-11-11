@@ -1,8 +1,8 @@
 // The saved data shape: normalising old saves and imported files, change stamps, and the record-by-record merge used by Google sync.
 
-import { arr, clone, ID_RE, inRange, int, ints, isDate, num, obj, safeUrl, stampOf, str, uid } from './util.js?v=27';
-import { GROUPS, MERGE, PASSES, QBANKS, RESOURCES, RESOURCES_DEFAULT, SUBJ } from './catalog.js?v=27';
-import { PV_PASSES } from './passive-catalog.js?v=27';
+import { arr, clone, ID_RE, inRange, int, ints, isDate, num, obj, safeUrl, stampOf, str, uid } from './util.js?v=28';
+import { GROUPS, MERGE, PASSES, QBANKS, RESOURCES, RESOURCES_DEFAULT, SUBJ } from './catalog.js?v=28';
+import { PV_PASSES } from './passive-catalog.js?v=28';
 
 export function normItem(x) {
   x = obj(x);
@@ -97,7 +97,7 @@ export function migrate(sys) {
 export const blank = () => ({ v: 2, base: 0, deleted: {}, lt: 0, pt: 0, items: {}, systems: {}, extraForms: {}, extraAssess: {}, extraSystems: [], removed: [], log: [],
   qbanks: QBANKS.map(blankQbank), articles: {}, artSections: [], artCustom: [], conversions: {}, passive: {}, pvSecs: [], pvCustom: [],
   prefs: { showOld: false, theme: 'system', examDate: '', target: '', bank: '', chart: 'score', sysSort: 'default', lastBackup: '',
-    artOrder: [], artView: 'grid', artSort: 'checklist', artCollapsed: [], passive: false, pvCollapsed: [], pvFilter: 'all', sysTags: RESOURCES_DEFAULT.slice() } });
+    artOrder: [], artView: 'grid', artSort: 'checklist', artCollapsed: [], passive: false, amboss: false, pvCollapsed: [], pvFilter: 'all', sysTags: RESOURCES_DEFAULT.slice() } });
 
 // Accepts v1 saves (the original single-file version) and v2.
 export function norm(s) {
@@ -154,6 +154,7 @@ export function norm(s) {
       artSort: ['least', 'most', 'recent', 'az'].includes(p.artSort) ? p.artSort : 'checklist',
       artCollapsed: [...new Set(arr(p.artCollapsed).filter((x) => typeof x === 'string' && ID_RE.test(x)))].slice(0, 200),
       passive: p.passive === true,
+      amboss: p.amboss === true,
       // which resources show on systems: your pick, in the catalog's order (an empty pick is kept)
       sysTags: Array.isArray(p.sysTags) ? RESOURCES.filter((t) => p.sysTags.includes(t)) : RESOURCES_DEFAULT.slice(),
       pvCollapsed: [...new Set(arr(p.pvCollapsed).filter((x) => typeof x === 'string' && ID_RE.test(x)))].slice(0, 50),
@@ -166,7 +167,7 @@ export function norm(s) {
 // A full restore or erase bumps `base`: on merge, anything older than the newest base is dropped,
 // so the restore wins on every device. Lists of added/hidden forms (`lt`) and the plan prefs (`pt`)
 // merge as a unit, newest wins. Theme and other view prefs stay per device.
-export const SYNC_PREFS = ['examDate', 'target', 'bank', 'showOld', 'artOrder', 'passive', 'sysTags'];
+export const SYNC_PREFS = ['examDate', 'target', 'bank', 'showOld', 'artOrder', 'passive', 'amboss', 'sysTags'];
 export const sig = (r) => JSON.stringify(Object.keys(r).filter((k) => k !== 't').sort().map((k) => [k, r[k]]));
 export const listsSig = (s) => JSON.stringify([s.extraForms, s.extraAssess, s.removed]);
 export const prefsSig = (s) => JSON.stringify(SYNC_PREFS.map((k) => s.prefs[k]));

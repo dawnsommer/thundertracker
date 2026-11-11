@@ -1013,3 +1013,116 @@ html{scrollbar-gutter:stable} /* the timer page is short: keep the scrollbar's r
 /* retakes: a solid dot on the trend, a dashed swatch in its legend, a ↻ on CMS chips */
 .legend i.lg-re,#trend-legend i.lg-re{background:none;border:2px dashed var(--muted);box-sizing:border-box}
 .chip .rt-mark{margin-left:4px;color:var(--brand);font-size:.8em}
+
+/* AMBOSS tracker (Extras): the tab and the overview card. Incorrect = red, unstable = amber. */
+.amb{display:flex;flex-direction:column;gap:12px}
+.amb-dash{display:flex;flex-direction:column;gap:12px}
+.amb-bar-top{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px}
+.amb-bar-top .seg button{font-size:.8rem;padding:6px 11px}
+.amb-built{margin:0 0 0 auto;font-size:.78rem;white-space:nowrap}
+.amb-bar-top .btn{padding:6px 11px;font-size:.8rem;text-decoration:none}
+.amb-empty{display:flex;flex-direction:column;gap:12px;align-items:flex-start}
+.amb-empty p{margin:0}
+.amb-tiles{grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr))}
+.amb-tiles .tile{padding:14px}
+.amb-tiles .tile .big{font-size:1.75rem;display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+.amb-tiles .amb-txt{font-size:1.15rem;line-height:1.2;font-weight:500}
+.amb-delta{font:600 .78rem/1 var(--f-mono);padding:3px 6px;border-radius:999px;vertical-align:middle;white-space:nowrap}
+.amb-delta.up{color:var(--good);background:color-mix(in srgb,var(--good) 13%,transparent)}
+.amb-delta.dn{color:var(--bad);background:color-mix(in srgb,var(--bad) 12%,transparent)}
+.amb-chart-box{min-height:0}
+.amb-chart .amb-pt{transition:r .1s}
+.amb-chart .amb-pt:hover{r:6}
+.legend i.dot{border-radius:50%}
+.amb-focus{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;counter-reset:f}
+.amb-focus li{display:grid;grid-template-columns:1.4rem minmax(0,1fr) auto;column-gap:8px;align-items:baseline;padding:8px 0;border-top:1px solid var(--line);counter-increment:f}
+.amb-focus li:first-child{border-top:0;padding-top:2px}
+.amb-focus li::before{content:counter(f);font:500 .72rem var(--f-mono);color:var(--muted)}
+.amb-focus li.sub::before{content:none}
+.amb-focus .amb-ft{font-weight:600;font-size:.88rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.amb-focus small{grid-column:2/-1;color:var(--muted);font-size:.75rem}
+.amb-focus.compact li{padding:5px 0}
+.amb-tags{display:flex;gap:4px}
+.amb-tag{font:600 .68rem/1 var(--f-mono);padding:3px 6px;border-radius:5px;white-space:nowrap;background:var(--s0);color:var(--muted)}
+.amb-tag.I{background:color-mix(in srgb,var(--bad) 14%,transparent);color:var(--bad)}
+.amb-tag.U{background:color-mix(in srgb,var(--warn) 16%,transparent);color:var(--warn)}
+.amb-why{display:flex;flex-direction:column;gap:12px;margin-bottom:12px}
+.amb-why-row{display:flex;flex-direction:column;gap:5px}
+.amb-why-l{display:flex;justify-content:space-between;font-size:.82rem}
+.amb-why-l small{color:var(--muted);font-family:var(--f-mono);font-size:.72rem}
+.amb-stack{display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--s0);gap:2px}
+.amb-stack span{display:block;height:100%}
+.amb-legend{gap:5px 12px;font-size:.74rem}
+.amb-tip{margin:12px 0 0;padding:10px 12px;border-radius:8px;background:color-mix(in srgb,var(--hl-soft) 50%,var(--panel));font-size:.83rem;border-left:3px solid var(--hl)}
+.amb-est{display:flex;flex-direction:column;gap:7px;margin-bottom:10px}
+.amb-est-row,.amb-bar{display:grid;grid-template-columns:minmax(0,11rem) 1fr 2.6rem;gap:10px;align-items:center;font-size:.82rem}
+.amb-est-row .lbl,.amb-bar .lbl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.amb-est-row .val,.amb-bar .val{font-size:.76rem;color:var(--muted);text-align:right}
+.amb-meter{height:8px;border-radius:4px;background:var(--s0);overflow:hidden}
+.amb-meter i{display:block;height:100%;border-radius:4px}
+.amb-meter i.lo{background:var(--bad)} .amb-meter i.mid{background:var(--warn)} .amb-meter i.hi{background:var(--good)}
+.amb-bars{display:flex;flex-direction:column;gap:7px}
+.amb-bar{grid-template-columns:minmax(0,8.5rem) 1fr 2rem}
+.amb-iu{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--s0);gap:1px}
+.amb-iu i{display:block;height:100%}
+.amb-iu i.I{background:var(--bad)} .amb-iu i.U{background:var(--warn)}
+.amb-grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:12px}
+.amb-grid3 .sec-head,.amb .grid2 .sec-head{align-items:center}
+.amb-heat-w{overflow-x:auto;margin:0 -4px;padding:0 4px}
+.amb-heat,.amb-tbl{border-collapse:separate;border-spacing:3px;font-size:.8rem;width:100%}
+.amb-heat{width:auto}
+.amb-heat td.c{width:3.6rem}
+.amb-tbl{border-spacing:0}
+.amb-heat th,.amb-tbl th{font-weight:600;color:var(--muted);font-size:.72rem;text-align:left;padding:2px 6px;white-space:nowrap}
+.amb-heat th.n,.amb-tbl th.n,.amb-heat td.n,.amb-tbl td.n{text-align:right}
+.amb-heat td{padding:4px 6px;white-space:nowrap}
+.amb-heat td.amb-sys{font-weight:600;padding-right:14px}
+.amb-heat td.c{min-width:2.2rem;text-align:center;border-radius:5px;font:500 .76rem var(--f-mono);background:var(--bg)}
+.amb-heat td.c.dark{color:#fff}
+.amb-heat td.tr{font-size:.74rem;color:var(--muted)}
+.amb-heat td.tr.more{color:var(--bad)} .amb-heat td.tr.fewer{color:var(--good)}
+.amb-sel{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--hl);margin-right:6px;vertical-align:middle;box-shadow:0 0 0 1px var(--ink)}
+.amb-tbl td{padding:6px;border-top:1px solid var(--line);font-family:var(--f-mono);font-size:.78rem}
+.amb-tbl td:first-child{font-family:var(--f-body);font-weight:600}
+.amb-filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+.amb-filters select,.amb-filters input{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:7px 9px;font-size:.84rem;min-width:0;max-width:100%}
+.amb-filters input{flex:1 1 14rem}
+.amb-qct{margin:0;font-size:.78rem;white-space:nowrap}
+.amb-qlist{display:flex;flex-direction:column}
+.amb-q{border-top:1px solid var(--line)}
+.amb-q:first-child{border-top:0}
+.amb-q summary{display:grid;grid-template-columns:5.6rem 3.6rem 4.4rem minmax(0,1fr);gap:10px;align-items:baseline;padding:9px 2px;cursor:pointer;list-style:none;font-size:.85rem}
+.amb-q summary::-webkit-details-marker{display:none}
+.amb-q summary:hover .amb-qt b{text-decoration:underline;text-decoration-color:var(--hl);text-decoration-thickness:2px;text-underline-offset:3px}
+.amb-q .amb-tag{justify-self:start}
+.amb-qset{font-size:.74rem;color:var(--muted)}
+.amb-qsys{font-size:.78rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.amb-qt{display:flex;flex-direction:column;min-width:0}
+.amb-qcall{color:var(--muted);font-size:.8rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.amb-q[open] .amb-qcall{display:none}
+.amb-qbody{padding:2px 2px 12px calc(5.6rem + 10px);display:flex;flex-direction:column;gap:6px;font-size:.85rem}
+.amb-qbody p{margin:0}
+.amb-qbody b{font-weight:600;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;margin-right:4px}
+.amb-more{align-self:center;margin-top:8px}
+/* overview card */
+.amb-mini{display:flex;flex-direction:column;gap:10px}
+.amb-hero{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.amb-big{display:flex;flex-direction:column;gap:2px}
+.amb-big > div{display:flex;align-items:center;gap:8px}
+.amb-big b{font:500 2rem/1 var(--f-display)}
+.amb-spark{border-radius:8px;background:var(--bg);padding:4px 6px}
+.amb-spark svg{display:block;width:100%;height:auto}
+.amb-top{margin:6px 0 0;font-size:.8rem;color:var(--muted);display:flex;align-items:center;gap:6px}
+.amb-top i{width:8px;height:8px;border-radius:2px;display:inline-block}
+.amb-top b{color:var(--ink);font-weight:600}
+.amb-mini-focus{padding-top:10px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:4px}
+@media (max-width:560px){
+  .amb-built{margin-left:0;order:9;width:100%}
+  .amb-q summary{grid-template-columns:5rem minmax(0,1fr);row-gap:2px}
+  .amb-q .amb-qset,.amb-q .amb-qsys{grid-row:2;font-size:.7rem}
+  .amb-q .amb-qset{grid-column:1}
+  .amb-q .amb-qsys{grid-column:2}
+  .amb-q .amb-qt{grid-column:2;grid-row:1}
+  .amb-qbody{padding-left:2px}
+  .amb-est-row{grid-template-columns:minmax(0,8rem) 1fr 2.4rem}
+}
