@@ -1,7 +1,7 @@
 # Handoff: state of Thunder tracker (11 Nov 2026)
 
 **Live:** version 25 at https://dawnsommer.github.io/thundertracker/ (deployed 2 Nov 2026; pages build and Tests both green). **Version 26** (one-page print for up to 20 forms with a larger trend) is on the work branch, not deployed yet.  
-**Version 28** (work branch, not deployed): the **AMBOSS tracker** extra (tab + overview card), read live from the user's AMBOSS tracker page. Version 27 (OB/GYN 11–12) is live.  
+**Version 29** (NBME 17 added, NBME 9–10 retired as older; Nov 2026) is deployed. **Version 28**: the **AMBOSS tracker** extra (tab + overview card), read live from the user's AMBOSS tracker page. Version 27 (OB/GYN 11–12) is live.  
 Versions 21–23 added retakes; 24–26 redesigned the printed summary (weakness waffle, one line per form).  
 Version 17 added the Passive study card on the overview and redesigned the AMBOSS articles card.  
 **Versions 18–20 (24 Oct 2026)** added the BlockFlow exam timer (18), its simplified setup card (19), and its synced session history, two-column layout and the scrollbar-jump fix (20).

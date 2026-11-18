@@ -1,13 +1,13 @@
 // What the app tracks: assessments, CMS subjects, systems, qbanks, AMBOSS articles, labels and constants.
 
-import { slug } from './util.js?v=28';
+import { slug } from './util.js?v=29';
 
 // Self-assessments. `base` is the default list; newer releases can be added from the Assessments tab,
 // and any form can be removed from your list (and brought back) with Edit list.
 export const GROUPS = [
   { key: 'nbme', name: 'NBME CCSSA', short: 'NBME', qs: 200, qsFor: (n) => (n === 7 ? 176 : n <= 8 ? 184 : 200), scaled: true, min: 1, max: 99,
     desc: '200 questions in 4 blocks of 50 (Forms 6 and 8: 184, Form 7: 176) · log the 3-digit score and % correct',
-    base: [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16], old: (n) => n <= 8,
+    base: [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17], old: (n) => n <= 10, // NBME 17 released and 9–10 retired (Nov 2026); older forms stay hidden unless taken or Show older forms
     label: (n) => 'Form ' + n, full: (n) => 'NBME ' + n, tag: (n) => 'N' + n, addHint: 'Form #' },
   { key: 'uwsa', name: 'UWorld Self-Assessment', short: 'UWSA', qs: 160, scaled: true, min: 1, max: 9,
     desc: '160 questions in 4 blocks of 40 · log the 3-digit score and % correct',
@@ -58,7 +58,7 @@ export const FORM_ST = ['Not taken', 'Taken', 'Reviewed', 'Anki made'];
 export const SYS_ST = ['Not started', 'Learning', 'Qbank done', 'Revised'];
 export const TABS = ['overview', 'nbme', 'cms', 'systems', 'qbank', 'articles'];
 export const PASS = 218;
-export const APP_VERSION = 28; // matches VERSION in sw.js and every ?v= (tools/release.mjs keeps them in step)
+export const APP_VERSION = 29; // matches VERSION in sw.js and every ?v= (tools/release.mjs keeps them in step)
 // The app's script files, for “Reload latest version”.
 export const APP_FILES = ['js/amboss-data.js', 'js/amboss.js', 'js/articles.js', 'js/assessments.js', 'js/backup.js', 'js/blockflow.js', 'js/calculator.js', 'js/catalog.js', 'js/cloud.js', 'js/cms.js', 'js/config.js', 'js/data.js', 'js/main.js', 'js/model.js', 'js/overview.js', 'js/passive-catalog.js', 'js/passive.js', 'js/planner.js', 'js/print.js', 'js/qbank.js', 'js/score-models.js', 'js/settings.js', 'js/sheets.js', 'js/shell.js', 'js/sim-import.js', 'js/store.js', 'js/systems.js', 'js/timer-engine.js', 'js/updates.js', 'js/util.js'];
 export const KEY = 'ck-tracker';

@@ -21,7 +21,7 @@ await p.evaluate((d) => localStorage.setItem('ck-tracker', JSON.stringify({ v: 1
 await p.reload();
 await p.waitForTimeout(300);
 ok(await p.locator('#tiles .tile').count() === 6, '6 overview tiles');
-ok((await p.textContent('#ct-nbme')).trim() === '3/18', 'assessment count 3/18 (with AMBOSS SA 1): ' + await p.textContent('#ct-nbme'));
+ok((await p.textContent('#ct-nbme')).trim() === '3/19', 'assessment count 3/19 (with AMBOSS SA 1): ' + await p.textContent('#ct-nbme'));
 ok(await p.locator('#trend svg circle').count() > 0, 'trend chart drawn');
 
 // systems migration
@@ -71,7 +71,7 @@ await p.click('#tests [data-edit="nbme-6"] .rm-btn');
 await p.click('#tests [data-edit="uwsa-3"] .rm-btn');
 ok((await p.getAttribute('#tests [data-edit="uwsa-3"]', 'class')).includes('removed') && (await local()).removed.includes('uwsa-3') && !(await local()).removed.includes('nbme-6'), 'Edit list: NBME 6 back, UWSA 3 removed (kept in the list, greyed)');
 await p.click('#edit-tests');
-ok((await p.textContent('#tests')).includes('Form 6') && !(await p.locator('#tests [data-open="uwsa-3"]').count()) && (await p.textContent('#ct-nbme')).trim().endsWith('/17'), 'done: NBME 6 listed, UWSA 3 not, and not counted');
+ok((await p.textContent('#tests')).includes('Form 6') && !(await p.locator('#tests [data-open="uwsa-3"]').count()) && (await p.textContent('#ct-nbme')).trim().endsWith('/18'), 'done: NBME 6 listed, UWSA 3 not, and not counted');
 await p.click('#edit-tests'); await p.click('#tests [data-edit="uwsa-3"] .rm-btn'); await p.click('#edit-tests');
 await p.click('#tests .group:first-child .add-link');
 await p.fill('#tests .add-row input', '17'); await p.keyboard.press('Enter');
@@ -135,7 +135,7 @@ ok((await p.textContent('#ct-qb')).trim() === '160', 'qbank persisted: ' + await
 await p.keyboard.press(',');
 await p.click('text=Erase all data'); await p.click('text=Tap again to erase everything');
 await p.waitForTimeout(400);
-ok((await p.textContent('#ct-nbme')).trim() === '0/18', 'erased: ' + await p.textContent('#ct-nbme'));
+ok((await p.textContent('#ct-nbme')).trim() === '0/19', 'erased: ' + await p.textContent('#ct-nbme'));
 await p.keyboard.press('Escape'); await p.keyboard.press('1');
 ok(await p.locator('#welcome .welcome').count() === 1, 'welcome card shown when empty');
 await p.setInputFiles('#import', backupPath);
