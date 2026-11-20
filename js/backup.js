@@ -1,14 +1,15 @@
 // Backup export/import and CSV export.
 
-import { $, h, today } from './util.js?v=30';
-import { FORM_ST, GROUPS, PASSES, SUBJ, SYS_ST } from './catalog.js?v=30';
-import { norm, stampAll } from './model.js?v=30';
-import { applyTheme, cloud, flush, item, save, setState, snapshot, state, sysItem, toast } from './store.js?v=30';
-import { allSystems, artItem, bankStats, cmsForms, testForms, weakNames } from './data.js?v=30';
-import { refreshSheet } from './sheets.js?v=30';
-import { render } from './shell.js?v=30';
-import { orderedSections } from './articles.js?v=30';
-import { importSimulator } from './sim-import.js?v=30';
+import { $, h, today } from './util.js?v=31';
+import { FORM_ST, GROUPS, PASSES, SUBJ, SYS_ST } from './catalog.js?v=31';
+import { norm, stampAll } from './model.js?v=31';
+import { applyTheme, cloud, flush, item, save, setState, snapshot, state, sysItem, toast } from './store.js?v=31';
+import { allSystems, artItem, bankStats, cmsForms, testForms, weakNames } from './data.js?v=31';
+import { refreshSheet } from './sheets.js?v=31';
+import { render } from './shell.js?v=31';
+import { orderedSections } from './articles.js?v=31';
+import { importSimulator } from './sim-import.js?v=31';
+import { resList } from './systems.js?v=31';
 
 export function download(name, text, type) {
   const url = URL.createObjectURL(new Blob([text], { type }));
@@ -38,7 +39,7 @@ export function exportCsv() {
   }));
   allSystems().forEach((sy) => {
     const it = sysItem(sy.id);
-    rows.push(['system', '', sy.name, SYS_ST[it.status] + (it.conf ? ' · confidence ' + it.conf + '/5' : ''), '', it.uw, '', '', [it.tags.join(' / '), it.notes].filter(Boolean).join(' · ')]);
+    rows.push(['system', '', sy.name, SYS_ST[it.status] + (it.conf ? ' · confidence ' + it.conf + '/5' : ''), '', it.uw, '', '', [resList(sy.id).map((r) => r.n + ' ' + (r.tot ? Math.min(r.d, r.tot) + '/' + r.tot + (r.u ? ' ' + r.u : '') : r.d ? 'done' : 'not done')).join(' / '), it.amb ? 'in AMBOSS ' + it.amb : '', it.notes].filter(Boolean).join(' · ')]);
   });
   state.qbanks.map(bankStats).forEach((b) => rows.push(['qbank-total', b.qb.name, b.bank ? 'bank of ' + b.bank : '', '', '', b.acc != null ? Math.round(b.acc * 10) / 10 : '',
     b.done != null ? b.done : '', b.qb.finished, [b.pctDone != null ? Math.round(b.pctDone) + '% done' : '', b.finished ? 'finished' : ''].filter(Boolean).join(' · '), weakNames(b.qb.weak || [])]));

@@ -11,10 +11,10 @@
 // this worker only ever reads, writes and deletes caches named `ck-tracker-…`.
 //
 // Releasing: run `node tools/release.mjs` — it bumps VERSION here, every `?v=` and APP_VERSION together.
-const VERSION = 30;
+const VERSION = 31;
 const PREFIX = 'ck-tracker-';
 const CACHE = PREFIX + 'v' + VERSION;
-const SHELL = ['./', 'index.html', 'styles.css?v=30', 'js/amboss-data.js?v=30', 'js/amboss.js?v=30', 'js/articles.js?v=30', 'js/assessments.js?v=30', 'js/backup.js?v=30', 'js/blockflow.js?v=30', 'js/calculator.js?v=30', 'js/catalog.js?v=30', 'js/cloud.js?v=30', 'js/cms.js?v=30', 'js/config.js?v=30', 'js/data.js?v=30', 'js/main.js?v=30', 'js/model.js?v=30', 'js/overview.js?v=30', 'js/passive-catalog.js?v=30', 'js/passive.js?v=30', 'js/planner.js?v=30', 'js/print.js?v=30', 'js/qbank.js?v=30', 'js/score-models.js?v=30', 'js/settings.js?v=30', 'js/sheets.js?v=30', 'js/shell.js?v=30', 'js/sim-import.js?v=30', 'js/store.js?v=30', 'js/systems.js?v=30', 'js/timer-engine.js?v=30', 'js/updates.js?v=30', 'js/util.js?v=30', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'];
+const SHELL = ['./', 'index.html', 'styles.css?v=31', 'js/amboss-data.js?v=31', 'js/amboss.js?v=31', 'js/articles.js?v=31', 'js/assessments.js?v=31', 'js/backup.js?v=31', 'js/blockflow.js?v=31', 'js/calculator.js?v=31', 'js/catalog.js?v=31', 'js/cloud.js?v=31', 'js/cms.js?v=31', 'js/config.js?v=31', 'js/data.js?v=31', 'js/main.js?v=31', 'js/model.js?v=31', 'js/overview.js?v=31', 'js/passive-catalog.js?v=31', 'js/passive.js?v=31', 'js/planner.js?v=31', 'js/print.js?v=31', 'js/qbank.js?v=31', 'js/score-models.js?v=31', 'js/settings.js?v=31', 'js/sheets.js?v=31', 'js/shell.js?v=31', 'js/sim-import.js?v=31', 'js/store.js?v=31', 'js/systems.js?v=31', 'js/timer-engine.js?v=31', 'js/updates.js?v=31', 'js/util.js?v=31', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE)

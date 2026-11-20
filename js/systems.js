@@ -1,129 +1,131 @@
-// The Systems tab: a card per system (stage, confidence, its own resources, notes pages, AMBOSS),
-// a small progress summary on top, and the system editor.
+// The Systems tab: your plan per system. Each system has its own resources with progress; the list is grouped by
+// where a system stands (in progress → revised, add to AMBOSS → not started → in AMBOSS) and each row says what's next.
+// Tap a row to update its resources; Edit opens the side sheet (resources, totals, AMBOSS date, UWorld %, notes).
 
-import { $, avg, fmtDate, fmtPct, h, num, today, uid } from './util.js?v=30';
-import { RESOURCES, SYS_ST } from './catalog.js?v=30';
-import { save, snapshot, state, sysItem, toast, ui } from './store.js?v=30';
-import { allSystems, band, weakPattern } from './data.js?v=30';
-import { closeSheet, numField, openSheet, sheetHead } from './sheets.js?v=30';
-import { render } from './shell.js?v=30';
+import { $, fmtDate, fmtPct, h, num, plural, ring, today, uid } from './util.js?v=31';
+import { RESOURCES, SYS_ST } from './catalog.js?v=31';
+import { UNITS } from './model.js?v=31';
+import { save, snapshot, state, sysItem, toast, ui } from './store.js?v=31';
+import { allSystems, band, shortSys, weakPattern } from './data.js?v=31';
+import { closeSheet, openSheet, sheetHead } from './sheets.js?v=31';
+import { render, showTab } from './shell.js?v=31';
 
-// Status, confidence, resource ticks, notes pages and AMBOSS count as working on a system that day (shown on the calendar).
+// Any change counts as working on a system that day (shown on the activity calendar).
 export function setSys(id, patch) {
   state.systems[id] = Object.assign({}, sysItem(id), patch, { day: today() });
   save(); render();
 }
-export function tagBtn(id, t, after) {
-  const on = sysItem(id).tags.includes(t);
-  return h('button', { class: 'tag' + (on ? ' on' : ''), 'aria-pressed': on ? 'true' : 'false', title: on ? t + ' done' : 'Mark ' + t + ' done',
-    onclick: () => {
-      const cur = sysItem(id).tags;
-      setSys(id, { tags: on ? cur.filter((x) => x !== t) : cur.concat(t) });
-      if (after) after();
-    } }, (on ? '✓ ' : '') + t);
+
+// A system's resources. Until you change them, a system shows the resources picked in the old version
+// (prefs.sysTags, Sketchy · CKNotes · Inner Circle for a new user) plus anything ticked, as done / not done.
+export function resList(id) {
+  const it = sysItem(id);
+  if (it.rs) return it.rs;
+  return [...new Set(state.prefs.sysTags.concat(it.tags))].map((n) => ({ n, d: it.tags.includes(n) ? 1 : 0, tot: '', u: '' }));
 }
-// the default resources (Systems → Default resources); a system can have its own pick instead
-export const sysTags = () => state.prefs.sysTags;
-export const sysRes = (id) => sysItem(id).res || sysTags();
-// notes progress of one system: { done, total, frac } or null without a page count
-export function notesOf(it) {
-  if (!it.pg) return null;
-  const done = Math.min(num(it.pd) || 0, it.pg);
-  return { done, total: it.pg, frac: done / it.pg };
+const setRes = (id, list) => setSys(id, { rs: list.map((r) => Object.assign({}, r)) });
+export const resFrac = (r) => (r.tot ? Math.min(r.d, r.tot) / r.tot : r.d ? 1 : 0);
+const resDone = (r) => resFrac(r) >= 1;
+const resLeft = (r) => (r.tot ? (r.tot - Math.min(r.d, r.tot)) + ' ' + (r.u || 'left') + (r.u ? ' left' : '') : 'to do');
+
+// progress of one system: share of its resources done (each counts the same), and the next thing to do
+export function sysProg(id) {
+  const rs = resList(id), it = sysItem(id);
+  const frac = rs.length ? rs.reduce((a, r) => a + resFrac(r), 0) / rs.length : null;
+  const nextR = rs.find((r) => !resDone(r) && r.d > 0) || rs.find((r) => !resDone(r));
+  let next;
+  if (it.amb) next = 'In AMBOSS since ' + fmtDate(it.amb);
+  else if (it.status === 3) next = 'Revised — add it to AMBOSS';
+  else if (!rs.length) next = 'Add the resources you’ll use';
+  else if (nextR) next = 'Next: ' + nextR.n + (nextR.tot ? ' · ' + resLeft(nextR) : '');
+  else next = 'All resources done — mark it revised';
+  return { rs, frac, next, done: rs.filter(resDone).length };
 }
-// everything for the summary (and the overview tile)
+// where a system stands, for the groups
+export function phaseOf(id) {
+  const it = sysItem(id);
+  if (it.amb) return 'amb';
+  if (it.status === 3) return 'ready';
+  if (it.status > 0 || resList(id).some((r) => r.d > 0)) return 'doing';
+  return 'todo';
+}
+export const PHASES = [
+  ['doing', 'In progress'], ['ready', 'Revised · add to AMBOSS'], ['todo', 'Not started'], ['amb', 'In AMBOSS'],
+];
 export function sysStats() {
-  const sys = allSystems(), its = sys.map((s) => sysItem(s.id));
-  const st = [0, 0, 0, 0]; its.forEach((it) => st[it.status]++);
-  const nts = its.map(notesOf).filter(Boolean);
-  const conf = its.map((it) => it.conf).filter((c) => c > 0);
-  let resAll = 0, resDone = 0;
-  sys.forEach((s) => { const it = sysItem(s.id), r = sysRes(s.id); resAll += r.length; resDone += r.filter((t) => it.tags.includes(t)).length; });
-  return { n: sys.length, st, amb: its.filter((it) => it.amb).length, ready: its.filter((it) => it.status === 3 && !it.amb).length,
-    pgDone: nts.reduce((a, x) => a + x.done, 0), pgAll: nts.reduce((a, x) => a + x.total, 0), nNotes: nts.length,
-    conf: conf.length ? avg(conf) : null, lowConf: conf.filter((c) => c <= 2).length, resAll, resDone };
-}
-// every resource name in use, for the picker: the built-in list first, then your own
-const allRes = () => [...new Set(RESOURCES.concat(...allSystems().map((s) => sysItem(s.id).res || []), ...allSystems().map((s) => sysItem(s.id).tags)))];
-
-function drawResPicker() {
-  const box = $('sys-res'), on = new Set(sysTags());
-  $('sys-res-btn').setAttribute('aria-expanded', ui.sysRes ? 'true' : 'false');
-  box.hidden = !ui.sysRes;
-  if (!ui.sysRes) { box.replaceChildren(); return; }
-  const own = allSystems().filter((s) => sysItem(s.id).res).length;
-  box.replaceChildren(h('span', { class: 'res-h', text: 'Default resources' }),
-    h('div', { class: 'tags', role: 'group', 'aria-label': 'Default resources' }, RESOURCES.map((t) => h('button', {
-      class: 'tag' + (on.has(t) ? ' on' : ''), 'aria-pressed': on.has(t) ? 'true' : 'false', 'data-res': t,
-      onclick: () => { state.prefs.sysTags = RESOURCES.filter((x) => (x === t ? !on.has(t) : on.has(x))); save(); render(); } }, (on.has(t) ? '✓ ' : '') + t))),
-    h('span', { class: 'hint', text: own ? 'Used by every system except the ' + own + ' with their own pick (+ on a card).' : 'Used by every system. Tap + on a card to give that system its own.' }),
-    h('button', { class: 'linkish', onclick: () => { ui.sysRes = false; render(); } }, 'Done'));
-}
-$('sys-res-btn').addEventListener('click', () => { ui.sysRes = !ui.sysRes; render(); });
-
-export function sortedSystems() {
-  const list = allSystems().slice(), m = state.prefs.sysSort;
-  const uw = (s) => { const v = num(sysItem(s.id).uw); return v == null ? 999 : v; };
-  const nf = (s) => { const n = notesOf(sysItem(s.id)); return n ? n.frac : 2; };
-  if (m === 'conf') list.sort((a, b) => (sysItem(a.id).conf || 6) - (sysItem(b.id).conf || 6));
-  if (m === 'status') list.sort((a, b) => sysItem(a.id).status - sysItem(b.id).status);
-  if (m === 'uw') list.sort((a, b) => uw(a) - uw(b));
-  if (m === 'notes') list.sort((a, b) => nf(a) - nf(b));
-  // not in AMBOSS yet first, the furthest along (ready to add) at the top
-  if (m === 'amb') list.sort((a, b) => (!!sysItem(a.id).amb - !!sysItem(b.id).amb) || sysItem(b.id).status - sysItem(a.id).status);
-  if (m === 'az') list.sort((a, b) => a.name.localeCompare(b.name));
-  return list;
+  const sys = allSystems(), ph = { doing: 0, ready: 0, todo: 0, amb: 0 };
+  let rAll = 0, rFrac = 0, rDone = 0;
+  sys.forEach((s) => {
+    ph[phaseOf(s.id)]++;
+    resList(s.id).forEach((r) => { rAll++; rFrac += resFrac(r); if (resDone(r)) rDone++; });
+  });
+  return { n: sys.length, ph, amb: ph.amb, ready: ph.ready, revised: ph.ready + ph.amb, frac: rAll ? rFrac / rAll : null, rAll, rDone };
 }
 
-const meter = (frac, cls) => h('span', { class: 'mini-bar' + (cls ? ' ' + cls : ''), 'aria-hidden': 'true' }, h('i', { style: 'width:' + Math.round(Math.min(1, frac) * 100) + '%' }));
+// the journey bar: in AMBOSS · revised · in progress · not started
+export function journey(st) {
+  const n = st.n || 1, order = ['amb', 'ready', 'doing'];
+  return [
+    h('span', { class: 'jbar', role: 'img', 'aria-label': PHASES.map(([k, l]) => st.ph[k] + ' ' + l.toLowerCase()).join(', ') },
+      order.map((k) => h('i', { class: 'j-' + k, style: 'width:' + (st.ph[k] / n * 100) + '%' }))),
+    h('span', { class: 'jleg' }, ['amb', 'ready', 'doing', 'todo'].map((k) => h('span', null, h('i', { class: 'j-' + k }),
+      h('b', { text: String(st.ph[k]) }), { amb: ' in AMBOSS', ready: ' revised', doing: ' in progress', todo: ' not started' }[k]))),
+  ];
+}
+const bar = (frac) => h('span', { class: 'mini-bar', 'aria-hidden': 'true' }, h('i', { style: 'width:' + Math.round(Math.min(1, frac || 0) * 100) + '%' }));
+const pctTxt = (f) => (f == null ? '–' : String(Math.round(f * 100)));
 
-// Small progress analysis above the cards: stages, AMBOSS, notes pages, confidence.
 function renderSummary() {
-  const s = sysStats(), n = s.n || 1;
-  const stat = (k, big, small, vis, note) => h('div', { class: 'ss' },
-    h('span', { class: 'eyebrow', text: k }), h('div', { class: 'ss-v' }, h('b', { text: big }), small ? h('small', { text: small }) : null), vis, note ? h('span', { class: 'ss-n', text: note }) : null);
+  const st = sysStats();
   $('sys-sum').replaceChildren(
-    stat('Stage', String(s.st[3]), 'of ' + s.n + ' revised',
-      h('span', { class: 'stage-bar', role: 'img', 'aria-label': SYS_ST.map((l, i) => s.st[i] + ' ' + l.toLowerCase()).join(', ') },
-        [1, 2, 3].map((i) => h('i', { class: 'v' + i, style: 'width:' + (s.st[i] / n * 100) + '%' }))),
-      s.st[1] + ' learning · ' + s.st[2] + ' qbank done'),
-    stat('AMBOSS', String(s.amb), 'of ' + s.n + ' added', meter(s.amb / n, 'amb'),
-      s.ready ? s.ready + ' revised, not added yet' : s.amb === s.n ? 'All added' : 'Add each one once revised'),
-    stat('Notes', s.pgAll ? Math.round(s.pgDone / s.pgAll * 100) + '%' : '—', s.pgAll ? s.pgDone + ' of ' + s.pgAll + ' pages' : '',
-      meter(s.pgAll ? s.pgDone / s.pgAll : 0, 'nt'), s.nNotes ? s.nNotes + ' system' + (s.nNotes > 1 ? 's' : '') + ' with pages set' : 'Set pages on a system'),
-    stat('Confidence', s.conf != null ? s.conf.toFixed(1) : '—', s.conf != null ? 'of 5 avg' : '',
-      h('span', { class: 'ss-dots', 'aria-hidden': 'true' }, [1, 2, 3, 4, 5].map((i) => h('i', { class: s.conf != null && s.conf >= i - 0.5 ? 'on' : '' }))),
-      s.lowConf ? s.lowConf + ' at 1–2' : s.resAll ? s.resDone + ' of ' + s.resAll + ' resources done' : ''));
+    h('div', { class: 'pv-stat' }, ring(st.frac || 0, pctTxt(st.frac), 'sysr'),
+      h('div', null, h('span', { class: 'eyebrow', text: 'Overall' }), h('p', { text: st.rAll ? st.rDone + ' of ' + st.rAll + ' resources done' : 'No resources yet' }),
+        h('small', { text: st.revised + ' of ' + st.n + ' systems revised' }))),
+    h('div', { class: 'sum-j' }, journey(st)));
 }
 
-function sysCard(sy, weakIn) {
-  const it = sysItem(sy.id), uw = num(it.uw), nt = notesOf(it), weak = weakIn.get(sy.id);
-  const pdIn = nt ? h('input', { type: 'number', class: 'pg-in', min: '0', max: String(it.pg), inputmode: 'numeric', value: String(nt.done), 'aria-label': 'Pages done in ' + sy.name + ' notes' }) : null;
-  if (pdIn) pdIn.addEventListener('change', () => { const v = num(pdIn.value); if (v != null && v >= 0) setSys(sy.id, { pd: Math.min(Math.round(v), it.pg) }); });
-  return h('div', { class: 'sys sys-s' + it.status + (it.amb ? ' in-amb' : '') },
-    h('div', { class: 'sys-top' },
-      h('div', { class: 'sys-id' },
-        h('button', { class: 'nm', 'data-open': sy.id, onclick: () => openSystem(sy) }, sy.name, it.notes ? h('small', { text: it.notes }) : null),
-        uw != null || weak ? h('span', { class: 'sys-meta' },
-          uw != null ? h('span', { class: 'tag uw ' + band('cms', uw), title: 'UWorld % correct', text: 'UW ' + fmtPct(uw) }) : null,
-          weak ? h('span', { class: 'tag weak-tag' + (weak.length >= 2 ? ' rec' : ''), title: 'Marked weak on ' + weak.map((f) => f.full).join(', '), text: 'Weak ' + weak.length + '×' }) : null) : null),
+function resRow(id, r, i) {
+  const done = resDone(r), list = () => resList(id).map((x) => Object.assign({}, x));
+  const set = (d) => { const l = list(); l[i].d = Math.max(0, Math.min(d, l[i].tot || 1)); setRes(id, l); };
+  return h('div', { class: 'rs' + (done ? ' done' : '') },
+    h('button', { class: 'rs-chk', 'aria-pressed': done ? 'true' : 'false', 'aria-label': (done ? 'Mark not done: ' : 'Mark done: ') + r.n, title: done ? 'Done' : 'Mark done',
+      onclick: () => set(done ? 0 : r.tot || 1) }, done ? '✓' : ''),
+    h('span', { class: 'rs-n', text: r.n }),
+    bar(resFrac(r)),
+    h('span', { class: 'rs-v', text: r.tot ? Math.min(r.d, r.tot) + ' / ' + r.tot + (r.u ? ' ' + r.u : '') : done ? 'Done' : 'Not done' }),
+    r.tot ? h('span', { class: 'rs-step' },
+      h('button', { 'aria-label': 'One less ' + (r.u || 'done') + ' in ' + r.n, onclick: () => set(r.d - 1), disabled: r.d <= 0 ? '' : null }, '−'),
+      h('button', { 'aria-label': 'One more ' + (r.u || 'done') + ' in ' + r.n, onclick: () => set(r.d + 1), disabled: r.d >= r.tot ? '' : null }, '+')) : h('span', { class: 'rs-step' }));
+}
+
+function sysRow(sy, weakIn) {
+  const it = sysItem(sy.id), pr = sysProg(sy.id), open = !!(ui.sysOpen || {})[sy.id], weak = weakIn.get(sy.id), uw = num(it.uw);
+  const toggle = () => { ui.sysOpen = Object.assign({}, ui.sysOpen, { [sy.id]: !open }); render(); };
+  return h('div', { class: 'sys' + (open ? ' open' : '') + ' ph-' + phaseOf(sy.id), 'data-sys': sy.id },
+    h('div', { class: 'sys-row' },
+      ring(pr.frac || 0, pctTxt(pr.frac), 'sysr' + (pr.frac >= 1 ? ' full' : '')),
+      h('button', { class: 'sys-tg', 'aria-expanded': open ? 'true' : 'false', 'aria-label': sy.name + ': ' + (pr.frac == null ? 'no resources' : pctTxt(pr.frac) + '% done') + '. ' + pr.next, onclick: toggle },
+        h('span', { class: 'nm' }, sy.name, weak ? h('span', { class: 'tag weak-tag' + (weak.length >= 2 ? ' rec' : ''), title: 'Marked weak on ' + weak.map((f) => f.full).join(', '), text: 'Weak ' + weak.length + '×' }) : null),
+        h('small', { class: 'nx', text: pr.next })),
       h('span', { class: 'conf', role: 'group', 'aria-label': 'Confidence for ' + sy.name },
-        [1, 2, 3, 4, 5].map((n) => h('button', { class: it.conf >= n ? 'on' : '', 'aria-label': 'Confidence ' + n, 'aria-pressed': it.conf === n ? 'true' : 'false', title: 'Confidence ' + n + '/5', onclick: () => setSys(sy.id, { conf: it.conf === n ? 0 : n }) })))),
-    h('span', { class: 'seg stage', role: 'group', 'aria-label': 'Status for ' + sy.name },
-      SYS_ST.map((l, i) => h('button', { class: 'v' + i, 'aria-pressed': it.status === i ? 'true' : 'false', onclick: () => setSys(sy.id, { status: i }) }, l))),
-    h('div', { class: 'tags sys-res' }, sysRes(sy.id).map((t) => tagBtn(sy.id, t)),
-      h('button', { class: 'tag add', title: 'Choose resources for ' + sy.name, 'aria-label': 'Choose resources for ' + sy.name, onclick: () => openSystem(sy, '#ed-res-new') }, '+')),
-    h('div', { class: 'sys-foot' },
-      nt ? h('div', { class: 'sys-nt' }, h('span', { class: 'lab', text: 'Notes' }), meter(nt.frac, 'nt'), pdIn, h('span', { class: 'of', text: '/ ' + nt.total + ' p' }))
-        : h('button', { class: 'linkish sys-nt-add', onclick: () => openSystem(sy, '#ed-pg') }, '+ Notes pages'),
-      h('button', { class: 'amb-tog' + (it.amb ? ' on' : it.status === 3 ? ' ready' : ''), 'aria-pressed': it.amb ? 'true' : 'false',
+        [1, 2, 3, 4, 5].map((n) => h('button', { class: it.conf >= n ? 'on' : '', 'aria-label': 'Confidence ' + n, 'aria-pressed': it.conf === n ? 'true' : 'false', title: 'Confidence ' + n + '/5', onclick: () => setSys(sy.id, { conf: it.conf === n ? 0 : n }) }))),
+      h('button', { class: 'chev', 'aria-hidden': 'true', tabindex: '-1', onclick: toggle }, '›')),
+    open ? h('div', { class: 'sys-body' },
+      pr.rs.length ? h('div', { class: 'rs-list' }, pr.rs.map((r, i) => resRow(sy.id, r, i)))
+        : h('p', { class: 'hint', text: 'No resources yet. Add the ones you’ll use for this system (e.g. Sketchy videos, CKNotes pages) and track each one.' }),
+      h('div', { class: 'sys-ctl' },
+        h('span', { class: 'seg stage', role: 'group', 'aria-label': 'Status for ' + sy.name },
+          SYS_ST.map((l, i) => h('button', { class: 'v' + i, 'aria-pressed': it.status === i ? 'true' : 'false', onclick: () => setSys(sy.id, { status: i }) }, l))),
+        h('button', { class: 'amb-tog' + (it.amb ? ' on' : it.status === 3 ? ' ready' : ''), 'aria-pressed': it.amb ? 'true' : 'false',
           title: it.amb ? 'Added to AMBOSS on ' + fmtDate(it.amb) + ' (tap to undo)' : 'Mark as added to AMBOSS',
-          onclick: () => setSys(sy.id, { amb: it.amb ? '' : today() }) }, it.amb ? '✓ AMBOSS' : it.status === 3 ? 'Add to AMBOSS' : 'AMBOSS')));
+          onclick: () => setSys(sy.id, { amb: it.amb ? '' : today() }) }, it.amb ? '✓ In AMBOSS' : 'Add to AMBOSS')),
+      h('div', { class: 'sys-foot' },
+        uw != null ? h('span', { class: 'tag uw ' + band('cms', uw), title: 'UWorld % correct', text: 'UW ' + fmtPct(uw) }) : null,
+        it.notes ? h('span', { class: 'sys-note', text: it.notes, title: it.notes }) : h('span'),
+        h('button', { class: 'btn', 'data-open': sy.id, onclick: () => openSystem(sy) }, pr.rs.length ? 'Edit' : 'Add resources'))) : null);
 }
 
 export function renderSystems() {
-  $('sys-sort').value = state.prefs.sysSort;
-  drawResPicker();
   renderSummary();
   const inp = h('input', { type: 'text', placeholder: 'Add a system or topic (e.g. Vascular surgery)', id: 'add-sys', maxlength: '60', 'aria-label': 'New system name' });
   const add = () => {
@@ -134,40 +136,91 @@ export function renderSystems() {
   };
   inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') add(); });
   const weakIn = new Map(weakPattern().rows.map((r) => [r.sy.id, r.hits]));
-  $('sys-rows').replaceChildren(...sortedSystems().map((sy) => sysCard(sy, weakIn)));
+  const by = { doing: [], ready: [], todo: [], amb: [] };
+  allSystems().forEach((sy) => by[phaseOf(sy.id)].push(sy));
+  $('sys-rows').replaceChildren(...PHASES.filter(([k]) => by[k].length).map(([k, label]) => h('section', { class: 'sys-group g-' + k, 'aria-label': label },
+    h('h3', { class: 'sys-gh' }, h('i', { class: 'j-' + k }), label, h('span', { text: String(by[k].length) })),
+    h('div', { class: 'rows' }, by[k].map((sy) => sysRow(sy, weakIn))))));
   $('sys-add').replaceChildren(inp, h('button', { class: 'btn', onclick: add }, 'Add'));
 }
-$('sys-sort').addEventListener('change', (e) => { state.prefs.sysSort = e.target.value; save(); render(); });
 
+// Overview card: the journey bar and the systems you're working on, with their next step.
+export function renderSysCard(box) {
+  const st = sysStats();
+  const doing = allSystems().filter((s) => phaseOf(s.id) === 'doing').map((s) => ({ s, p: sysProg(s.id) })).sort((a, b) => (b.p.frac || 0) - (a.p.frac || 0));
+  const ready = allSystems().filter((s) => phaseOf(s.id) === 'ready');
+  box.replaceChildren(h('div', { class: 'sys-mini' },
+    h('div', { class: 'pv-stat' }, ring(st.frac || 0, pctTxt(st.frac), 'sysr'),
+      h('div', null, h('span', { class: 'eyebrow', text: 'Resources' }), h('p', { text: st.rAll ? st.rDone + ' of ' + st.rAll + ' done' : 'None added yet' }),
+        h('small', { text: st.revised + ' of ' + st.n + ' systems revised · ' + st.amb + ' in AMBOSS' }))),
+    h('div', { class: 'sum-j' }, journey(st)),
+    doing.length || ready.length ? h('div', { class: 'sys-mini-l' },
+      ready.length ? h('button', { class: 'smr ready', onclick: () => showTab('systems', true) }, h('span', { class: 'lbl', text: ready.map((s) => shortSys(s.name)).slice(0, 3).join(', ') + (ready.length > 3 ? '…' : '') }), h('small', { text: 'add to AMBOSS' })) : null,
+      doing.slice(0, 4).map(({ s, p }) => h('button', { class: 'smr', onclick: () => { ui.sysOpen = Object.assign({}, ui.sysOpen, { [s.id]: true }); showTab('systems', true); } },
+        h('span', { class: 'lbl', text: shortSys(s.name) }), bar(p.frac), h('span', { class: 'val', text: pctTxt(p.frac) + '%' }), h('small', { text: p.next.replace(/^Next: /, '') })))) : null,
+    h('div', { class: 'art-foot' }, h('span', { class: 'pv-last', text: doing.length > 4 ? plural(doing.length - 4, 'more system') + ' in progress' : '' }),
+      h('button', { class: 'btn', onclick: () => showTab('systems', true) }, 'Open systems'))));
+}
+
+// The side sheet: resources (add, rename-free: remove and re-add; set totals and units), AMBOSS date, UWorld %, notes.
 export function openSystem(sy, focus) {
   const cur = () => sysItem(sy.id);
-  const patch = (p) => { state.systems[sy.id] = Object.assign({}, cur(), p); save(); render(); };
-  const notesIn = h('textarea', { id: 'ed-sys-notes', placeholder: 'High-yield gaps, resources to revisit…' });
+  const patch = (p) => { state.systems[sy.id] = Object.assign({}, cur(), p, { day: today() }); save(); render(); };
+  const list = () => resList(sy.id).map((r) => Object.assign({}, r));
+  const notesIn = h('textarea', { id: 'ed-sys-notes', placeholder: 'High-yield gaps, things to revisit…' });
   notesIn.value = cur().notes;
-  notesIn.addEventListener('input', () => patch({ notes: notesIn.value }));
-  const uw = numField('ed-uw', 'UWorld % correct', { inputmode: 'decimal', step: 'any', placeholder: 'e.g. 68', value: cur().uw }, 0, 100, false, (raw) => patch({ uw: raw }));
-  const pg = numField('ed-pg', 'Total pages', { inputmode: 'numeric', placeholder: 'e.g. 120', value: cur().pg }, 1, 9999, true, (raw) => patch({ pg: raw === '' ? '' : Number(raw), day: today() }));
-  const pd = numField('ed-pd', 'Pages done', { inputmode: 'numeric', placeholder: '0', value: cur().pd }, 0, 9999, true, (raw) => patch({ pd: raw === '' ? '' : Number(raw), day: today() }));
+  notesIn.addEventListener('input', () => { state.systems[sy.id] = Object.assign({}, cur(), { notes: notesIn.value }); save(); render(); });
+  const uwIn = h('input', { type: 'number', id: 'ed-uw', min: '0', max: '100', step: 'any', inputmode: 'decimal', placeholder: 'e.g. 68' });
+  uwIn.value = cur().uw;
+  uwIn.addEventListener('input', () => { const v = num(uwIn.value); if (uwIn.value === '' || (v != null && v >= 0 && v <= 100)) { state.systems[sy.id] = Object.assign({}, cur(), { uw: uwIn.value }); save(); render(); } });
   const ambOn = h('input', { type: 'checkbox', id: 'ed-amb' });
   const ambDate = h('input', { type: 'date', id: 'ed-amb-date', class: 'sel', 'aria-label': 'Date added to AMBOSS' });
-  ambOn.addEventListener('change', () => patch({ amb: ambOn.checked ? today() : '', day: today() }));
+  ambOn.addEventListener('change', () => patch({ amb: ambOn.checked ? today() : '' }));
   ambDate.addEventListener('change', () => { if (ambDate.value) patch({ amb: ambDate.value }); });
 
-  // which resources this system tracks (its own pick, or the default) and which are done
-  const pickBox = h('div', { class: 'tags', role: 'group', 'aria-label': 'Resources for this system' });
-  const doneBox = h('div', { class: 'tags', role: 'group', 'aria-label': 'Resources done' });
-  const resNew = h('input', { type: 'text', id: 'ed-res-new', maxlength: '30', placeholder: 'Add your own (e.g. Boards & Beyond)', 'aria-label': 'Add a resource for this system' });
-  const setRes = (list) => patch({ res: list });
-  const addOwn = () => { const t = resNew.value.trim().slice(0, 30); if (!t) return; const r = sysRes(sy.id); if (!r.includes(t)) setRes(r.concat(t)); resNew.value = ''; drawRes(); };
-  resNew.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addOwn(); } });
-  const resetBtn = h('button', { class: 'linkish', onclick: () => { setRes(null); drawRes(); } }, 'Use the default resources');
+  const resBox = h('div', { class: 'res-ed' });
+  const sugBox = h('div', { class: 'tags res-sug' });
+  const newIn = h('input', { type: 'text', id: 'ed-res-new', maxlength: '30', placeholder: 'Resource name (e.g. Boards & Beyond)', 'aria-label': 'New resource name' });
+  const addRes = (n) => {
+    n = (n || newIn.value).trim().slice(0, 30); if (!n) return;
+    const l = list();
+    if (!l.some((r) => r.n.toLowerCase() === n.toLowerCase())) { l.push({ n, d: 0, tot: '', u: '' }); patch({ rs: l }); }
+    newIn.value = ''; drawRes();
+    setTimeout(() => { const ins = resBox.querySelectorAll('.re-tot'); if (ins.length && n === list()[list().length - 1].n) ins[ins.length - 1].focus(); }, 0);
+  };
+  newIn.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addRes(); } });
+  const copyBtn = h('button', { class: 'linkish', onclick: () => {
+    const names = list().map((r) => r.n); if (!names.length) return;
+    const undo = snapshot();
+    allSystems().forEach((s) => {
+      if (s.id === sy.id) return;
+      const l = resList(s.id).map((r) => Object.assign({}, r));
+      names.forEach((n) => { if (!l.some((r) => r.n.toLowerCase() === n.toLowerCase())) l.push({ n, d: 0, tot: '', u: '' }); });
+      state.systems[s.id] = Object.assign({}, sysItem(s.id), { rs: l });
+    });
+    save(); render();
+    toast('Added ' + names.join(', ') + ' to every system', undo);
+  } }, 'Add these resources to every system');
+
   const drawRes = () => {
-    const on = new Set(sysRes(sy.id));
-    pickBox.replaceChildren(...[...new Set(allRes().concat(...on))].map((t) => h('button', { class: 'tag pick' + (on.has(t) ? ' on' : ''), 'aria-pressed': on.has(t) ? 'true' : 'false', 'data-res': t,
-      onclick: () => { const r = sysRes(sy.id); setRes(on.has(t) ? r.filter((x) => x !== t) : r.concat(t)); drawRes(); } }, (on.has(t) ? '✓ ' : '') + t)));
-    // your resources, plus any other you'd ticked before (so it can still be unticked)
-    doneBox.replaceChildren(...[...new Set(sysRes(sy.id).concat(cur().tags))].map((t) => tagBtn(sy.id, t, drawRes)));
-    resetBtn.hidden = !cur().res;
+    const l = list();
+    resBox.replaceChildren(...(l.length ? [h('div', { class: 're-h', 'aria-hidden': 'true' }, h('span', { text: 'Resource' }), h('span', { text: 'Done' }), h('span', { text: 'Total' }), h('span', { text: 'Unit' }), h('span'))] : []),
+      ...l.map((r, i) => {
+        const upd = (p) => { const x = list(); Object.assign(x[i], p); if (x[i].tot) x[i].d = Math.min(x[i].d, x[i].tot); else x[i].d = Math.min(x[i].d, 1); patch({ rs: x }); };
+        const dIn = h('input', { type: 'number', class: 're-d', min: '0', inputmode: 'numeric', value: String(r.d), 'aria-label': r.n + ': done' });
+        const tIn = h('input', { type: 'number', class: 're-tot', min: '0', inputmode: 'numeric', value: r.tot === '' ? '' : String(r.tot), placeholder: '—', 'aria-label': r.n + ': total (leave empty for done / not done)' });
+        const uSel = h('select', { class: 'sel re-u', 'aria-label': r.n + ': unit' }, h('option', { value: '', text: '—' }), UNITS.map((u) => h('option', { value: u, text: u })));
+        uSel.value = r.u;
+        dIn.addEventListener('change', () => upd({ d: Math.max(0, Math.round(num(dIn.value) || 0)) }));
+        tIn.addEventListener('change', () => { const v = Math.round(num(tIn.value) || 0); upd({ tot: v > 0 ? Math.min(v, 99999) : '' }); });
+        uSel.addEventListener('change', () => upd({ u: uSel.value }));
+        return h('div', { class: 're' }, h('span', { class: 're-n', text: r.n }), dIn, tIn, uSel,
+          h('button', { class: 're-x', 'aria-label': 'Remove ' + r.n, title: 'Remove', onclick: () => { const undo = snapshot(); patch({ rs: list().filter((_, j) => j !== i) }); drawRes(); toast(r.n + ' removed from ' + shortSys(sy.name), undo); } }, '×'));
+      }));
+    const have = new Set(l.map((r) => r.n.toLowerCase()));
+    const known = [...new Set(RESOURCES.concat(...allSystems().map((s) => resList(s.id).map((r) => r.n))))].filter((n) => !have.has(n.toLowerCase()));
+    sugBox.replaceChildren(...known.map((n) => h('button', { class: 'tag pick', 'data-res': n, onclick: () => addRes(n) }, '+ ' + n)));
+    copyBtn.hidden = !l.length;
   };
   const drawAmb = () => { ambOn.checked = !!cur().amb; ambDate.value = cur().amb; ambDate.hidden = !cur().amb; };
   drawRes(); drawAmb();
@@ -179,20 +232,18 @@ export function openSystem(sy, focus) {
   } }, 'Remove system') : null;
   openSheet(sy.id, sy.name, [
     sheetHead('System · ' + SYS_ST[cur().status] + (cur().conf ? ' · confidence ' + cur().conf + '/5' : ''), sy.name),
-    h('div', { class: 'field' }, h('span', { class: 'lab', text: 'Resources done' }), doneBox),
-    h('div', { class: 'field res-own' }, h('span', { class: 'lab', text: 'Resources for this system' }), pickBox,
-      h('div', { class: 'add-sys' }, resNew, h('button', { class: 'btn', onclick: addOwn }, 'Add')), resetBtn),
-    h('div', { class: 'two' }, pd.field, pg.field),
+    h('div', { class: 'field' }, h('span', { class: 'lab', text: 'Resources' }),
+      h('p', { class: 'hint', text: 'Set a total (pages, videos…) to track progress; leave it empty for a simple done / not done.' }),
+      resBox, h('div', { class: 'add-sys' }, newIn, h('button', { class: 'btn', onclick: () => addRes() }, 'Add')), sugBox, copyBtn),
     h('div', { class: 'field' }, h('span', { class: 'lab', text: 'AMBOSS' }),
       h('div', { class: 'amb-row' }, h('label', { class: 'switch' }, ambOn, 'Added to AMBOSS'), ambDate)),
-    h('div', { class: 'two' }, uw.field, h('div')),
+    h('div', { class: 'two' }, h('div', { class: 'field' }, h('label', { for: 'ed-uw', text: 'UWorld % correct' }), uwIn), h('div')),
     h('div', { class: 'field' }, h('label', { for: 'ed-sys-notes', text: 'Notes' }), notesIn),
     h('div', { class: 'actions' }, h('button', { class: 'btn primary', onclick: closeSheet }, 'Done'), rm),
   ], () => {
     if (document.activeElement !== notesIn) notesIn.value = cur().notes;
-    if (document.activeElement !== uw.inp) uw.inp.value = cur().uw;
-    if (document.activeElement !== pg.inp) pg.inp.value = cur().pg;
-    if (document.activeElement !== pd.inp) pd.inp.value = cur().pd;
-    drawRes(); drawAmb();
-  }, focus || '#ed-sys-notes');
+    if (document.activeElement !== uwIn) uwIn.value = cur().uw;
+    if (!resBox.contains(document.activeElement)) drawRes();
+    drawAmb();
+  }, focus || '#ed-res-new');
 }

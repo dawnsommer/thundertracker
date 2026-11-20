@@ -1,17 +1,17 @@
 // The Overview tab: tiles, score trend, CMS bars, Up next, activity calendar and the weakness matrix.
 
-import { $, avg, dayNum, daysUntil, fmtDate, fmtK, fmtLong, fmtN, fmtPct, fromDay, h, monthShort, nn, num, plural, today, weekday } from './util.js?v=30';
-import { GROUPS, PASS, SUBJ, SYS_ST } from './catalog.js?v=30';
-import { cloud, item, save, state, sysItem, ui } from './store.js?v=30';
-import { allArticles, allCms, allSystems, allTests, artItem, band, cmsForms, isEmpty, outlook, pctOf, qbStats, retakeOf, scaledOf, shortSys, taken, trendPoints, weakPattern, weakShade } from './data.js?v=30';
-import { render, showTab } from './shell.js?v=30';
-import { openForm } from './assessments.js?v=30';
-import { openSystem, sysStats } from './systems.js?v=30';
-import { renderArtSummary } from './articles.js?v=30';
-import { openSettings, signIn } from './settings.js?v=30';
-import { lastText, passiveOn, pvStats, pvSummary } from './passive.js?v=30';
-import { ambossOn, renderAmbCard } from './amboss.js?v=30';
-import { inDays, openPlanner, plannedForms } from './planner.js?v=30';
+import { $, avg, dayNum, daysUntil, fmtDate, fmtK, fmtLong, fmtN, fmtPct, fromDay, h, monthShort, nn, num, plural, today, weekday } from './util.js?v=31';
+import { GROUPS, PASS, SUBJ, SYS_ST } from './catalog.js?v=31';
+import { cloud, item, save, state, sysItem, ui } from './store.js?v=31';
+import { allArticles, allCms, allSystems, allTests, artItem, band, cmsForms, isEmpty, outlook, pctOf, qbStats, retakeOf, scaledOf, shortSys, taken, trendPoints, weakPattern, weakShade } from './data.js?v=31';
+import { render, showTab } from './shell.js?v=31';
+import { openForm } from './assessments.js?v=31';
+import { openSystem, phaseOf, renderSysCard, sysProg, sysStats } from './systems.js?v=31';
+import { renderArtSummary } from './articles.js?v=31';
+import { openSettings, signIn } from './settings.js?v=31';
+import { lastText, passiveOn, pvStats, pvSummary } from './passive.js?v=31';
+import { ambossOn, renderAmbCard } from './amboss.js?v=31';
+import { inDays, openPlanner, plannedForms } from './planner.js?v=31';
 
 export function tile(label, big, small, frac, note) {
   return h('div', { class: 'tile' },
@@ -57,7 +57,7 @@ export function renderOverview() {
   const reviewed = tTaken.filter((f) => item(f.id).status >= 2).length;
   const cScores = cTaken.map(pctOf).filter(nn);
   const sRev = sys.filter((s) => sysItem(s.id).status === 3).length;
-  const sAny = sys.filter((s) => sysItem(s.id).status > 0).length, ss = sysStats();
+  const ss = sysStats();
 
   $('tiles').replaceChildren(
     countdown,
@@ -67,7 +67,7 @@ export function renderOverview() {
     tile('CMS forms', String(cTaken.length), 'of ' + cms.length, cms.length ? cTaken.length / cms.length : 0,
       cScores.length ? 'Average ' + fmtPct(avg(cScores)) + ' correct · ' + cTaken.filter((f) => item(f.id).status >= 2).length + ' reviewed' : 'No scores logged yet'),
     tile('Systems revised', String(sRev), 'of ' + sys.length, sys.length ? sRev / sys.length : 0,
-      [sAny ? sAny + ' started' : 'None started yet', ss.amb ? ss.amb + ' in AMBOSS' : '', ss.pgAll ? 'notes ' + Math.round(ss.pgDone / ss.pgAll * 100) + '%' : ''].filter(Boolean).join(' · ')),
+      [ss.ph.doing + ' in progress', ss.amb ? ss.amb + ' in AMBOSS' : '', ss.frac != null ? 'resources ' + Math.round(ss.frac * 100) + '%' : ''].filter(Boolean).join(' · ')),
     tile('Qbanks', fmtK(qb.total), 'questions', null,
       qb.total || qb.acc != null
         ? [qb.banks.filter((b) => b.pctDone != null).map((b) => b.qb.name + ' ' + fmtPct(b.pctDone)).join(' · '), qb.acc != null ? fmtPct(qb.acc) + ' correct' : ''].filter(Boolean).join(' · ')
@@ -107,8 +107,9 @@ export function renderOverview() {
   // AMBOSS tracker: once it's on in Settings → Extras
   $('amb-mini-card').hidden = !ambossOn();
   if (ambossOn()) renderAmbCard($('amb-mini'));
-  // with an extra on, the weakness matrix gets the full width and the summary cards sit side by side below it
-  $('ov-bottom').classList.toggle('has-extras', passiveOn() || ambossOn());
+  renderSysCard($('sys-mini'));
+  // the summary cards share one row (two per row when there are four)
+  $('ov-cards').dataset.n = String(2 + (passiveOn() ? 1 : 0) + (ambossOn() ? 1 : 0));
 }
 
 // Weakness matrix: a row per system, a column per marked assessment (oldest → newest) and finished qbank.
@@ -201,8 +202,11 @@ export function renderNext(tests, cms, qb, dl) {
   if (weak) add('Weakest', go(weak.s.name + ' CMS · ' + fmtPct(weak.a), () => { ui.subj = weak.s.key; showTab('cms', true); }));
   const lowSys = allSystems().filter((s) => sysItem(s.id).conf > 0).sort((a, b) => sysItem(a.id).conf - sysItem(b.id).conf)[0];
   if (lowSys) add('Low conf.', go(shortSys(lowSys.name) + ' · ' + sysItem(lowSys.id).conf + '/5', () => openSystem(lowSys), lowSys.id));
-  const notStarted = allSystems().filter((s) => sysItem(s.id).status === 0);
-  if (notStarted.length) add('Systems', go(notStarted.length + ' not started · ' + notStarted.slice(0, 2).map((s) => shortSys(s.name)).join(', '), () => showTab('systems', true)));
+  // the system you're furthest along in, and its next step
+  const doing = allSystems().filter((s) => phaseOf(s.id) === 'doing').map((s) => ({ s, p: sysProg(s.id) })).filter((x) => x.p.frac != null).sort((a, b) => b.p.frac - a.p.frac)[0];
+  const notStarted = allSystems().filter((s) => phaseOf(s.id) === 'todo');
+  if (doing) add('Systems', go(shortSys(doing.s.name) + ' ' + Math.round(doing.p.frac * 100) + '% · ' + doing.p.next.replace(/^Next: /, 'next: '), () => { ui.sysOpen = Object.assign({}, ui.sysOpen, { [doing.s.id]: true }); showTab('systems', true); }));
+  else if (notStarted.length) add('Systems', go(notStarted.length + ' not started · ' + notStarted.slice(0, 2).map((s) => shortSys(s.name)).join(', '), () => showTab('systems', true)));
   const unread = allArticles().filter((a) => !artItem(a.id).reads);
   if (unread.length) add('Articles', go(unread.length + ' of ' + allArticles().length + ' unread · next: ' + unread[0].name, () => showTab('articles', true)));
   if (!isEmpty() && !(cloud() && cloud().status().connected)) {

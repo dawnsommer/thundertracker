@@ -39,23 +39,14 @@ ok(lines.length === 2 && lines[0] === 'Weak: Renal' && lines[1] === 'Missed RTA 
 await p.click('#tab-overview'); await p.waitForTimeout(200);
 ok((await p.textContent('#trend-legend')).includes('AMBOSS SA'), 'shows in the score trend');
 
-// --- systems: choose which resources to track
+// --- systems: before you set up a system's own list, it shows the resources picked in the old version plus old ticks
 await p.click('#tab-systems');
-const rowTags = () => p.locator('#sys-rows .sys').first().locator('.sys-res .tag:not(.add)').allTextContents();
-ok(JSON.stringify((await rowTags()).map((t) => t.replace('✓ ', ''))) === JSON.stringify(['Sketchy', 'CKNotes', 'Inner Circle']), 'default: Sketchy, CKNotes, Inner Circle on every system: ' + JSON.stringify(await rowTags()));
-await p.click('#sys-res-btn');
-ok((await p.locator('#sys-res [data-res]').count()) === 7, 'picker offers 7 resources');
-await p.click('#sys-res [data-res="FirstAid"]'); await p.click('#sys-res [data-res="Sketchy"]');
-ok(JSON.stringify((await rowTags()).map((t) => t.replace('✓ ', ''))) === JSON.stringify(['CKNotes', 'Inner Circle', 'FirstAid']), 'Sketchy off, FirstAid on (in the list’s order): ' + JSON.stringify(await rowTags()));
-ok(JSON.stringify((await local()).prefs.sysTags) === JSON.stringify(['CKNotes', 'Inner Circle', 'FirstAid']), 'saved (and synced)');
-await p.locator('#sys-rows .sys').first().locator('.tag', { hasText: 'CKNotes' }).click();
-ok((await local()).systems['sys-cardio'].tags.includes('CKNotes'), 'tick CKNotes on a system');
-await p.click('#sys-rows [data-open="sys-renal"]');
-const edTags = (await p.locator('.sheet .field', { hasText: 'Resources done' }).locator('.tag').allTextContents()).map((t) => t.replace('✓ ', ''));
-ok(edTags.includes('FirstAid') && edTags.includes('Anki') && !edTags.includes('Sketchy'), 'editor: your resources, plus an older tick (Anki) so it can be unticked: ' + edTags.join(','));
-await p.keyboard.press('Escape');
+await p.click('#sys-rows .sys[data-sys="sys-renal"] .sys-tg');
+const rn = (await p.locator('#sys-rows .sys[data-sys="sys-renal"] .rs .rs-n').allTextContents());
+ok(JSON.stringify(rn) === '["Sketchy","CKNotes","Inner Circle","Anki"]', 'old picks (Sketchy, CKNotes, Inner Circle) plus an old tick (Anki): ' + JSON.stringify(rn));
+ok((await p.locator('#sys-rows .sys[data-sys="sys-renal"] .rs.done').count()) === 1, 'the old tick shows as done');
 await p.click('#tab-overview'); await p.waitForTimeout(200);
-ok((await p.textContent('#tiles')).includes('1 started'), 'overview systems tile: started count');
+ok((await p.textContent('#tiles')).includes('1 in progress'), 'overview systems tile: in progress count');
 
 // --- passive: your own sections
 await p.click('#tab-passive');

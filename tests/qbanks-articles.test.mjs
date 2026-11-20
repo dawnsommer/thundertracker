@@ -52,7 +52,7 @@ ok((await p.textContent('#next')).includes('AMBOSS 2,539 left'), 'up next qbank 
 
 // --- systems day marker
 await p.keyboard.press('4');
-await p.click('.sys:first-child .seg button.v1');
+await p.click('#sys-rows .sys[data-sys="sys-cardio"] .sys-tg'); await p.click('#sys-rows .sys[data-sys="sys-cardio"] .seg button.v1');
 s = await local();
 ok(s.systems['sys-cardio'].day === d(0), 'system update dated today');
 

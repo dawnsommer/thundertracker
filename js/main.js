@@ -1,28 +1,28 @@
 // Entry point: keyboard shortcuts and start-up. Loads every other module.
 
-import { clone } from './util.js?v=30';
-import { merge, norm, same } from './model.js?v=30';
-import { applyTheme, cloud, cycleTheme, flush, load, paintStatus, persistQuiet, saveTimer, setSave, setSaved, setState, state, storageOk, toast, ui } from './store.js?v=30';
-import { closeSheet, refreshSheet, sheetOpen } from './sheets.js?v=30';
-import { render, renderNotice, showTab, tabsNow, VIEWS } from './shell.js?v=30';
-import { drawTrend } from './overview.js?v=30';
-import { leaveSettings, openSettings, settingsRefresh } from './settings.js?v=30';
+import { clone } from './util.js?v=31';
+import { merge, norm, same } from './model.js?v=31';
+import { applyTheme, cloud, cycleTheme, flush, load, paintStatus, persistQuiet, saveTimer, setSave, setSaved, setState, state, storageOk, toast, ui } from './store.js?v=31';
+import { closeSheet, refreshSheet, sheetOpen } from './sheets.js?v=31';
+import { render, renderNotice, showTab, tabsNow, VIEWS } from './shell.js?v=31';
+import { drawTrend } from './overview.js?v=31';
+import { leaveSettings, openSettings, settingsRefresh } from './settings.js?v=31';
 
-import './data.js?v=30';
-import './assessments.js?v=30';
-import './cms.js?v=30';
-import './systems.js?v=30';
-import './articles.js?v=30';
-import './qbank.js?v=30';
-import './sim-import.js?v=30';
-import './backup.js?v=30';
-import './updates.js?v=30';
-import './calculator.js?v=30';
-import './planner.js?v=30';
-import './passive.js?v=30';
-import './amboss.js?v=30';
-import { openTimer } from './blockflow.js?v=30';
-import { printSummary } from './print.js?v=30';
+import './data.js?v=31';
+import './assessments.js?v=31';
+import './cms.js?v=31';
+import './systems.js?v=31';
+import './articles.js?v=31';
+import './qbank.js?v=31';
+import './sim-import.js?v=31';
+import './backup.js?v=31';
+import './updates.js?v=31';
+import './calculator.js?v=31';
+import './planner.js?v=31';
+import './passive.js?v=31';
+import './amboss.js?v=31';
+import { openTimer } from './blockflow.js?v=31';
+import { printSummary } from './print.js?v=31';
 
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && sheetOpen) { closeSheet(); return; }

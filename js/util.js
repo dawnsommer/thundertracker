@@ -64,6 +64,8 @@ export function ring(frac, label, cls) {
   const ns = 'http://www.w3.org/2000/svg', r = 15, c = 2 * Math.PI * r;
   const s = (tag, a) => { const e = document.createElementNS(ns, tag); for (const k in a) e.setAttribute(k, a[k]); return e; };
   const svg = s('svg', { viewBox: '0 0 36 36', class: 'pv-ring ' + cls, 'aria-hidden': 'true' });
-  svg.append(s('circle', { cx: 18, cy: 18, r, class: 'bg' }), s('circle', { cx: 18, cy: 18, r, class: 'fg', 'stroke-dasharray': (Math.min(1, frac) * c).toFixed(2) + ' ' + c.toFixed(2), transform: 'rotate(-90 18 18)' }));
+  // nothing done: no arc (a round cap would still draw a dot)
+  svg.append(s('circle', { cx: 18, cy: 18, r, class: 'bg' }));
+  if (frac > 0) svg.append(s('circle', { cx: 18, cy: 18, r, class: 'fg', 'stroke-dasharray': (Math.min(1, frac) * c).toFixed(2) + ' ' + c.toFixed(2), transform: 'rotate(-90 18 18)' }));
   return h('div', { class: 'pv-ringw' }, svg, h('b', { text: label }));
 }
