@@ -4,11 +4,11 @@
 // local MogiAmboss tool rebuilds; this app only reads it (nothing of it is saved in the tracker's data).
 // The service worker keeps the last copy, so it still shows offline.
 
-import { $, fmtK, h, plural } from './util.js?v=31';
-import { state, ui } from './store.js?v=31';
-import { render, showTab } from './shell.js?v=31';
-import { tile } from './overview.js?v=31';
-import { browse, doneBatches, filterOptions, focus, groups, hasCurrent, heat, kpis, parseDashboard, plain, series, sysEstimates, TIPS, why } from './amboss-data.js?v=31';
+import { $, fmtK, h, plural } from './util.js?v=32';
+import { state, ui } from './store.js?v=32';
+import { render, showTab } from './shell.js?v=32';
+import { tile } from './overview.js?v=32';
+import { browse, doneBatches, filterOptions, focus, groups, hasCurrent, heat, kpis, parseDashboard, plain, series, sysEstimates, TIPS, why } from './amboss-data.js?v=32';
 
 export const ambossOn = () => state.prefs.amboss === true;
 // the AMBOSS tracker page, next to this app on dawnsommer.github.io

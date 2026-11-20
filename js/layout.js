@@ -2,10 +2,10 @@
 // Saved per device in prefs.ovLayout as [{k, w: 'full'|'half', hide}]. Halves next to each other share
 // a row: two per row, three when a run is odd, and a half on its own fills the row.
 
-import { $, arr } from './util.js?v=31';
-import { state } from './store.js?v=31';
-import { passiveOn } from './passive.js?v=31';
-import { ambossOn } from './amboss.js?v=31';
+import { $, arr } from './util.js?v=32';
+import { state } from './store.js?v=32';
+import { passiveOn } from './passive.js?v=32';
+import { ambossOn } from './amboss.js?v=32';
 
 export const OV_BLOCKS = [
   { k: 'tiles', name: 'Summary tiles', w: 'full' },
