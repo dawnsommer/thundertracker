@@ -1,6 +1,6 @@
 // The Settings page.
 
-import { $, daysUntil, fmtDate, fmtLong, fmtN, fmtPct, h, isDate, plural } from './util.js?v=31';
+import { $, daysUntil, fmtDate, fmtLong, fmtN, fmtPct, h, isDate, plural, svgIcon } from './util.js?v=31';
 import { APP_VERSION } from './catalog.js?v=31';
 import { blank, norm, stampAll } from './model.js?v=31';
 import { applyTheme, cloud, save, setState, snapshot, state, toast, ui } from './store.js?v=31';
@@ -13,6 +13,7 @@ import { reloadLatest } from './updates.js?v=31';
 import { printSummary } from './print.js?v=31';
 import { codeOk, passiveOn } from './passive.js?v=31';
 import { ambossOn } from './amboss.js?v=31';
+import { blockName, blockOn, defaultLayout, ovLayout, spans } from './layout.js?v=31';
 
 // Built once each time you open it; live parts redraw through settingsRefresh so typing isn't interrupted.
 export let settingsRefresh = null;
@@ -106,6 +107,105 @@ export function buildSettings() {
     h('button', { class: 'btn', 'data-open': 'qb-' + b.qb.id, onclick: () => openQbank(b.qb) }, 'Edit'))),
     h('div', { class: 'btnrow' }, h('button', { class: 'btn ghost', 'data-open': 'qb-new', onclick: () => openQbank(null) }, '+ Add a qbank')));
 
+  // home page: a small map of the overview; drag to reorder, tap the width or the eye
+  const layMap = h('div', { class: 'lay-map', id: 'st-layout', role: 'list', 'aria-label': 'Overview blocks, in order' });
+  const layNote = h('p', { class: 'hint' });
+  const layTray = h('div', { class: 'lay-tray', id: 'st-lay-hidden' });
+  const layReset = h('button', { class: 'btn ghost', id: 'st-lay-reset', onclick: () => { const undo = state.prefs.ovLayout; state.prefs.ovLayout = null; save(); drawLayout(); toast('Home page reset', () => { state.prefs.ovLayout = undo; save(); drawLayout(); }); } }, 'Reset');
+  const ICON = {
+    grip: svgIcon('<circle cx="9" cy="6" r="1.3"/><circle cx="15" cy="6" r="1.3"/><circle cx="9" cy="12" r="1.3"/><circle cx="15" cy="12" r="1.3"/><circle cx="9" cy="18" r="1.3"/><circle cx="15" cy="18" r="1.3"/>'),
+    full: svgIcon('<rect x="3" y="7" width="18" height="10" rx="2"/>'),
+    half: svgIcon('<rect x="3" y="7" width="8" height="10" rx="2"/><rect x="13" y="7" width="8" height="10" rx="2" stroke-dasharray="2 2.5"/>'),
+    eye: svgIcon('<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'),
+    off: svgIcon('<path d="M3 3l18 18"/><path d="M10.6 5.1A10 10 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.1 3.9M6.6 6.6A17 17 0 0 0 2 12s3.6 7 10 7a9.7 9.7 0 0 0 4.4-1"/>'),
+  };
+  let dragging = null;
+  const setLayout = (list) => { state.prefs.ovLayout = list; save(); };
+  // put the blocks you can see in a new order; blocks for extras that are off keep their place
+  const reorder = (keys) => {
+    const full = ovLayout(), res = keys.map((k) => full.find((r) => r.k === k));
+    full.forEach((r, i) => {
+      if (keys.includes(r.k)) return;
+      const prev = full.slice(0, i).reverse().find((x) => res.includes(x));
+      res.splice(prev ? res.indexOf(prev) + 1 : 0, 0, r);
+    });
+    return res;
+  };
+  const sizeMap = () => {
+    const els = [...layMap.children], list = ovLayout(), sp = spans(els.map((el) => list.find((r) => r.k === el.dataset.k)));
+    els.forEach((el) => el.style.setProperty('--span', sp.get(el.dataset.k)));
+  };
+  // move a block's tile, animating the others to their new places
+  const flip = (fn) => {
+    const els = [...layMap.children], before = new Map(els.map((el) => [el, el.getBoundingClientRect()]));
+    fn(); sizeMap();
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    for (const el of els) {
+      if (el.classList.contains('drag')) continue;
+      const a = before.get(el), b = el.getBoundingClientRect();
+      if (Math.abs(a.left - b.left) + Math.abs(a.top - b.top) + Math.abs(a.width - b.width) < 1) continue;
+      el.animate([{ transform: `translate(${a.left - b.left}px,${a.top - b.top}px)`, width: a.width + 'px' }, { transform: 'none', width: b.width + 'px' }], { duration: 180, easing: 'cubic-bezier(.2,.7,.3,1)' });
+    }
+  };
+  const startDrag = (e, el) => {
+    if (e.button > 0) return;
+    e.preventDefault();
+    dragging = el; el.classList.add('drag');
+    let last = 0;
+    const move = (ev) => {
+      const t = document.elementFromPoint(ev.clientX, ev.clientY), over = t && t.closest('.lay-b');
+      if (!over || over === el || over.parentElement !== layMap || ev.timeStamp - last < 140) return;
+      last = ev.timeStamp;
+      const kids = [...layMap.children], after = kids.indexOf(over) > kids.indexOf(el);
+      flip(() => layMap.insertBefore(el, after ? over.nextSibling : over));
+    };
+    const end = () => {
+      removeEventListener('pointermove', move); removeEventListener('pointerup', end); removeEventListener('pointercancel', end);
+      el.classList.remove('drag'); dragging = null;
+      const keys = [...layMap.children].map((x) => x.dataset.k);
+      if (keys.join() !== ovLayout().filter((r) => blockOn(r.k) && !r.hide).map((r) => r.k).join()) setLayout(reorder(keys));
+      drawLayout();
+    };
+    addEventListener('pointermove', move); addEventListener('pointerup', end); addEventListener('pointercancel', end);
+  };
+  const drawLayout = (focusK, focusCls) => {
+    if (dragging) return;
+    const all = ovLayout(), on = all.filter((r) => blockOn(r.k)), list = on.filter((r) => !r.hide), sp = spans(list);
+    const patch = (k, f) => { setLayout(all.map((r) => (r.k === k ? Object.assign({}, r, f(r)) : r))); drawLayout(k, document.activeElement && document.activeElement.className); };
+    layMap.replaceChildren(...list.map((r, i) => {
+      const nm = blockName(r.k);
+      const grip = h('button', { class: 'lay-g', type: 'button', 'aria-label': 'Move ' + nm + ' — drag, or use the arrow keys', title: 'Drag to move',
+        onkeydown: (e) => {
+          const d = { ArrowUp: -1, ArrowLeft: -1, ArrowDown: 1, ArrowRight: 1 }[e.key];
+          if (!d || i + d < 0 || i + d >= list.length) return;
+          e.preventDefault();
+          const keys = list.map((x) => x.k); [keys[i], keys[i + d]] = [keys[i + d], keys[i]];
+          setLayout(reorder(keys)); drawLayout(r.k, 'lay-g');
+        } });
+      grip.innerHTML = ICON.grip;
+      const el = h('div', { class: 'lay-b', role: 'listitem', 'data-k': r.k, style: '--span:' + sp.get(r.k) },
+        grip, h('span', { class: 'lay-n', text: nm }));
+      const wb = h('button', { class: 'lay-w', type: 'button', 'aria-pressed': String(r.w === 'full'), 'aria-label': 'Full width: ' + nm, title: r.w === 'full' ? 'Full width — tap for half' : 'Half width — tap for full', onclick: () => patch(r.k, (x) => ({ w: x.w === 'full' ? 'half' : 'full' })) });
+      wb.innerHTML = r.w === 'full' ? ICON.full : ICON.half;
+      const eb = h('button', { class: 'lay-e', type: 'button', 'aria-label': 'Hide ' + nm, title: 'Hide', onclick: () => { patch(r.k, () => ({ hide: true })); const n = layTray.querySelector(`[data-k="${r.k}"]`); if (n) n.focus(); } });
+      eb.innerHTML = ICON.eye;
+      el.append(wb, eb);
+      grip.addEventListener('pointerdown', (e) => startDrag(e, el));
+      return el;
+    }));
+    // hidden blocks wait in a tray under the map; tap one to bring it back where it was
+    const hid = on.filter((r) => r.hide);
+    layTray.hidden = !hid.length;
+    layTray.replaceChildren(h('span', { class: 'lay-tl', text: 'Hidden' }), ...hid.map((r) => {
+      const b = h('button', { class: 'lay-chip', type: 'button', 'data-k': r.k, 'aria-label': 'Show ' + blockName(r.k), title: 'Tap to show', onclick: () => { patch(r.k, () => ({ hide: false })); const n = layMap.querySelector(`[data-k="${r.k}"] .lay-e`); if (n) n.focus(); } });
+      b.innerHTML = ICON.off; b.append(h('span', { text: blockName(r.k) }));
+      return b;
+    }));
+    layNote.textContent = list.length ? 'Halves share a row on wider screens.' : 'Everything is hidden — tap a block to show it.';
+    layReset.disabled = JSON.stringify(all) === JSON.stringify(defaultLayout());
+    if (focusK) { const f = layMap.querySelector(`[data-k="${focusK}"] .${(focusCls || 'lay-g').split(' ')[0]}`); if (f) f.focus(); }
+  };
+
   // extras: hidden sections, shown with a code
   const exBox = h('div', { class: 'set-body', id: 'st-extras' });
   let exShown = null;
@@ -168,8 +268,8 @@ export function buildSettings() {
     clearTimeout(armTimer);
     delete resetBtn.dataset.arm; resetBtn.textContent = 'Erase all data';
     const undo = snapshot();
-    const { theme, passive, amboss } = state.prefs;
-    setState(blank()); Object.assign(state.prefs, { theme, passive, amboss }); // display settings stay
+    const { theme, passive, amboss, ovLayout: lay } = state.prefs;
+    setState(blank()); Object.assign(state.prefs, { theme, passive, amboss, ovLayout: lay }); // display settings stay
     stampAll(state, Date.now());
     save(); render(); refreshSheet();
     toast('All data erased', undo);
@@ -180,7 +280,7 @@ export function buildSettings() {
   const drawKeys = () => keysDl.replaceChildren(...[['1 – ' + tabsNow().length, 'Switch tabs'], [',', 'Open settings'], ['b', 'BlockFlow exam timer (Space pauses it there)'], ['t', 'Light / dark'], ['p', 'Print a one-page summary'], ['Esc', 'Close a panel, or leave settings'], ['← →', 'Move between tabs (when a tab is focused)']]
     .flatMap(([k, d]) => [h('dt', null, h('kbd', { text: k })), h('dd', { text: d })]));
   const SECTIONS = [
-    ['set-plan', 'Plan'], ['set-sync', 'Google sync'], ['set-look', 'Appearance'], ['set-qbanks', 'Qbanks'],
+    ['set-plan', 'Plan'], ['set-sync', 'Google sync'], ['set-look', 'Appearance'], ['set-home', 'Home page'], ['set-qbanks', 'Qbanks'],
     ['set-data', 'Backup & import'], ['set-extras', 'Extras'], ['set-keys', 'Shortcuts'], ['set-app', 'App version'], ['set-danger', 'Erase data'],
   ];
   const nav = h('nav', { class: 'set-nav', 'aria-label': 'Settings sections' }, SECTIONS.map(([id, label]) =>
@@ -193,6 +293,8 @@ export function buildSettings() {
     card('set-look', 'Appearance', 'Saved on this device only.',
       h('div', { class: 'set-row' }, h('div', null, h('b', { text: 'Theme' }), h('small', { text: 'Or press t, or use the button in the header.' })), theme),
       h('div', { class: 'set-row' }, h('div', null, h('b', { text: 'AMBOSS articles layout' }), h('small', { text: 'Grid fits more articles on screen.' })), artView)),
+    card('set-home', 'Home page', 'Arrange the overview: drag a block to move it, tap the width or the eye. Saved on this device.',
+      layMap, layTray, h('div', { class: 'lay-foot' }, layNote, layReset)),
     card('set-qbanks', 'Qbanks', 'Bank sizes and the progress you’d made before logging sessions here.', qbList),
     card('set-data', 'Backup & import', null, backupNote,
       h('div', { class: 'btnrow' },
@@ -219,7 +321,7 @@ export function buildSettings() {
     const a = document.activeElement;
     if (a !== examIn) examIn.value = p().examDate;
     if (a !== target.inp) target.inp.value = p().target;
-    drawPlan(); drawGoogle(); drawTheme(); drawArtView(); drawQb(); drawBackup(); drawExtras(); drawKeys();
+    drawPlan(); drawGoogle(); drawTheme(); drawArtView(); if (!layMap.contains(document.activeElement) && !layTray.contains(document.activeElement)) drawLayout(); drawQb(); drawBackup(); drawExtras(); drawKeys();
   };
   settingsRefresh();
   const f = ui.settingsFocus; ui.settingsFocus = '';

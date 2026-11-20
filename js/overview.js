@@ -1,5 +1,6 @@
 // The Overview tab: tiles, score trend, CMS bars, Up next, activity calendar and the weakness matrix.
 
+import { applyOverviewLayout } from './layout.js?v=31';
 import { $, avg, dayNum, daysUntil, fmtDate, fmtK, fmtLong, fmtN, fmtPct, fromDay, h, monthShort, nn, num, plural, today, weekday } from './util.js?v=31';
 import { GROUPS, PASS, SUBJ, SYS_ST } from './catalog.js?v=31';
 import { cloud, item, save, state, sysItem, ui } from './store.js?v=31';
@@ -97,7 +98,6 @@ export function renderOverview() {
   renderWeak($('weak'));
   renderArtSummary($('art-mini'), true);
   // Passive study: only once it's unlocked; optional, so it stays out of the tiles, Up next and the pace
-  $('pv-mini-card').hidden = !passiveOn();
   if (passiveOn()) {
     const last = pvStats().last;
     $('pv-mini').replaceChildren(h('div', { class: 'pv-sum' }, pvSummary(true),
@@ -105,11 +105,9 @@ export function renderOverview() {
         h('button', { class: 'btn', onclick: () => showTab('passive', true) }, 'Open passive study'))));
   }
   // AMBOSS tracker: once it's on in Settings → Extras
-  $('amb-mini-card').hidden = !ambossOn();
   if (ambossOn()) renderAmbCard($('amb-mini'));
   renderSysCard($('sys-mini'));
-  // the summary cards share one row (two per row when there are four)
-  $('ov-cards').dataset.n = String(2 + (passiveOn() ? 1 : 0) + (ambossOn() ? 1 : 0));
+  applyOverviewLayout(); // order, width and hidden blocks from Settings → Home page
 }
 
 // Weakness matrix: a row per system, a column per marked assessment (oldest → newest) and finished qbank.

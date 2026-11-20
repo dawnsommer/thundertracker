@@ -97,9 +97,9 @@
 
   <section class="view" id="view-overview" role="tabpanel" aria-labelledby="tab-overview">
     <div id="welcome" hidden></div>
-    <div class="tiles" id="tiles"></div>
-    <div class="grid2">
-      <div class="card">
+    <div class="ov-grid" id="ov-grid">
+    <div class="tiles" id="tiles" data-blk="tiles"></div>
+    <div class="card" data-blk="trend">
         <div class="sec-head">
           <div><h3>Score trend</h3><p class="sub" id="trend-sub">NBME and UWSA 3-digit scores, in the order you took them</p></div>
           <div class="seg mode" id="chart-mode" role="group" aria-label="Chart shows">
@@ -109,8 +109,8 @@
         </div>
         <div class="chart" id="trend"></div>
         <div class="chart-foot"><div class="legend" id="trend-legend"></div><div class="legend" id="trend-note"></div></div>
-      </div>
-      <div class="card">
+    </div>
+    <div class="card" data-blk="cms">
         <div class="sec-head"><div><h3>CMS by subject</h3><p class="sub">Forms done and average % correct</p></div></div>
         <div class="sbars" id="sbars"></div>
         <div class="legend" style="margin-top:14px">
@@ -118,36 +118,32 @@
           <span><i style="background:var(--s2)"></i>Reviewed</span>
           <span><i style="background:var(--s3)"></i>Anki made</span>
         </div>
-      </div>
     </div>
-    <div class="grid2">
-      <div class="card">
+    <div class="card" data-blk="next">
         <h3 style="margin-bottom:10px">Up next</h3>
         <ul class="next" id="next"></ul>
-      </div>
-      <div class="card">
+    </div>
+    <div class="card" data-blk="heat">
         <div class="sec-head"><div><h3>Activity</h3><p class="sub">Last 20 weeks · tap a day to see what you did</p></div></div>
         <div id="heat"></div>
-      </div>
     </div>
-    <div class="card ov-weak">
+    <div class="card ov-weak" data-blk="weak">
       <div class="sec-head"><div><h3>Recurring weak systems</h3><p class="sub">Systems you marked weak on your NBME, UWSA and Free 120 forms and finished qbanks</p></div></div>
       <div id="weak"></div>
     </div>
-    <div class="ov-cards" id="ov-cards">
-      <div class="card" id="sys-mini-card">
+      <div class="card ov-sum" id="sys-mini-card" data-blk="sys">
         <div class="sec-head"><div><h3>Systems</h3><p class="sub">Your revision plan, system by system</p></div></div>
         <div id="sys-mini"></div>
       </div>
-      <div class="card">
+      <div class="card ov-sum" id="art-mini-card" data-blk="art">
         <div class="sec-head"><div><h3>AMBOSS articles</h3><p class="sub">Read-throughs, by section</p></div></div>
         <div id="art-mini"></div>
       </div>
-      <div class="card" id="pv-mini-card" hidden>
+      <div class="card ov-sum" id="pv-mini-card" data-blk="pv" hidden>
         <div class="sec-head"><div><h3>Passive study</h3><p class="sub">Divine Intervention and PHYSEO</p></div></div>
         <div id="pv-mini"></div>
       </div>
-      <div class="card" id="amb-mini-card" hidden>
+      <div class="card ov-sum" id="amb-mini-card" data-blk="amb" hidden>
         <div class="sec-head"><div><h3>AMBOSS tracker</h3><p class="sub">Block accuracy and why you miss</p></div></div>
         <div id="amb-mini"></div>
       </div>

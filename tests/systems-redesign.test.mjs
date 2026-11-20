@@ -104,11 +104,11 @@ ok((await cls(d(-4))).includes('m-amb') && !(await cls(d(-3))).includes('m-amb')
 ok((await cls(d(0))).includes('m-amb'), 'adding a system to AMBOSS hatches today');
 await p.click(`#heat .hc[data-day="${d(0)}"]`);
 ok((await p.textContent('.heat-detail')).includes('Added to AMBOSS: Cardiovascular'), 'day detail names it');
-ok(await p.evaluate(() => document.getElementById('ov-cards').dataset.n === '3'), 'Passive on: three summary cards in a row');
-await p.locator('#ov-cards').screenshot({ path: S + '/overview-cards.png' });
+ok(await p.evaluate(() => { const c = ['sys-mini-card', 'art-mini-card', 'pv-mini-card'].map((id) => document.getElementById(id).getBoundingClientRect());
+  return c.every((r) => Math.abs(r.top - c[0].top) < 2) && c[0].right <= c[1].left && c[1].right <= c[2].left; }), 'Passive on: three summary cards in a row');
 await p.evaluate(() => { const x = JSON.parse(localStorage.getItem('ck-tracker')); x.prefs.passive = false; localStorage.setItem('ck-tracker', JSON.stringify(x)); });
 await p.reload(); await p.waitForTimeout(200);
-ok(await p.evaluate(() => { const c = [...document.querySelectorAll('#ov-cards > .card:not([hidden])')].map((x) => x.getBoundingClientRect()), w = document.querySelector('.ov-weak').getBoundingClientRect();
+ok(await p.evaluate(() => { const c = [...document.querySelectorAll('#ov-grid > .ov-sum:not([hidden])')].map((x) => x.getBoundingClientRect()), w = document.querySelector('.ov-weak').getBoundingClientRect();
   return c.length === 2 && Math.abs(c[0].top - c[1].top) < 2 && w.bottom < c[0].top && Math.abs(w.width - (c[1].right - c[0].left)) < 2; }), 'Passive off: Systems and AMBOSS articles side by side under the full-width matrix');
 
 // --- phone: no sideways scroll

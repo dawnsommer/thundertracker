@@ -1210,13 +1210,15 @@ html{scrollbar-gutter:stable} /* the timer page is short: keep the scrollbar's r
 .tag.pick{border-style:dashed}
 .amb-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 /* overview: the summary cards share a row under the weakness matrix */
-.ov-weak{margin-top:12px}
-.ov-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,290px),1fr));gap:12px;margin-top:12px;align-items:stretch}
-.ov-cards[data-n="4"]{grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr))}
-.ov-cards > .card{display:flex;flex-direction:column}
-.ov-cards > .card > div:last-child{flex:1;display:flex;flex-direction:column}
-.ov-cards > .card > div:last-child > *{flex:1}
-.ov-cards .art-foot{margin-top:auto;padding-top:6px}
+/* overview: one grid, ordered and sized from Settings → Home page (--span on 6 columns) */
+.ov-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:16px 12px;align-items:stretch}
+.ov-grid > *{grid-column:span var(--span,6);min-width:0}
+.ov-grid > [hidden]{display:none}
+@media (max-width:880px){.ov-grid > *{grid-column:1/-1}}
+.ov-sum{display:flex;flex-direction:column}
+.ov-sum > div:last-child{flex:1;display:flex;flex-direction:column}
+.ov-sum > div:last-child > *{flex:1}
+.ov-sum .art-foot{margin-top:auto;padding-top:6px}
 .sys-mini{display:flex;flex-direction:column;gap:12px}
 .sys-mini .jleg{gap:3px 10px;font-size:.72rem}
 .sys-mini-l{display:flex;flex-direction:column;border-top:1px solid var(--line);padding-top:6px}
@@ -1230,3 +1232,27 @@ html{scrollbar-gutter:stable} /* the timer page is short: keep the scrollbar's r
 .amb-row .switch{display:inline-flex;flex-direction:row;align-items:center;gap:8px;font-size:.86rem;font-weight:500;color:var(--ink)}
 .amb-row .switch input{width:16px;height:16px;padding:0;flex:none}
 .amb-row input[type=date]{width:auto}
+
+/* Settings → Home page: a small live map of the overview */
+.lay-map{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;padding:8px;border-radius:12px;background:var(--bg);border:1px solid var(--line);touch-action:pan-y}
+.lay-b{grid-column:span var(--span,6);display:flex;align-items:center;gap:2px;min-width:0;height:40px;padding:0 4px 0 2px;border-radius:9px;background:var(--panel);border:1px solid var(--line);box-shadow:0 1px 2px rgb(0 0 0 / .04);user-select:none;-webkit-user-select:none}
+.lay-b.drag{position:relative;z-index:3;box-shadow:0 8px 22px rgb(0 0 0 / .16);border-color:var(--brand);transform:scale(1.02)}
+.lay-n{flex:1;min-width:0;font-size:.8rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lay-b button{flex:none;display:grid;place-items:center;width:28px;height:28px;padding:0;border:0;border-radius:7px;background:transparent;color:var(--muted)}
+.lay-b button:hover{background:var(--bg);color:var(--ink)}
+.lay-b button svg{width:15px;height:15px}
+.lay-b .lay-g{cursor:grab;touch-action:none}
+.lay-b.drag .lay-g{cursor:grabbing}
+.lay-b .lay-w[aria-pressed="true"]{color:var(--brand)}
+.lay-map:empty{display:none}
+.lay-tray{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:-4px}
+.lay-tray[hidden]{display:none}
+.lay-tl{font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-right:2px}
+.lay-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px 4px 8px;border:1px dashed var(--line);border-radius:999px;background:transparent;color:var(--muted);font-size:.8rem;font-weight:500}
+.lay-chip:hover{border-style:solid;color:var(--ink);background:var(--panel)}
+.lay-chip svg{width:14px;height:14px}
+.lay-foot{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:6px 12px}
+.lay-foot .hint{margin:0}
+.lay-foot .btn{font-size:.8rem;padding:5px 10px}
+@media (max-width:560px){.lay-b{grid-column:1/-1;height:38px}}
+@media (prefers-reduced-motion:no-preference){.lay-b{transition:background .15s,border-color .15s,box-shadow .15s}}
