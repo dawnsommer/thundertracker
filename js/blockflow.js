@@ -7,11 +7,11 @@
 // browser. The history of finished sessions (thundertracker:blockflow-history) also syncs with Google, as its
 // own Drive file (thundertracker-blockflow.json), separate from the tracker's data.
 
-import { $, fmtDate, h, svgIcon } from './util.js?v=29';
-import { toast, ui } from './store.js?v=29';
-import { showTab } from './shell.js?v=29';
-import { openSheet, sheetHead, sheetOpen } from './sheets.js?v=29';
-import * as T from './timer-engine.js?v=29';
+import { $, fmtDate, h, svgIcon } from './util.js?v=30';
+import { toast, ui } from './store.js?v=30';
+import { showTab } from './shell.js?v=30';
+import { openSheet, sheetHead, sheetOpen } from './sheets.js?v=30';
+import * as T from './timer-engine.js?v=30';
 
 const CKEY = 'thundertracker:blockflow', SKEY = 'thundertracker:blockflow-session', HKEY = 'thundertracker:blockflow-history', MIN = 60000;
 const DEF = { mode: 'nbme', q: 40, pace: 90, per: 20, total: '', brk: 5, ext: 5, planned: [], auto: false, warn: 0, sound: true, vol: 70, notify: false, display: 'page' };

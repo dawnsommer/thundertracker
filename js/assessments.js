@@ -1,14 +1,14 @@
 // The Assessments tab (NBME, UWSA, Free 120) and the assessment editor.
 
-import { $, avg, daysUntil, fmtDate, fmtPct, h, isDate, nn, num, today } from './util.js?v=29';
-import { FORM_ST, GROUPS } from './catalog.js?v=29';
-import { item, save, snapshot, state, toast, ui } from './store.js?v=29';
-import { addForm, band, pctOf, scaledOf, taken, testForms, toggleRemove, weakNames } from './data.js?v=29';
-import { closeSheet, numField, openSheet, sheetHead, weakPicker } from './sheets.js?v=29';
-import { render } from './shell.js?v=29';
-import { statusPill } from './overview.js?v=29';
-import { estimateScore, estText, toggleCalculator } from './calculator.js?v=29';
-import { modelsFor } from './score-models.js?v=29';
+import { $, avg, daysUntil, fmtDate, fmtPct, h, isDate, nn, num, today } from './util.js?v=30';
+import { FORM_ST, GROUPS } from './catalog.js?v=30';
+import { item, save, snapshot, state, toast, ui } from './store.js?v=30';
+import { addForm, band, pctOf, scaledOf, taken, testForms, toggleRemove, weakNames } from './data.js?v=30';
+import { closeSheet, numField, openSheet, sheetHead, weakPicker } from './sheets.js?v=30';
+import { render } from './shell.js?v=30';
+import { statusPill } from './overview.js?v=30';
+import { estimateScore, estText, toggleCalculator } from './calculator.js?v=30';
+import { modelsFor } from './score-models.js?v=30';
 
 export function renderTests() {
   const eb = $('edit-tests');

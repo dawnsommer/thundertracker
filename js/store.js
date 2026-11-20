@@ -1,13 +1,13 @@
 // Live state, saving to this browser, undo snapshots, toasts and the light/dark theme.
 
-import { $, clone, h, svgIcon } from './util.js?v=29';
-import { KEY } from './catalog.js?v=29';
-import { blank, norm, normSys, same, stamp, stampAll } from './model.js?v=29';
-import { refreshSheet } from './sheets.js?v=29';
-import { render, renderNotice } from './shell.js?v=29';
+import { $, clone, h, svgIcon } from './util.js?v=30';
+import { KEY } from './catalog.js?v=30';
+import { blank, norm, normSys, same, stamp, stampAll } from './model.js?v=30';
+import { refreshSheet } from './sheets.js?v=30';
+import { render, renderNotice } from './shell.js?v=30';
 
 export let state = blank();
-export const ui = { tab: 'overview', subj: 'all', st: 'all', addingFor: null, focusAdd: false, editForms: false, logAll: false, heatDay: '', weakAll: false, prevTab: 'overview', artArrange: false, calcOpen: false,
+export const ui = { tab: 'overview', subj: 'all', st: 'all', addingFor: null, focusAdd: false, editForms: false, logAll: false, heatDay: '', weakAll: false, nextAll: false, prevTab: 'overview', artArrange: false, calcOpen: false,
   artF: 'all', artQ: '', artAdding: null, artNewSec: false, artRename: null, artJump: '' };
 export let saveTimer = null, storageOk = true, storageMsg = '';
 export let saved = blank(); // copy of what is in storage, used to stamp what changed

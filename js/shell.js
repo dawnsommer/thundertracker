@@ -1,20 +1,20 @@
 // Tabs, routing and the top-level render.
 
-import { $, fmtK, h, sum } from './util.js?v=29';
-import { TABS } from './catalog.js?v=29';
-import { state, storageMsg, sysItem, ui } from './store.js?v=29';
-import { allArticles, allCms, allSystems, allTests, artItem, taken } from './data.js?v=29';
-import { closeSheet, sheetOpen } from './sheets.js?v=29';
-import { renderOverview } from './overview.js?v=29';
-import { renderTests } from './assessments.js?v=29';
-import { renderCms } from './cms.js?v=29';
-import { renderSystems } from './systems.js?v=29';
-import { renderArticles } from './articles.js?v=29';
-import { renderQbank } from './qbank.js?v=29';
-import { passiveOn, pvStats, renderPassive } from './passive.js?v=29';
-import { ambCount, ambossOn, renderAmboss } from './amboss.js?v=29';
-import { renderTimer } from './blockflow.js?v=29';
-import { buildSettings, setSettingsRefresh, settingsRefresh } from './settings.js?v=29';
+import { $, fmtK, h, sum } from './util.js?v=30';
+import { TABS } from './catalog.js?v=30';
+import { state, storageMsg, sysItem, ui } from './store.js?v=30';
+import { allArticles, allCms, allSystems, allTests, artItem, taken } from './data.js?v=30';
+import { closeSheet, sheetOpen } from './sheets.js?v=30';
+import { renderOverview } from './overview.js?v=30';
+import { renderTests } from './assessments.js?v=30';
+import { renderCms } from './cms.js?v=30';
+import { renderSystems } from './systems.js?v=30';
+import { renderArticles } from './articles.js?v=30';
+import { renderQbank } from './qbank.js?v=30';
+import { passiveOn, pvStats, renderPassive } from './passive.js?v=30';
+import { ambCount, ambossOn, renderAmboss } from './amboss.js?v=30';
+import { renderTimer } from './blockflow.js?v=30';
+import { buildSettings, setSettingsRefresh, settingsRefresh } from './settings.js?v=30';
 
 export const VIEWS = TABS.concat('passive', 'amboss', 'settings', 'timer');
 // the tabs in the strip right now: Passive study and AMBOSS only once they're on in Settings → Extras

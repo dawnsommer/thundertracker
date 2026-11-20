@@ -30,7 +30,7 @@ const mrows = await p.locator('#weak button.wm-row').evaluateAll((els) => els.ma
 ok(!wk.includes('null') && JSON.stringify(mrows) === JSON.stringify([['Renal', 3, '3'], ['Cardiovascular', 2, '2'], ['Biostatistics', 1, '1'], ['Endocrine', 1, '1']]), 'matrix rows: ' + JSON.stringify(mrows));
 ok(await p.locator('#weak .wm-row.rec').count() === 2 && wk.includes('Recurring: Renal 3× · Cardiovascular 2×'), 'two recurring (2+) highlighted and summarised');
 ok(JSON.stringify(await p.locator('#weak .wm-col').allTextContents()) === '["N9","N10","U1"]', 'columns oldest to newest');
-ok((await p.textContent('#next')).includes('Renal (3×), Cardiovascular (2×) keep coming up weak'), 'up next names the pattern');
+ok((await p.textContent('#next')).includes('Renal 3× · Cardiovascular 2× keep coming up weak'), 'up next names the pattern');
 await p.click('#weak button.wm-row >> nth=0'); ok((await p.textContent('.sheet h2')).includes('Renal'), 'tapping a bar opens the system'); await p.keyboard.press('Escape');
 await p.keyboard.press('4');
 ok((await p.textContent('#sys-rows')).includes('Weak 3×'), 'systems tab badge');

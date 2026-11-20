@@ -1,17 +1,17 @@
 // The Overview tab: tiles, score trend, CMS bars, Up next, activity calendar and the weakness matrix.
 
-import { $, avg, dayNum, daysUntil, fmtDate, fmtK, fmtLong, fmtN, fmtPct, fromDay, h, monthShort, nn, num, plural, today, weekday } from './util.js?v=29';
-import { GROUPS, PASS, SUBJ, SYS_ST } from './catalog.js?v=29';
-import { cloud, item, save, state, sysItem, ui } from './store.js?v=29';
-import { allArticles, allCms, allSystems, allTests, artItem, band, cmsForms, isEmpty, outlook, pctOf, qbStats, retakeOf, scaledOf, shortSys, taken, trendPoints, weakPattern, weakShade } from './data.js?v=29';
-import { render, showTab } from './shell.js?v=29';
-import { openForm } from './assessments.js?v=29';
-import { openSystem } from './systems.js?v=29';
-import { renderArtSummary } from './articles.js?v=29';
-import { openSettings, signIn } from './settings.js?v=29';
-import { lastText, passiveOn, pvStats, pvSummary } from './passive.js?v=29';
-import { ambossOn, renderAmbCard } from './amboss.js?v=29';
-import { inDays, openPlanner, plannedForms } from './planner.js?v=29';
+import { $, avg, dayNum, daysUntil, fmtDate, fmtK, fmtLong, fmtN, fmtPct, fromDay, h, monthShort, nn, num, plural, today, weekday } from './util.js?v=30';
+import { GROUPS, PASS, SUBJ, SYS_ST } from './catalog.js?v=30';
+import { cloud, item, save, state, sysItem, ui } from './store.js?v=30';
+import { allArticles, allCms, allSystems, allTests, artItem, band, cmsForms, isEmpty, outlook, pctOf, qbStats, retakeOf, scaledOf, shortSys, taken, trendPoints, weakPattern, weakShade } from './data.js?v=30';
+import { render, showTab } from './shell.js?v=30';
+import { openForm } from './assessments.js?v=30';
+import { openSystem, sysStats } from './systems.js?v=30';
+import { renderArtSummary } from './articles.js?v=30';
+import { openSettings, signIn } from './settings.js?v=30';
+import { lastText, passiveOn, pvStats, pvSummary } from './passive.js?v=30';
+import { ambossOn, renderAmbCard } from './amboss.js?v=30';
+import { inDays, openPlanner, plannedForms } from './planner.js?v=30';
 
 export function tile(label, big, small, frac, note) {
   return h('div', { class: 'tile' },
@@ -57,7 +57,7 @@ export function renderOverview() {
   const reviewed = tTaken.filter((f) => item(f.id).status >= 2).length;
   const cScores = cTaken.map(pctOf).filter(nn);
   const sRev = sys.filter((s) => sysItem(s.id).status === 3).length;
-  const sAny = sys.filter((s) => sysItem(s.id).status > 0).length;
+  const sAny = sys.filter((s) => sysItem(s.id).status > 0).length, ss = sysStats();
 
   $('tiles').replaceChildren(
     countdown,
@@ -67,7 +67,7 @@ export function renderOverview() {
     tile('CMS forms', String(cTaken.length), 'of ' + cms.length, cms.length ? cTaken.length / cms.length : 0,
       cScores.length ? 'Average ' + fmtPct(avg(cScores)) + ' correct · ' + cTaken.filter((f) => item(f.id).status >= 2).length + ' reviewed' : 'No scores logged yet'),
     tile('Systems revised', String(sRev), 'of ' + sys.length, sys.length ? sRev / sys.length : 0,
-      (sAny ? sAny + ' started' : 'None started yet') + (state.prefs.sysTags[0] ? ' · ' + sys.filter((s) => sysItem(s.id).tags.includes(state.prefs.sysTags[0])).length + ' ' + state.prefs.sysTags[0] + ' done' : '')),
+      [sAny ? sAny + ' started' : 'None started yet', ss.amb ? ss.amb + ' in AMBOSS' : '', ss.pgAll ? 'notes ' + Math.round(ss.pgDone / ss.pgAll * 100) + '%' : ''].filter(Boolean).join(' · ')),
     tile('Qbanks', fmtK(qb.total), 'questions', null,
       qb.total || qb.acc != null
         ? [qb.banks.filter((b) => b.pctDone != null).map((b) => b.qb.name + ' ' + fmtPct(b.pctDone)).join(' · '), qb.acc != null ? fmtPct(qb.acc) + ' correct' : ''].filter(Boolean).join(' · ')
@@ -107,6 +107,8 @@ export function renderOverview() {
   // AMBOSS tracker: once it's on in Settings → Extras
   $('amb-mini-card').hidden = !ambossOn();
   if (ambossOn()) renderAmbCard($('amb-mini'));
+  // with an extra on, the weakness matrix gets the full width and the summary cards sit side by side below it
+  $('ov-bottom').classList.toggle('has-extras', passiveOn() || ambossOn());
 }
 
 // Weakness matrix: a row per system, a column per marked assessment (oldest → newest) and finished qbank.
@@ -164,47 +166,54 @@ export function renderWeak(box) {
   ].filter(Boolean));
 }
 
+// Up next: the few things worth doing now, one short line each; the rest behind "more".
 export function renderNext(tests, cms, qb, dl) {
   const lis = [];
-  const go = (text, fn, key) => h('button', { class: 'go', onclick: fn, 'data-open': key || null }, text);
+  const go = (text, fn, key) => h('button', { class: 'go', onclick: fn, 'data-open': key || null, title: text }, text);
+  const add = (k, t, tone) => lis.push([k, t, tone || '']);
   const left = tests.filter((f) => !taken(f) && !f.old);
   const planned = plannedForms(), overdue = planned.filter((f) => daysUntil(item(f.id).plan) < 0), upcoming = planned.find((f) => daysUntil(item(f.id).plan) >= 0);
-  if (overdue.length) lis.push(['Overdue', go(overdue.map((f) => f.full).join(', ') + ' — planned ' + fmtDate(item(overdue[0].id).plan) + '. Take it or pick a new date', () => openForm(overdue[0]), overdue[0].id)]);
-  if (upcoming) lis.push(['Planned', go(upcoming.full + ' ' + inDays(item(upcoming.id).plan) + ' (' + fmtLong(item(upcoming.id).plan) + ')', () => openForm(upcoming), upcoming.id)]);
+  if (overdue.length) add('Overdue', go(overdue.map((f) => f.full).join(', ') + ' — planned ' + fmtDate(item(overdue[0].id).plan), () => openForm(overdue[0]), overdue[0].id), 'bad');
+  if (upcoming) add('Planned', go(upcoming.full + ' ' + inDays(item(upcoming.id).plan) + ' · ' + fmtDate(item(upcoming.id).plan), () => openForm(upcoming), upcoming.id), 'hl');
   else {
     const nextT = left.find((f) => f.g.key !== 'f120') || left[0];
-    if (nextT) lis.push(['Next', go('Take ' + nextT.full, () => openForm(nextT), nextT.id)]);
+    if (nextT) add('Next', go('Take ' + nextT.full, () => openForm(nextT), nextT.id), 'hl');
   }
-  const unplanned = left.filter((f) => !item(f.id).plan);
-  if (dl != null && dl > 3 && unplanned.length) lis.push(['Plan', go('Pick dates for ' + plural(unplanned.length, 'remaining assessment') + ' before test day', openPlanner, 'planner')]);
+  const unrev = tests.concat(cms).filter((f) => item(f.id).status === 1);
+  if (unrev.length) add('Review', go(plural(unrev.length, 'form') + ' to review: ' + unrev.slice(0, 3).map((f) => f.full).join(', ') + (unrev.length > 3 ? '…' : ''), () => openForm(unrev[0]), unrev[0].id));
+  const pattern = weakPattern().rows.filter((r) => r.hits.length >= 2);
+  if (pattern.length) add('Pattern', go(pattern.slice(0, 3).map((r) => shortSys(r.sy.name) + ' ' + r.hits.length + '×').join(' · ') + ' keep coming up weak', () => openSystem(pattern[0].sy), pattern[0].sy.id), 'bad');
   if (dl != null && dl > 0 && left.length) {
     const every = dl / left.length;
-    lis.push(['Pace', left.length + ' assessment' + (left.length > 1 ? 's' : '') + ' left in ' + plural(dl, 'day') +
-      (every >= 1 ? ' · about one every ' + (every < 10 ? every.toFixed(1).replace(/\.0$/, '') : Math.round(every)) + ' days' : ' · more than one a day — consider trimming the list')]);
+    add('Pace', plural(left.length, 'assessment') + ' in ' + plural(dl, 'day') +
+      (every >= 1 ? ' · one every ' + (every < 10 ? every.toFixed(1).replace(/\.0$/, '') : Math.round(every)) + ' days' : ' · more than one a day'));
   }
   const paced = qb.banks.filter((b) => b.left != null && b.started && !b.finished);
   if (paced.length && dl != null && dl > 0) {
-    lis.push(['Qbank', paced.map((b) => b.left > 0 ? b.qb.name + ' ' + fmtN(b.left) + ' left (~' + Math.ceil(b.left / dl) + '/day)' : b.qb.name + ' finished').join(' · ')]);
+    add('Qbank', paced.map((b) => b.left > 0 ? b.qb.name + ' ' + fmtN(b.left) + ' left (~' + Math.ceil(b.left / dl) + '/day)' : b.qb.name + ' finished').join(' · '));
   }
-  const pattern = weakPattern().rows.filter((r) => r.hits.length >= 2);
-  if (pattern.length) lis.push(['Pattern', go(pattern.slice(0, 3).map((r) => shortSys(r.sy.name) + ' (' + r.hits.length + '×)').join(', ') + ' keep coming up weak', () => openSystem(pattern[0].sy), pattern[0].sy.id)]);
-  const unread = allArticles().filter((a) => !artItem(a.id).reads);
-  if (unread.length) lis.push(['Articles', go(unread.length + ' of ' + allArticles().length + ' AMBOSS articles not read yet — next: ' + unread[0].name, () => showTab('articles', true))]);
-  const unrev = tests.concat(cms).filter((f) => item(f.id).status === 1);
-  if (unrev.length) lis.push(['Review', go(plural(unrev.length, 'taken form') + ' still need review: ' + unrev.slice(0, 4).map((f) => f.full).join(', ') + (unrev.length > 4 ? '…' : ''), () => openForm(unrev[0]), unrev[0].id)]);
+  const unplanned = left.filter((f) => !item(f.id).plan);
+  if (dl != null && dl > 3 && unplanned.length) add('Plan', go('Pick dates for ' + plural(unplanned.length, 'assessment'), openPlanner, 'planner'));
+  const ready = allSystems().filter((s) => sysItem(s.id).status === 3 && !sysItem(s.id).amb);
+  if (ready.length) add('AMBOSS', go(ready.slice(0, 3).map((s) => shortSys(s.name)).join(', ') + (ready.length > 3 ? '…' : '') + ' revised — add to AMBOSS', () => showTab('systems', true)));
   const weak = SUBJ.map((s) => ({ s, a: avg(cmsForms(s, state.prefs.showOld).map(pctOf).filter(nn)) }))
     .filter((x) => x.a != null).sort((a, b) => a.a - b.a)[0];
-  if (weak) lis.push(['Weakest', go(weak.s.name + ' CMS average is ' + fmtPct(weak.a), () => { ui.subj = weak.s.key; showTab('cms', true); })]);
+  if (weak) add('Weakest', go(weak.s.name + ' CMS · ' + fmtPct(weak.a), () => { ui.subj = weak.s.key; showTab('cms', true); }));
   const lowSys = allSystems().filter((s) => sysItem(s.id).conf > 0).sort((a, b) => sysItem(a.id).conf - sysItem(b.id).conf)[0];
-  if (lowSys) lis.push(['Low conf.', go(lowSys.name + ' (' + sysItem(lowSys.id).conf + '/5)', () => openSystem(lowSys), lowSys.id)]);
+  if (lowSys) add('Low conf.', go(shortSys(lowSys.name) + ' · ' + sysItem(lowSys.id).conf + '/5', () => openSystem(lowSys), lowSys.id));
   const notStarted = allSystems().filter((s) => sysItem(s.id).status === 0);
-  if (notStarted.length) lis.push(['Systems', notStarted.length + ' not started yet, e.g. ' + notStarted.slice(0, 3).map((s) => s.name).join(', ')]);
+  if (notStarted.length) add('Systems', go(notStarted.length + ' not started · ' + notStarted.slice(0, 2).map((s) => shortSys(s.name)).join(', '), () => showTab('systems', true)));
+  const unread = allArticles().filter((a) => !artItem(a.id).reads);
+  if (unread.length) add('Articles', go(unread.length + ' of ' + allArticles().length + ' unread · next: ' + unread[0].name, () => showTab('articles', true)));
   if (!isEmpty() && !(cloud() && cloud().status().connected)) {
     const lb = state.prefs.lastBackup ? Math.floor((Date.now() - new Date(state.prefs.lastBackup)) / 864e5) : null;
-    if (lb == null || lb >= 14) lis.push(['Backup', go(lb == null ? 'You haven’t exported a backup yet — keep one in case this browser’s data is cleared' : 'Last backup was ' + plural(lb, 'day') + ' ago', () => openSettings('#st-export'), 'settings')]);
+    if (lb == null || lb >= 14) add('Backup', go(lb == null ? 'No backup yet — export one' : 'Last backup ' + plural(lb, 'day') + ' ago', () => openSettings('#st-export'), 'settings'), 'bad');
   }
-  if (!lis.length) lis.push(['Done', 'Everything is logged. Nice work.']);
-  $('next').replaceChildren(...lis.map(([k, t]) => h('li', null, h('span', { class: 'k', text: k }), typeof t === 'string' ? h('span', { text: t }) : t)));
+  if (!lis.length) add('Done', 'Everything is logged. Nice work.', 'good');
+  const SHOW = 5, more = lis.length - SHOW;
+  const shown = ui.nextAll || more <= 1 ? lis : lis.slice(0, SHOW);
+  $('next').replaceChildren(...shown.map(([k, t, tone]) => h('li', { class: tone ? 't-' + tone : null }, h('span', { class: 'k', text: k }), typeof t === 'string' ? h('span', { class: 'tx', text: t, title: t }) : t)),
+    ...(more > 1 ? [h('li', { class: 'next-more' }, h('button', { class: 'linkish', 'aria-expanded': ui.nextAll ? 'true' : 'false', onclick: () => { ui.nextAll = !ui.nextAll; render(); } }, ui.nextAll ? 'Show less' : plural(more, 'more suggestion')))] : []));
 }
 
 export function drawTrend() {
@@ -300,8 +309,9 @@ $('chart-mode').addEventListener('click', (e) => {
 // Everything dated, by day: qbank questions, self-assessments, CMS forms, system updates, article reads.
 export function activityByDay() {
   const act = new Map();
-  const get = (d) => { if (!act.has(d)) act.set(d, { q: 0, src: {}, tests: [], cms: [], sys: [], arts: [] }); return act.get(d); };
+  const get = (d) => { if (!act.has(d)) act.set(d, { q: 0, src: {}, tests: [], cms: [], sys: [], arts: [], ambSys: [] }); return act.get(d); };
   state.log.forEach((e) => { const a = get(e.date); a.q += e.q; a.src[e.src] = (a.src[e.src] || 0) + e.q; });
+  allSystems().forEach((sy) => { const d = sysItem(sy.id).amb; if (d) get(d).ambSys.push(shortSys(sy.name)); });
   allTests().forEach((f) => { const it = item(f.id), s3 = scaledOf(f), p = pctOf(f); if (it.status > 0 && it.date) get(it.date).tests.push(f.full + (s3 != null ? ' · ' + s3 : p != null ? ' · ' + fmtPct(p) : ''));
     const r = retakeOf(f); if (r && r.date) get(r.date).tests.push(f.full + ' retake' + (r.s != null ? ' · ' + r.s : r.p != null ? ' · ' + fmtPct(r.p) : '')); });
   SUBJ.flatMap((s) => cmsForms(s, true)).forEach((f) => { const it = item(f.id), p = pctOf(f); if (it.status > 0 && it.date) get(it.date).cms.push(f.full + (p != null ? ' · ' + fmtPct(p) : ''));
@@ -318,11 +328,15 @@ export const dayText = (ds, a) => {
   if (a.cms.length) parts.push('CMS ' + a.cms.join(', '));
   if (a.sys.length) parts.push('Systems: ' + a.sys.join(', '));
   if (a.arts.length) parts.push('Read ' + a.arts.join(', '));
+  if (a.ambSys.length) parts.push('Added to AMBOSS: ' + a.ambSys.join(', '));
   return fmtLong(ds) + ' — ' + parts.join(' · ');
 };
 
-// Activity calendar. Qbank volume fills the square; a self-assessment adds a yellow diamond,
-// a CMS form a teal border and a system update a pink dot, so several can share one day.
+// AMBOSS work that day: AMBOSS qbank questions, an AMBOSS article read, a system added to AMBOSS
+export const ambOf = (a) => !!a && (Object.keys(a.src).some((k) => /amboss/i.test(k)) || a.arts.length > 0 || a.ambSys.length > 0);
+// Activity calendar. Assessment days stand out: an NBME / UWSA / Free 120 fills the square amber, a CMS form
+// violet (both: split corner to corner). Otherwise qbank volume shades it softly. AMBOSS work hatches it with
+// diagonal lines and a system update adds a small dot, so several can share one day.
 export function renderHeat(box) {
   const weeks = 20, t = dayNum(today());
   const start = t - weekday(t) - (weeks - 1) * 7;
@@ -336,7 +350,7 @@ export function renderHeat(box) {
   const futText = (ds) => fmtLong(ds) + ' — ' + [plans.has(ds) ? 'planned: ' + plans.get(ds).join(', ') : '', ds === ex ? 'test day' : ''].filter(Boolean).join(' · ');
   const textFor = (ds) => (dayNum(ds) > t ? futText(ds) : dayText(ds, act.get(ds)));
   const cells = [], months = [];
-  const tot = { days: 0, q: 0, tests: 0, cms: 0, sys: 0 };
+  const tot = { days: 0, q: 0, tests: 0, cms: 0, sys: 0, amb: 0 };
   let prevMonth = null, lastActive = null;
   for (let w = 0; w < weeks + ahead; w++) {
     const mon = new Date((start + w * 7) * 864e5).getUTCMonth();
@@ -356,11 +370,11 @@ export function renderHeat(box) {
       }
       const ds = fromDay(n), a = act.get(ds), q = a ? a.q : 0;
       if (a) {
-        tot.days++; tot.q += q; tot.tests += a.tests.length; tot.cms += a.cms.length; tot.sys += a.sys.length;
+        tot.days++; tot.q += q; tot.tests += a.tests.length; tot.cms += a.cms.length; tot.sys += a.sys.length; tot.amb += ambOf(a) ? 1 : 0;
         lastActive = ds;
       }
       const lv = q === 0 ? 0 : q < 40 ? 1 : q < 80 ? 2 : q < 160 ? 3 : 4;
-      cells.push(h('i', { class: 'hc l' + lv + (a && a.tests.length ? ' m-ex' : '') + (a && a.cms.length ? ' m-cms' : '') + (a && a.sys.length ? ' m-sys' : '') +
+      cells.push(h('i', { class: 'hc l' + lv + (a && a.tests.length ? ' m-ex' : '') + (a && a.cms.length ? ' m-cms' : '') + (a && a.sys.length ? ' m-sys' : '') + (ambOf(a) ? ' m-amb' : '') +
         (n === t ? ' today' : '') + (ui.heatDay === ds ? ' sel' : ''), 'data-day': ds, title: dayText(ds, a) }));
     }
   }
@@ -382,13 +396,14 @@ export function renderHeat(box) {
       h('div', { class: 'heat-d', 'aria-hidden': 'true' }, ['Mon', '', 'Wed', '', 'Fri', '', ''].map((x) => h('span', { text: x }))), grid),
     detail,
     h('div', { class: 'heat-legend', 'aria-hidden': 'true' },
-      h('span', null, 'Qbank', [1, 2, 3, 4].map((l) => h('i', { class: 'hc l' + l }))),
-      h('span', null, h('i', { class: 'hc m-ex' }), 'NBME / UWSA / Free 120'),
-      h('span', null, h('i', { class: 'hc m-cms' }), 'CMS form'),
-      h('span', null, h('i', { class: 'hc m-sys' }), 'System update'),
+      h('span', null, h('i', { class: 'hc m-ex' }), 'NBME · UWSA'),
+      h('span', null, h('i', { class: 'hc m-cms' }), 'CMS'),
+      h('span', null, h('i', { class: 'hc m-amb' }), 'AMBOSS'),
+      h('span', null, 'Qbank', [1, 2, 4].map((l) => h('i', { class: 'hc l' + l }))),
+      h('span', null, h('i', { class: 'hc m-sys' }), 'System'),
       plans.size ? h('span', null, h('i', { class: 'hc fut m-plan' }), 'Planned') : null,
       ex && ahead ? h('span', null, h('i', { class: 'hc fut m-test' }), 'Test day') : null),
-    h('p', { class: 'heat-sum', text: [plural(tot.days, 'active day'), fmtN(tot.q) + ' questions', plural(tot.tests, 'assessment'), plural(tot.cms, 'CMS form'), plural(tot.sys, 'system update')].join(' · ') }));
+    h('p', { class: 'heat-sum', text: [plural(tot.days, 'active day'), fmtK(tot.q) + ' questions', plural(tot.tests, 'assessment'), tot.cms + ' CMS', tot.amb ? plural(tot.amb, 'AMBOSS day') : ''].filter(Boolean).join(' · ') }));
 }
 
 export function statusPill(st, labels) {

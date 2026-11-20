@@ -41,7 +41,7 @@ ok((await p.textContent('#trend-legend')).includes('AMBOSS SA'), 'shows in the s
 
 // --- systems: choose which resources to track
 await p.click('#tab-systems');
-const rowTags = () => p.locator('#sys-rows .sys').first().locator('.tags .tag:not(.uw):not(.weak-tag)').allTextContents();
+const rowTags = () => p.locator('#sys-rows .sys').first().locator('.sys-res .tag:not(.add)').allTextContents();
 ok(JSON.stringify((await rowTags()).map((t) => t.replace('✓ ', ''))) === JSON.stringify(['Sketchy', 'CKNotes', 'Inner Circle']), 'default: Sketchy, CKNotes, Inner Circle on every system: ' + JSON.stringify(await rowTags()));
 await p.click('#sys-res-btn');
 ok((await p.locator('#sys-res [data-res]').count()) === 7, 'picker offers 7 resources');
@@ -51,11 +51,11 @@ ok(JSON.stringify((await local()).prefs.sysTags) === JSON.stringify(['CKNotes', 
 await p.locator('#sys-rows .sys').first().locator('.tag', { hasText: 'CKNotes' }).click();
 ok((await local()).systems['sys-cardio'].tags.includes('CKNotes'), 'tick CKNotes on a system');
 await p.click('#sys-rows [data-open="sys-renal"]');
-const edTags = (await p.locator('.sheet .tags .tag').allTextContents()).map((t) => t.replace('✓ ', ''));
+const edTags = (await p.locator('.sheet .field', { hasText: 'Resources done' }).locator('.tag').allTextContents()).map((t) => t.replace('✓ ', ''));
 ok(edTags.includes('FirstAid') && edTags.includes('Anki') && !edTags.includes('Sketchy'), 'editor: your resources, plus an older tick (Anki) so it can be unticked: ' + edTags.join(','));
 await p.keyboard.press('Escape');
 await p.click('#tab-overview'); await p.waitForTimeout(200);
-ok((await p.textContent('#tiles')).includes('1 CKNotes done'), 'overview tile counts your first resource');
+ok((await p.textContent('#tiles')).includes('1 started'), 'overview systems tile: started count');
 
 // --- passive: your own sections
 await p.click('#tab-passive');

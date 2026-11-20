@@ -1,8 +1,8 @@
 // The saved data shape: normalising old saves and imported files, change stamps, and the record-by-record merge used by Google sync.
 
-import { arr, clone, ID_RE, inRange, int, ints, isDate, num, obj, safeUrl, stampOf, str, uid } from './util.js?v=29';
-import { GROUPS, MERGE, PASSES, QBANKS, RESOURCES, RESOURCES_DEFAULT, SUBJ } from './catalog.js?v=29';
-import { PV_PASSES } from './passive-catalog.js?v=29';
+import { arr, clone, ID_RE, inRange, int, ints, isDate, num, obj, safeUrl, stampOf, str, uid } from './util.js?v=30';
+import { GROUPS, MERGE, PASSES, QBANKS, RESOURCES, RESOURCES_DEFAULT, SUBJ } from './catalog.js?v=30';
+import { PV_PASSES } from './passive-catalog.js?v=30';
 
 export function normItem(x) {
   x = obj(x);
@@ -51,8 +51,13 @@ export function normConversion(x) {
 export function normSys(x) {
   x = obj(x);
   return { status: int(x.status, 0, 3), conf: int(x.conf, 0, 5), notes: str(x.notes), uw: str(x.uw, 12),
-    tags: [...new Set(arr(x.tags).filter((t) => typeof t === 'string').map((t) => t.slice(0, 30)))], day: isDate(x.day), t: stampOf(x.t) };
+    tags: [...new Set(arr(x.tags).filter((t) => typeof t === 'string').map((t) => t.slice(0, 30)))], day: isDate(x.day),
+    // this system's own resources (null = the default pick in Systems → Default resources)
+    res: Array.isArray(x.res) ? [...new Set(x.res.filter((t) => typeof t === 'string' && t.trim()).map((t) => t.trim().slice(0, 30)))].slice(0, 20) : null,
+    // notes revision: pages done of the total; `amb` = the day you added the system to AMBOSS
+    pg: pages(x.pg, 1), pd: pages(x.pd, 0), amb: isDate(x.amb), t: stampOf(x.t) };
 }
+function pages(v, lo) { const n = num(v); return n != null && n >= lo && n <= 9999 ? Math.round(n) : ''; }
 export function normQbank(x) {
   x = obj(x);
   const name = str(x.name, 40).trim();
@@ -87,6 +92,7 @@ export function migrate(sys) {
       status: Math.max(a.status, b.status), conf: Math.max(a.conf, b.conf), uw: b.uw || a.uw,
       notes: [b.notes, a.notes].filter(Boolean).join('\n'),
       tags: [...new Set([...b.tags, ...a.tags])], day: a.day > b.day ? a.day : b.day, t: Math.max(a.t, b.t),
+      res: b.res || a.res, pg: b.pg || a.pg, pd: b.pd || a.pd, amb: b.amb || a.amb,
     };
     delete sys[old];
   }
@@ -147,7 +153,7 @@ export function norm(s) {
       target: inRange(p.target, 1, 300),
       bank: inRange(p.bank, 1, 20000),
       chart: p.chart === 'pct' ? 'pct' : b.chart,
-      sysSort: ['conf', 'status', 'uw', 'az'].includes(p.sysSort) ? p.sysSort : b.sysSort,
+      sysSort: ['conf', 'status', 'uw', 'notes', 'amb', 'az'].includes(p.sysSort) ? p.sysSort : b.sysSort,
       lastBackup: typeof p.lastBackup === 'string' ? p.lastBackup.slice(0, 40) : '',
       artOrder: [...new Set(arr(p.artOrder).filter((x) => typeof x === 'string' && ID_RE.test(x)))].slice(0, 200),
       artView: p.artView === 'list' ? 'list' : 'grid',
