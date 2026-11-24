@@ -1,68 +1,36 @@
 // The NotebookLM shelf: Passive → NotebookLM (ThunderNBME's NBME/CMS volumes) and AMBOSS → Audio (MogiAMBOSS's).
-// The volume list comes from the user's local `tracker_feed.json` (see nlm-data.js), linked once with the File
-// System Access API (its handle kept in IndexedDB `thundertracker-nlm`, this device only) and re-read on Refresh
-// or quietly once a minute while the shelf is on screen and Chrome still allows it; elsewhere, Import file.
-// The feed is stored in the synced pref `nlm`; listening is 5 boxes per volume in `state.passive` (key volKey).
+// The volume list is `nlm.json` on the user's public amboss-tracker page (`../amboss-tracker/nlm.json`), pushed by
+// their local ThunderNBME / MogiAMBOSS at the end of every turn (only when volumes changed). Read like the AMBOSS
+// page: fetch(no-cache), at most every 5 minutes while the shelf is on screen, plus Refresh; kept in memory only.
+// Listening is 5 boxes per volume in `state.passive` (key volKey), synced like DIP episodes.
 
-import { h } from './util.js?v=33';
-import { save, state, toast, ui } from './store.js?v=33';
-import { render } from './shell.js?v=33';
-import { boxes, pvItem, tapPass } from './passive.js?v=33';
-import { NL_ST, filterRows, heard, normFeed, shelfRows, shelfStats, upNext, volKey } from './nlm-data.js?v=33';
+import { h } from './util.js?v=34';
+import { state, toast, ui } from './store.js?v=34';
+import { render } from './shell.js?v=34';
+import { boxes, pvItem, tapPass } from './passive.js?v=34';
+import { NL_ST, filterRows, heard, normFeed, shelfRows, shelfStats, upNext, volKey } from './nlm-data.js?v=34';
 
-const nl = { checked: 0, linked: null, busy: false };
+export const NLM_URL = () => new URL('../amboss-tracker/nlm.json', location.href).href;
+const STALE = 5 * 60e3;
+export const nl = { f: null, at: 0, busy: false, err: '' };
 const passes = (k) => pvItem(k).n;
-const canLink = () => typeof window.showOpenFilePicker === 'function' && typeof indexedDB !== 'undefined';
 
-function idb(mode, fn) {
-  return new Promise((res, rej) => {
-    const o = indexedDB.open('thundertracker-nlm', 1);
-    o.onupgradeneeded = () => o.result.createObjectStore('h');
-    o.onerror = () => rej(o.error);
-    o.onsuccess = () => {
-      const tx = o.result.transaction('h', mode), r = fn(tx.objectStore('h'));
-      tx.oncomplete = () => { o.result.close(); res(r && r.result); };
-      tx.onerror = () => rej(tx.error);
-    };
-  });
-}
-const getHandle = () => idb('readonly', (s) => s.get('feed')).catch(() => null);
-const putHandle = (x) => idb('readwrite', (s) => s.put(x, 'feed'));
-
-export function applyFeed(raw, quiet) {
-  const f = normFeed(raw);
-  if (!f) { if (!quiet) toast('That file isn’t a ThunderNBME NotebookLM feed (tracker_feed.json).'); return false; }
-  const cur = state.prefs.nlm;
-  if (!cur || JSON.stringify(cur) !== JSON.stringify(f)) { state.prefs.nlm = f; save(); render(); if (!quiet) toast('NotebookLM volumes updated'); }
-  else if (!quiet) toast('Already up to date');
-  return true;
-}
-async function readHandle(fh, ask) {
-  let p = await fh.queryPermission({ mode: 'read' });
-  if (p !== 'granted' && ask) p = await fh.requestPermission({ mode: 'read' });
-  if (p !== 'granted') return;
-  applyFeed(JSON.parse(await (await fh.getFile()).text()), !ask);
-}
-async function act(fn) {
-  nl.busy = true; render();
-  try { await fn(); } catch (e) { if (e && e.name !== 'AbortError') toast('Couldn’t read the feed file: ' + (e.message || e)); }
-  nl.busy = false; render();
-}
-const link = () => act(async () => {
-  const [fh] = await window.showOpenFilePicker({ types: [{ description: 'NotebookLM feed', accept: { 'application/json': ['.json'] } }] });
-  await putHandle(fh); nl.linked = true; await readHandle(fh, true);
-});
-const refresh = () => act(async () => { const fh = await getHandle(); if (fh) await readHandle(fh, true); else await link(); });
-function importFile() {
-  const inp = h('input', { type: 'file', accept: '.json,application/json' });
-  inp.onchange = async () => { const f = inp.files[0]; if (f) try { applyFeed(JSON.parse(await f.text())); } catch { toast('That file isn’t JSON.'); } };
-  inp.click();
-}
-// quiet re-read (no prompt) at most once a minute while the shelf shows
-function autoCheck() {
-  if (!canLink() || Date.now() - nl.checked < 60000) return;
-  nl.checked = Date.now();
-  getHandle().then((fh) => { nl.linked = !!fh; if (fh) return readHandle(fh, false); }).catch(() => {});
+export async function loadNlm(force) {
+  if (nl.busy || (!force && nl.at && Date.now() - nl.at < STALE)) return;
+  nl.busy = true;
+  if (force) render();
+  try {
+    const res = await fetch(NLM_URL(), { cache: 'no-cache' });
+    if (!res.ok) throw new Error(res.status === 404 ? 'No NotebookLM volumes published yet.' : 'HTTP ' + res.status);
+    const f = normFeed(await res.json());
+    if (!f) throw new Error('The published volume list isn’t in the expected format.');
+    nl.f = f; nl.err = '';
+  } catch (e) {
+    nl.err = (e && e.message) || 'Couldn’t load the NotebookLM volumes.';
+    if (force) toast(nl.err);
+  }
+  nl.at = Date.now(); nl.busy = false;
+  render();
 }
 
 const md = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
@@ -72,12 +40,10 @@ const seg = (label, items, cur, set, id) => h('div', { class: 'seg mode', role: 
   h('button', { 'aria-pressed': cur === k ? 'true' : 'false', 'data-k': k, onclick: () => { set(k); render(); } }, l)));
 
 function feedBar(part, src) {
-  const f = state.prefs.nlm, when = f && f.at ? new Date(f.at) : null;
+  const when = nl.f && nl.f.at ? new Date(nl.f.at) : null;
   const label = (part && part.label) || (src === 'amboss' ? 'MogiAMBOSS' : 'ThunderNBME');
-  const btn = canLink()
-    ? h('button', { class: 'btn ghost', id: 'nl-refresh', disabled: nl.busy ? '' : null, onclick: nl.linked === false ? link : refresh }, nl.busy ? 'Reading…' : nl.linked === false ? 'Link feed file' : 'Refresh')
-    : h('button', { class: 'btn ghost', id: 'nl-import', onclick: importFile }, 'Import file');
-  return h('div', { class: 'nl-feed' }, h('span', { class: 'sub', text: label + (when ? ' · updated ' + md.format(when) + ', ' + when.toTimeString().slice(0, 5) : '') }), btn);
+  return h('div', { class: 'nl-feed' }, h('span', { class: 'sub', text: label + (when ? ' · updated ' + md.format(when) + ', ' + when.toTimeString().slice(0, 5) : '') }),
+    h('button', { class: 'btn ghost', id: 'nl-refresh', disabled: nl.busy ? '' : null, onclick: () => loadNlm(true) }, nl.busy ? 'Checking…' : 'Refresh'));
 }
 
 function upCard(part, src) {
@@ -109,12 +75,12 @@ function shelfRow(r, src, opened) {
 }
 
 export function renderShelf(src) {
-  autoCheck();
-  const f = state.prefs.nlm, part = f ? f[src] : null;
+  loadNlm();
+  const f = nl.f, part = f ? f[src] : null;
   if (!part) {
     return h('section', { class: 'card nl-empty' },
-      h('h3', { text: f ? 'No ' + (src === 'amboss' ? 'MogiAMBOSS' : 'ThunderNBME') + ' volumes in the feed yet' : 'Link your NotebookLM feed' }),
-      h('p', { class: 'sub', text: 'ThunderNBME writes output/_notebooklm/tracker_feed.json after every batch (with the MogiAMBOSS volumes in it too). Link it once; Refresh reads it again. It stays out of the public repo and syncs with your Drive.' }),
+      h('h3', { text: !nl.at || nl.busy ? 'Loading NotebookLM volumes…' : f ? 'No ' + (src === 'amboss' ? 'MogiAMBOSS' : 'ThunderNBME') + ' volumes yet' : 'No NotebookLM volumes yet' }),
+      nl.at && !nl.busy ? h('p', { class: 'sub', text: (nl.err && !f ? nl.err + ' ' : '') + (src === 'amboss' ? 'MogiAMBOSS' : 'ThunderNBME') + ' publishes them after every turn that changes a volume.' }) : null,
       feedBar(part, src));
   }
   const grp = src === 'amboss' ? 'system' : (ui.nlGrp || 'system'), fl = (ui.nlF || {})[src] || 'all';

@@ -1,7 +1,7 @@
 // NotebookLM audio volumes (Passive → NotebookLM, AMBOSS → Audio). Pure: no DOM, Node-tested.
-// The feed is `tracker_feed.json`, written by the user's local ThunderNBME after every batch (its NBME/CMS
-// volumes plus MogiAMBOSS's). It holds titles, systems, counts, dates and a status only. It is personal: it
-// never goes into this repo; it's kept in the synced pref `nlm`. Volumes only ever get added (a system's queue
+// The feed is `nlm.json` on the user's amboss-tracker page, pushed by their local ThunderNBME / MogiAMBOSS
+// (NBME/CMS volumes plus MogiAMBOSS's). It holds titles, systems, counts, dates and a status only. It is
+// personal: never copy it into this repo. Volumes only ever get added (a system's queue
 // fills to a threshold, then a new volume is frozen), so the shelf is grouped by system and sorted by number.
 
 export const NL_ST = { E: 'Exported', U: 'Uploaded', A: 'Audio ready', L: 'Listened' };

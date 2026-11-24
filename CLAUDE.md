@@ -13,7 +13,7 @@ The repo is **public**. Read `docs/HANDOFF.md` for the current state, history an
 
   It also reads (never writes) the user's AMBOSS tracker page at `../amboss-tracker/` (their public repo `dawnsommer/amboss-tracker`, rebuilt by their local MogiAmboss tool). Its data is personal: don't copy it into this repo; tests use `tests/fixtures/amboss-page.mjs`.
 
-  NotebookLM shelf (`js/nlm.js`, pure part `js/nlm-data.js`): the volume list is the user's local `tracker_feed.json` from ThunderNBME (their NBME/CMS volumes plus MogiAMBOSS's). It is personal: never copy it into this repo (tests use the synthetic feed in `tests/nlm.test.mjs`). It's stored in the synced pref `nlm`; the linked file's handle lives in IndexedDB `thundertracker-nlm` (this device only, the app's only IndexedDB).
+  NotebookLM shelf (`js/nlm.js`, pure part `js/nlm-data.js`): the volume list is `../amboss-tracker/nlm.json` (their NBME/CMS volumes plus MogiAMBOSS's), pushed there by ThunderNBME's `tools/nlm_feed.py` at the end of every turn in ThunderNBME or MogiAMBOSS. Read only, like the AMBOSS page, kept in memory. It is personal: never copy it into this repo (tests use the synthetic feed in `tests/nlm.test.mjs`).
 
   ThunderShadow's `cloudflareWorkerSession` is read-only (shared sign-in). Never clear all storage or caches.
 - **Deploying = the user says "deploy".** Then fast-forward `main` to the work branch, push, and confirm both GitHub Actions runs (pages build and deployment, and Tests) succeed. Do this only when asked, or when the user says to deploy in the same turn. Commit and push to the session's work branch as you go.

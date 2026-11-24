@@ -1,19 +1,19 @@
 // The Settings page.
 
-import { $, daysUntil, fmtDate, fmtLong, fmtN, fmtPct, h, isDate, plural, svgIcon } from './util.js?v=33';
-import { APP_VERSION } from './catalog.js?v=33';
-import { blank, norm, stampAll } from './model.js?v=33';
-import { applyTheme, cloud, save, setState, snapshot, state, toast, ui } from './store.js?v=33';
-import { qbStats } from './data.js?v=33';
-import { numField, refreshSheet } from './sheets.js?v=33';
-import { render, showTab, tabsNow } from './shell.js?v=33';
-import { openQbank } from './qbank.js?v=33';
-import { exportCsv, exportJson } from './backup.js?v=33';
-import { reloadLatest } from './updates.js?v=33';
-import { printSummary } from './print.js?v=33';
-import { codeOk, passiveOn } from './passive.js?v=33';
-import { ambossOn } from './amboss.js?v=33';
-import { blockName, blockOn, defaultLayout, ovLayout, spans } from './layout.js?v=33';
+import { $, daysUntil, fmtDate, fmtLong, fmtN, fmtPct, h, isDate, plural, svgIcon } from './util.js?v=34';
+import { APP_VERSION } from './catalog.js?v=34';
+import { blank, norm, stampAll } from './model.js?v=34';
+import { applyTheme, cloud, save, setState, snapshot, state, toast, ui } from './store.js?v=34';
+import { qbStats } from './data.js?v=34';
+import { numField, refreshSheet } from './sheets.js?v=34';
+import { render, showTab, tabsNow } from './shell.js?v=34';
+import { openQbank } from './qbank.js?v=34';
+import { exportCsv, exportJson } from './backup.js?v=34';
+import { reloadLatest } from './updates.js?v=34';
+import { printSummary } from './print.js?v=34';
+import { codeOk, passiveOn } from './passive.js?v=34';
+import { ambossOn } from './amboss.js?v=34';
+import { blockName, blockOn, defaultLayout, ovLayout, spans } from './layout.js?v=34';
 
 // Built once each time you open it; live parts redraw through settingsRefresh so typing isn't interrupted.
 export let settingsRefresh = null;

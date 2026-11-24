@@ -1,9 +1,8 @@
 // The saved data shape: normalising old saves and imported files, change stamps, and the record-by-record merge used by Google sync.
 
-import { arr, clone, ID_RE, inRange, int, ints, isDate, num, obj, safeUrl, stampOf, str, uid } from './util.js?v=33';
-import { GROUPS, MERGE, PASSES, QBANKS, RESOURCES, RESOURCES_DEFAULT, SUBJ } from './catalog.js?v=33';
-import { PV_PASSES } from './passive-catalog.js?v=33';
-import { normFeed } from './nlm-data.js?v=33';
+import { arr, clone, ID_RE, inRange, int, ints, isDate, num, obj, safeUrl, stampOf, str, uid } from './util.js?v=34';
+import { GROUPS, MERGE, PASSES, QBANKS, RESOURCES, RESOURCES_DEFAULT, SUBJ } from './catalog.js?v=34';
+import { PV_PASSES } from './passive-catalog.js?v=34';
 
 export function normItem(x) {
   x = obj(x);
@@ -116,7 +115,7 @@ export function migrate(sys) {
 export const blank = () => ({ v: 2, base: 0, deleted: {}, lt: 0, pt: 0, items: {}, systems: {}, extraForms: {}, extraAssess: {}, extraSystems: [], removed: [], log: [],
   qbanks: QBANKS.map(blankQbank), articles: {}, artSections: [], artCustom: [], conversions: {}, passive: {}, pvSecs: [], pvCustom: [],
   prefs: { showOld: false, theme: 'system', examDate: '', target: '', bank: '', chart: 'score', sysSort: 'default', lastBackup: '',
-    artOrder: [], artView: 'grid', artSort: 'checklist', artCollapsed: [], passive: false, amboss: false, pvCollapsed: [], pvFilter: 'all', pvView: 'pod', nlm: null, ovLayout: null, sysTags: RESOURCES_DEFAULT.slice() } });
+    artOrder: [], artView: 'grid', artSort: 'checklist', artCollapsed: [], passive: false, amboss: false, pvCollapsed: [], pvFilter: 'all', pvView: 'pod', ovLayout: null, sysTags: RESOURCES_DEFAULT.slice() } });
 
 // Accepts v1 saves (the original single-file version) and v2.
 export function norm(s) {
@@ -179,8 +178,6 @@ export function norm(s) {
       pvCollapsed: [...new Set(arr(p.pvCollapsed).filter((x) => typeof x === 'string' && ID_RE.test(x)))].slice(0, 50),
       pvFilter: ['todo', 'video', 'notes'].includes(p.pvFilter) ? p.pvFilter : 'all',
       pvView: p.pvView === 'nlm' ? 'nlm' : 'pod',
-      // NotebookLM volumes from the user's ThunderNBME feed (nlm-data.js); synced, newest wins
-      nlm: normFeed(p.nlm),
       // the overview's layout (Settings → Home page); null = the default
       ovLayout: Array.isArray(p.ovLayout) ? p.ovLayout.slice(0, 30).filter((r) => r && typeof r.k === 'string' && /^[a-z]{1,12}$/.test(r.k))
         .map((r) => ({ k: r.k, w: r.w === 'full' ? 'full' : 'half', hide: r.hide === true })) : null,
@@ -192,7 +189,7 @@ export function norm(s) {
 // A full restore or erase bumps `base`: on merge, anything older than the newest base is dropped,
 // so the restore wins on every device. Lists of added/hidden forms (`lt`) and the plan prefs (`pt`)
 // merge as a unit, newest wins. Theme and other view prefs stay per device.
-export const SYNC_PREFS = ['examDate', 'target', 'bank', 'showOld', 'artOrder', 'passive', 'amboss', 'sysTags', 'nlm'];
+export const SYNC_PREFS = ['examDate', 'target', 'bank', 'showOld', 'artOrder', 'passive', 'amboss', 'sysTags'];
 export const sig = (r) => JSON.stringify(Object.keys(r).filter((k) => k !== 't').sort().map((k) => [k, r[k]]));
 export const listsSig = (s) => JSON.stringify([s.extraForms, s.extraAssess, s.removed]);
 export const prefsSig = (s) => JSON.stringify(SYNC_PREFS.map((k) => s.prefs[k]));

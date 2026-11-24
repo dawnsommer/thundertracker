@@ -33,15 +33,17 @@ ok(/^[a-z0-9-]{1,48}$/.test(volKey('amboss', 'Some_Long_System_Name_With_Undersc
 // ---- UI
 const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 for (const [w, hgt] of [[1280, 900], [390, 844]]) {
-  const ctx = await b.newContext({ viewport: { width: w, height: hgt } });
+  const ctx = await b.newContext({ viewport: { width: w, height: hgt }, serviceWorkers: 'block' });
   const p = await ctx.newPage();
   const errs = []; p.on('pageerror', (e) => errs.push(e.message));
   await p.route('**/amboss-tracker/**', (r) => r.fulfill({ status: 404, body: '' }));
+  let served = 0;
+  await p.route('**/amboss-tracker/nlm.json', (r) => { served++; return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(FEED) }); });
   await p.goto(BASE);
-  await p.evaluate((f) => localStorage.setItem('ck-tracker', JSON.stringify({ v: 2, prefs: { examDate: '2026-12-01', passive: true, amboss: true, nlm: f } })), FEED);
+  await p.evaluate((f) => localStorage.setItem('ck-tracker', JSON.stringify({ v: 2, prefs: { examDate: '2026-12-01', passive: true, amboss: true } })));
   await p.reload(); await p.evaluate(() => { location.hash = 'passive'; }); await p.waitForTimeout(300);
   ok(await p.isVisible('#pv-tabs') && await p.isVisible('.pv-dip'), w + 'px: Passive opens on Podcasts, Divine list unchanged');
-  await p.click('#pv-tabs [data-pvv="nlm"]');
+  await p.click('#pv-tabs [data-pvv="nlm"]'); await p.waitForSelector('.nl-shelf, .nl-empty h3:not(:has-text("Loading"))');
   ok(await p.isVisible('.nl-shelf[data-src="nbme"]') && await p.isHidden('.pv-dip'), w + 'px: NotebookLM subpage shows the shelf');
   ok((await p.locator('.nl-row').count()) === 3 && (await p.textContent('.nl-up')).includes('Alpha system · Vol 2'), w + 'px: 3 system rows, up next Alpha Vol 2');
   await p.click('.nl-row[data-g="alpha"] .nl-rh');
@@ -50,7 +52,8 @@ for (const [w, hgt] of [[1280, 900], [390, 844]]) {
   const st = await p.evaluate(() => JSON.parse(localStorage.getItem('ck-tracker')));
   ok(st.passive[volKey('nbme', 'alpha_v02')]?.n === 1, w + 'px: Heard ticks the first listen box');
   ok((await p.textContent('.nl-up')).includes('Beta system'), w + 'px: up next moves on');
-  ok(st.prefs.pvView === 'nlm' && st.prefs.nlm && st.prefs.nlm.nbme.vols.length === 5, w + 'px: subpage and feed saved');
+  ok(st.prefs.pvView === 'nlm' && !('nlm' in st.prefs) && !JSON.stringify(st).includes('Alpha system'), w + 'px: subpage saved; the volume list stays in memory, not in storage');
+  ok(served >= 1 && served <= 2, w + 'px: nlm.json fetched from ../amboss-tracker/ (' + served + '×), not on every redraw');
   await p.click('#nl-grp [data-k="form"]');
   ok((await p.textContent('.nl-list')).includes('Demo 1'), w + 'px: Form debriefs group');
   await p.evaluate(() => { location.hash = 'amboss'; }); await p.waitForTimeout(300);
@@ -59,6 +62,16 @@ for (const [w, hgt] of [[1280, 900], [390, 844]]) {
   ok(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth), w + 'px: no sideways scroll');
   if (process.env.OUT_DIR) await p.screenshot({ path: process.env.OUT_DIR + '/nlm-' + w + '.png', fullPage: true });
   ok(!errs.length, w + 'px: no page errors ' + errs.join(' | '));
+  await ctx.close();
+}
+// not published yet: a quiet message, no errors
+{
+  const ctx = await b.newContext({ serviceWorkers: 'block' }); const p = await ctx.newPage(); const errs = []; p.on('pageerror', (e) => errs.push(e.message));
+  await p.route('**/amboss-tracker/**', (r) => r.fulfill({ status: 404, body: '' }));
+  await p.goto(BASE);
+  await p.evaluate(() => localStorage.setItem('ck-tracker', JSON.stringify({ v: 2, prefs: { examDate: '2026-12-01', passive: true, pvView: 'nlm' } })));
+  await p.reload(); await p.evaluate(() => { location.hash = 'passive'; }); await p.waitForTimeout(400);
+  ok((await p.textContent('.nl-empty')).includes('No NotebookLM volumes published yet') && !errs.length, 'nothing published: empty state, no errors');
   await ctx.close();
 }
 await b.close();

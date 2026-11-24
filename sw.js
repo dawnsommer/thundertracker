@@ -11,10 +11,10 @@
 // this worker only ever reads, writes and deletes caches named `ck-tracker-…`.
 //
 // Releasing: run `node tools/release.mjs` — it bumps VERSION here, every `?v=` and APP_VERSION together.
-const VERSION = 33;
+const VERSION = 34;
 const PREFIX = 'ck-tracker-';
 const CACHE = PREFIX + 'v' + VERSION;
-const SHELL = ['./', 'index.html', 'styles.css?v=33', 'js/amboss-data.js?v=33', 'js/amboss.js?v=33', 'js/articles.js?v=33', 'js/assessments.js?v=33', 'js/backup.js?v=33', 'js/blockflow.js?v=33', 'js/calculator.js?v=33', 'js/catalog.js?v=33', 'js/cloud.js?v=33', 'js/cms.js?v=33', 'js/config.js?v=33', 'js/data.js?v=33', 'js/layout.js?v=33', 'js/main.js?v=33', 'js/model.js?v=33', 'js/nlm-data.js?v=33', 'js/nlm.js?v=33', 'js/overview.js?v=33', 'js/passive-catalog.js?v=33', 'js/passive.js?v=33', 'js/planner.js?v=33', 'js/print.js?v=33', 'js/qbank.js?v=33', 'js/score-models.js?v=33', 'js/settings.js?v=33', 'js/sheets.js?v=33', 'js/shell.js?v=33', 'js/sim-import.js?v=33', 'js/store.js?v=33', 'js/systems.js?v=33', 'js/timer-engine.js?v=33', 'js/updates.js?v=33', 'js/util.js?v=33', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'];
+const SHELL = ['./', 'index.html', 'styles.css?v=34', 'js/amboss-data.js?v=34', 'js/amboss.js?v=34', 'js/articles.js?v=34', 'js/assessments.js?v=34', 'js/backup.js?v=34', 'js/blockflow.js?v=34', 'js/calculator.js?v=34', 'js/catalog.js?v=34', 'js/cloud.js?v=34', 'js/cms.js?v=34', 'js/config.js?v=34', 'js/data.js?v=34', 'js/layout.js?v=34', 'js/main.js?v=34', 'js/model.js?v=34', 'js/nlm-data.js?v=34', 'js/nlm.js?v=34', 'js/overview.js?v=34', 'js/passive-catalog.js?v=34', 'js/passive.js?v=34', 'js/planner.js?v=34', 'js/print.js?v=34', 'js/qbank.js?v=34', 'js/score-models.js?v=34', 'js/settings.js?v=34', 'js/sheets.js?v=34', 'js/shell.js?v=34', 'js/sim-import.js?v=34', 'js/store.js?v=34', 'js/systems.js?v=34', 'js/timer-engine.js?v=34', 'js/updates.js?v=34', 'js/util.js?v=34', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE)
