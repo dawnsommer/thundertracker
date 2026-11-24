@@ -1256,3 +1256,61 @@ html{scrollbar-gutter:stable} /* the timer page is short: keep the scrollbar's r
 .lay-foot .btn{font-size:.8rem;padding:5px 10px}
 @media (max-width:560px){.lay-b{grid-column:1/-1;height:38px}}
 @media (prefers-reduced-motion:no-preference){.lay-b{transition:background .15s,border-color .15s,box-shadow .15s}}
+
+/* NotebookLM shelf (js/nlm.js): Passive → NotebookLM and AMBOSS → Audio */
+.pv-tabs{margin-bottom:12px}
+.pv-tabs button,.nl-ctl .seg button{font-size:.8rem;padding:6px 12px}
+.nl-shelf{padding:14px 16px;display:flex;flex-direction:column;gap:12px;margin-top:12px}
+#view-passive .nl-shelf{margin-top:0}
+.nl-top{display:grid;grid-template-columns:minmax(0,2fr) repeat(3,minmax(0,1fr));gap:10px}
+.nl-tile,.nl-up{background:var(--bg);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.nl-tile b{font-size:1.3rem;line-height:1.2}
+.nl-tile small,.nl-up small{color:var(--muted);font-size:.72rem}
+.nl-up{border:1px solid var(--line);background:var(--panel)}
+.nl-up-r{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.nl-up-r p,.nl-up p{margin:0;font-weight:600;font-size:.92rem;line-height:1.25}
+.nl-up .btn{padding:5px 12px;font-size:.8rem;flex:none}
+.nl-ctl{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.nl-list{display:flex;flex-direction:column}
+.nl-row{border-top:1px solid var(--line)}
+.nl-rh{all:unset;box-sizing:border-box;width:100%;display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1.4fr) 96px;align-items:center;gap:12px;padding:9px 4px;cursor:pointer}
+.nl-rh:hover .nl-nm{color:var(--brand)}
+.nl-rh:focus-visible{outline:2px solid var(--brand);outline-offset:-2px;border-radius:6px}
+.nl-nm{font-size:.88rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nl-chips{display:flex;flex-wrap:wrap;gap:4px}
+.nl-chip{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:21px;padding:0 5px;border-radius:6px;font:600 .68rem var(--f-mono);box-sizing:border-box}
+.nl-chip.st-E{background:var(--s0);color:var(--s0-ink)}
+.nl-chip.st-U{background:var(--s1);color:var(--s1-ink)}
+.nl-chip.st-A{background:var(--hl-soft);color:var(--ink);box-shadow:inset 0 0 0 1px var(--hl)}
+.nl-chip.st-L{background:color-mix(in srgb,var(--good) 22%,var(--panel));color:var(--good)}
+.nl-q{display:flex;flex-direction:column;gap:3px;align-items:stretch}
+.nl-q small{font:500 .66rem var(--f-mono);color:var(--muted);text-align:right}
+.nl-qbar{height:4px;border-radius:2px;background:var(--s0);overflow:hidden}
+.nl-qbar i{display:block;height:100%;background:var(--muted)}
+.nl-vols{padding:0 4px 10px;display:flex;flex-direction:column;gap:2px}
+.nl-vol{display:grid;grid-template-columns:44px minmax(0,1fr) auto;align-items:center;gap:10px;padding:5px 0}
+.nl-vt{display:flex;flex-direction:column;font-size:.82rem;min-width:0}
+.nl-vt small{color:var(--muted);font-size:.7rem}
+.nl-vol .pass{width:19px;height:19px}
+.nl-vol .pass.on::after{left:5.5px;top:2px}
+.nl-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--line)}
+.nl-legend{display:flex;gap:4px 12px;flex-wrap:wrap;font-size:.7rem;color:var(--muted)}
+.nl-legend span{display:inline-flex;align-items:center;gap:5px}
+.nl-legend .nl-chip{min-width:14px;width:14px;height:10px;padding:0;border-radius:3px}
+.nl-feed{display:flex;align-items:center;gap:8px;margin-left:auto}
+.nl-feed .sub{font-size:.72rem;margin:0}
+.nl-feed .btn{padding:5px 11px;font-size:.78rem}
+.nl-empty{margin-top:12px;display:flex;flex-direction:column;gap:6px}
+#view-passive .nl-empty{margin-top:0}
+.nl-empty h3{margin:0;font-size:1rem}
+.nl-empty .nl-feed{margin-left:0}
+.nl-none{padding:10px 4px;margin:0}
+@media (max-width:640px){
+  .nl-top{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .nl-up{grid-column:1/-1}
+  .nl-rh{grid-template-columns:minmax(0,1fr) auto;gap:6px 10px}
+  .nl-rh .nl-q{grid-column:1/-1}
+  .nl-q small{text-align:left}
+  .nl-vol{grid-template-columns:40px minmax(0,1fr)}
+  .nl-vol .pv-passes{grid-column:2}
+}

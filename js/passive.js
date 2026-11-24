@@ -4,10 +4,11 @@
 // can tell video-only from video + notes. You can add your own sections (another podcast, a topic) and
 // episodes under the Divine list.
 
-import { $, fmtDate, h, ring, today, uid } from './util.js?v=32';
-import { save, snapshot, state, toast, ui } from './store.js?v=32';
-import { render } from './shell.js?v=32';
-import { DIP_ITEMS, DIP_SECTIONS, PHYSEO, PV_PASSES } from './passive-catalog.js?v=32';
+import { $, fmtDate, h, ring, today, uid } from './util.js?v=33';
+import { save, snapshot, state, toast, ui } from './store.js?v=33';
+import { render } from './shell.js?v=33';
+import { DIP_ITEMS, DIP_SECTIONS, PHYSEO, PV_PASSES } from './passive-catalog.js?v=33';
+import { renderShelf } from './nlm.js?v=33';
 
 // The code only decides whether the tab shows; it's not a password (the app has no secrets).
 const CODE = '1afqyji';
@@ -23,7 +24,7 @@ const patch = (id, p) => {
   save(); render();
 };
 // tap box i: tick up to it, or untick it if it's the last one ticked
-const tapPass = (id, i) => { const n = pvItem(id).n; patch(id, { n: n === i + 1 ? i : i + 1 }); };
+export const tapPass = (id, i) => { const n = pvItem(id).n; patch(id, { n: n === i + 1 ? i : i + 1 }); };
 
 const status = (it) => (it.notes ? 'notes' : it.n ? 'video' : 'todo');
 const fmtMin = (m) => (m >= 60 ? Math.floor(m / 60) + 'h' + (m % 60 ? ' ' + (m % 60) + 'm' : '') : m + 'm');
@@ -44,7 +45,7 @@ export function pvStats() {
   };
 }
 
-function boxes(id, name) {
+export function boxes(id, name) {
   const n = pvItem(id).n;
   return h('span', { class: 'passes pv-passes', role: 'group', 'aria-label': 'Times through ' + name },
     Array.from({ length: PV_PASSES }, (_, i) => h('button', { class: 'pass' + (n > i ? ' on' : ''), 'aria-pressed': n > i ? 'true' : 'false',
@@ -156,6 +157,12 @@ export function renderPassive() {
   const box = $('pv-body');
   if (!box) return;
   const st = pvStats(), P = state.prefs, f = P.pvFilter || 'all';
+  // two subpages: the podcasts (below) and the NotebookLM shelf (nlm.js)
+  const view = P.pvView === 'nlm' ? 'nlm' : 'pod';
+  const tabs = h('div', { class: 'seg mode pv-tabs', role: 'group', 'aria-label': 'Passive study page', id: 'pv-tabs' },
+    [['pod', 'Podcasts'], ['nlm', 'NotebookLM']].map(([k, l]) => h('button', { 'aria-pressed': view === k ? 'true' : 'false', 'data-pvv': k,
+      onclick: () => { P.pvView = k; save(); render(); } }, l)));
+  if (view === 'nlm') { box.replaceChildren(tabs, renderShelf('nbme')); return; }
   const over = h('section', { class: 'card pv-over', 'aria-label': 'Passive study overview' }, pvSummary());
 
   // PHYSEO: six parts, five boxes each
@@ -187,5 +194,5 @@ export function renderPassive() {
     secs.length ? secs : h('p', { class: 'sub', text: 'Nothing here with this filter.' }));
   dip.querySelector('.pv-note.mini').innerHTML = NOTE_ICON;
 
-  box.replaceChildren(h('div', { class: 'pv-grid' }, h('div', { class: 'pv-side' }, over, physeo), h('div', { class: 'pv-main' }, dip, ownSections())));
+  box.replaceChildren(tabs, h('div', { class: 'pv-grid' }, h('div', { class: 'pv-side' }, over, physeo), h('div', { class: 'pv-main' }, dip, ownSections())));
 }

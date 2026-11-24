@@ -4,11 +4,12 @@
 // local MogiAmboss tool rebuilds; this app only reads it (nothing of it is saved in the tracker's data).
 // The service worker keeps the last copy, so it still shows offline.
 
-import { $, fmtK, h, plural } from './util.js?v=32';
-import { state, ui } from './store.js?v=32';
-import { render, showTab } from './shell.js?v=32';
-import { tile } from './overview.js?v=32';
-import { browse, doneBatches, filterOptions, focus, groups, hasCurrent, heat, kpis, parseDashboard, plain, series, sysEstimates, TIPS, why } from './amboss-data.js?v=32';
+import { $, fmtK, h, plural } from './util.js?v=33';
+import { state, ui } from './store.js?v=33';
+import { render, showTab } from './shell.js?v=33';
+import { tile } from './overview.js?v=33';
+import { renderShelf } from './nlm.js?v=33';
+import { browse, doneBatches, filterOptions, focus, groups, hasCurrent, heat, kpis, parseDashboard, plain, series, sysEstimates, TIPS, why } from './amboss-data.js?v=33';
 
 export const ambossOn = () => state.prefs.amboss === true;
 // the AMBOSS tracker page, next to this app on dawnsommer.github.io
@@ -164,12 +165,16 @@ export function renderAmbCard(box) {
 export function renderAmboss() {
   const box = $('amb-body');
   if (!box) return;
-  loadAmboss();
+  const audio = ui.ambView === 'audio';
+  if (!audio) loadAmboss();
   const D = amb.d;
+  const vseg = (n) => h('div', { class: 'seg mode amb-view', role: 'group', 'aria-label': 'View' }, [['dash', 'Dashboard'], ['questions', 'Questions' + (n != null ? ' · ' + n : '')], ['audio', 'Audio']].map(([k, l]) =>
+    h('button', { 'aria-pressed': (ui.ambView || 'dash') === k ? 'true' : 'false', 'data-amb': k, onclick: () => { ui.ambView = k; render(); } }, l)));
+  if (audio) { box.replaceChildren(h('div', { class: 'amb-bar-top' }, vseg(D ? D.questions.length : null)), renderShelf('amboss')); return; }
   const refresh = h('button', { class: 'btn ghost', id: 'amb-refresh', disabled: amb.busy ? '' : null, onclick: () => loadAmboss(true) }, amb.busy ? 'Checking…' : 'Refresh');
   const link = h('a', { class: 'btn ghost', href: AMB_URL(), target: '_blank', rel: 'noopener' }, 'Full page ↗');
   if (!D) {
-    box.replaceChildren(h('div', { class: 'card amb-empty' },
+    box.replaceChildren(h('div', { class: 'amb-bar-top' }, vseg(null)), h('div', { class: 'card amb-empty' },
       h('p', { text: amb.busy || !amb.at ? 'Loading your AMBOSS tracker…' : amb.err }), h('div', { class: 'btnrow' }, refresh, link)));
     return;
   }
@@ -178,7 +183,7 @@ export function renderAmboss() {
     h('button', { 'aria-pressed': cur === k ? 'true' : 'false', 'data-amb': k, onclick: () => { set(k); render(); } }, l)));
   const Q = e === 'all' ? D.questions : D.questions.filter((q) => q.era === e);
   const bar = h('div', { class: 'amb-bar-top' },
-    seg('View', [['dash', 'Dashboard'], ['questions', 'Questions · ' + Q.length]], view, (k) => { ui.ambView = k; }, 'amb-view'),
+    vseg(Q.length),
     seg('Scope', [['current', 'Current'], ['all', 'All'], ['legacy', 'Legacy']], e, (k) => { ui.ambEra = k; ui.ambShown = 0; }, 'amb-era'),
     h('span', { class: 'amb-built sub', text: builtText(D) }), refresh, link);
   const note = amb.err ? h('p', { class: 'banner', text: amb.err }) : null;

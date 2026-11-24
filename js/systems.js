@@ -2,13 +2,13 @@
 // where a system stands (in progress → revised, add to AMBOSS → not started → in AMBOSS) and each row says what's next.
 // Tap a row to update its resources; Edit opens the side sheet (resources, totals, AMBOSS date, UWorld %, notes).
 
-import { $, fmtDate, fmtPct, h, num, plural, ring, today, uid } from './util.js?v=32';
-import { RESOURCES, SYS_ST } from './catalog.js?v=32';
-import { UNITS } from './model.js?v=32';
-import { save, snapshot, state, sysItem, toast, ui } from './store.js?v=32';
-import { allSystems, band, shortSys, weakPattern } from './data.js?v=32';
-import { closeSheet, openSheet, sheetHead } from './sheets.js?v=32';
-import { render, showTab } from './shell.js?v=32';
+import { $, fmtDate, fmtPct, h, num, plural, ring, today, uid } from './util.js?v=33';
+import { RESOURCES, SYS_ST } from './catalog.js?v=33';
+import { UNITS } from './model.js?v=33';
+import { save, snapshot, state, sysItem, toast, ui } from './store.js?v=33';
+import { allSystems, band, shortSys, weakPattern } from './data.js?v=33';
+import { closeSheet, openSheet, sheetHead } from './sheets.js?v=33';
+import { render, showTab } from './shell.js?v=33';
 
 // Any change counts as working on a system that day (shown on the activity calendar).
 export function setSys(id, patch) {
