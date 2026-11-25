@@ -1,18 +1,18 @@
 // The Overview tab: tiles, score trend, CMS bars, Up next, activity calendar and the weakness matrix.
 
-import { applyOverviewLayout } from './layout.js?v=34';
-import { $, avg, dayNum, daysUntil, fmtDate, fmtK, fmtLong, fmtN, fmtPct, fromDay, h, monthShort, nn, num, plural, today, weekday } from './util.js?v=34';
-import { GROUPS, PASS, SUBJ, SYS_ST } from './catalog.js?v=34';
-import { cloud, item, save, state, sysItem, ui } from './store.js?v=34';
-import { allArticles, allCms, allSystems, allTests, artItem, band, cmsForms, isEmpty, outlook, pctOf, qbStats, retakeOf, scaledOf, shortSys, taken, trendPoints, weakPattern, weakShade } from './data.js?v=34';
-import { render, showTab } from './shell.js?v=34';
-import { openForm } from './assessments.js?v=34';
-import { openSystem, phaseOf, renderSysCard, sysProg, sysStats } from './systems.js?v=34';
-import { renderArtSummary } from './articles.js?v=34';
-import { openSettings, signIn } from './settings.js?v=34';
-import { lastText, passiveOn, pvStats, pvSummary } from './passive.js?v=34';
-import { ambossOn, renderAmbCard } from './amboss.js?v=34';
-import { inDays, openPlanner, plannedForms } from './planner.js?v=34';
+import { applyOverviewLayout } from './layout.js?v=35';
+import { $, avg, dayNum, daysUntil, fmtDate, fmtK, fmtLong, fmtN, fmtPct, fromDay, h, monthShort, nn, num, plural, today, weekday } from './util.js?v=35';
+import { GROUPS, PASS, SUBJ, SYS_ST } from './catalog.js?v=35';
+import { cloud, item, save, state, sysItem, ui } from './store.js?v=35';
+import { allArticles, allCms, allSystems, allTests, artItem, band, cmsForms, isEmpty, outlook, pctOf, qbStats, retakeOf, scaledOf, shortSys, taken, trendPoints, weakPattern, weakShade } from './data.js?v=35';
+import { render, showTab } from './shell.js?v=35';
+import { openForm } from './assessments.js?v=35';
+import { openSystem, phaseOf, renderSysCard, sysProg, sysStats } from './systems.js?v=35';
+import { renderArtSummary } from './articles.js?v=35';
+import { openSettings, signIn } from './settings.js?v=35';
+import { lastText, passiveOn, pvStats, pvSummary } from './passive.js?v=35';
+import { ambossOn, renderAmbCard } from './amboss.js?v=35';
+import { inDays, openPlanner, plannedForms } from './planner.js?v=35';
 
 export function tile(label, big, small, frac, note) {
   return h('div', { class: 'tile' },

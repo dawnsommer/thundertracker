@@ -1,9 +1,9 @@
 // Side panels (editor sheets) and the form controls they share.
 
-import { $, h, num } from './util.js?v=34';
-import { allSystems, shortSys } from './data.js?v=34';
-import { render } from './shell.js?v=34';
-import { settingsRefresh } from './settings.js?v=34';
+import { $, h, num } from './util.js?v=35';
+import { allSystems, shortSys } from './data.js?v=35';
+import { render } from './shell.js?v=35';
+import { settingsRefresh } from './settings.js?v=35';
 
 // Tap-to-toggle system chips, shared by assessments and qbanks.
 // getPct/setPct (optional): the % correct you scored in each weak system, which shades the weakness matrix.
@@ -43,6 +43,8 @@ export function weakPicker(get, set, extra) {
       } }, (on ? '✓ ' : '') + shortSys(sy.name));
     }));
     if (!extra) return;
+    // numbers arrived from elsewhere (an imported analysis file, sync, undo): show them
+    if (!showNums && Object.keys(extra.get()).length) showNums = true;
     const sel = get().map((id) => allSystems().find((x) => x.id === id)).filter(Boolean);
     if (!sel.length) { numBox.replaceChildren(); numBox.dataset.key = ''; return; }
     if (!showNums) {

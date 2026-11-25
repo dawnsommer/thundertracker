@@ -1,14 +1,15 @@
 // The Assessments tab (NBME, UWSA, Free 120) and the assessment editor.
 
-import { $, avg, daysUntil, fmtDate, fmtPct, h, isDate, nn, num, today } from './util.js?v=34';
-import { FORM_ST, GROUPS } from './catalog.js?v=34';
-import { item, save, snapshot, state, toast, ui } from './store.js?v=34';
-import { addForm, band, pctOf, scaledOf, taken, testForms, toggleRemove, weakNames } from './data.js?v=34';
-import { closeSheet, numField, openSheet, sheetHead, weakPicker } from './sheets.js?v=34';
-import { render } from './shell.js?v=34';
-import { statusPill } from './overview.js?v=34';
-import { estimateScore, estText, toggleCalculator } from './calculator.js?v=34';
-import { modelsFor } from './score-models.js?v=34';
+import { $, avg, daysUntil, fmtDate, fmtPct, h, isDate, nn, num, today } from './util.js?v=35';
+import { FORM_ST, GROUPS } from './catalog.js?v=35';
+import { item, save, snapshot, state, toast, ui } from './store.js?v=35';
+import { addForm, allSystems, band, pctOf, scaledOf, shortSys, taken, testForms, toggleRemove, weakNames } from './data.js?v=35';
+import { closeSheet, numField, openSheet, refreshSheet, sheetHead, weakPicker } from './sheets.js?v=35';
+import { render } from './shell.js?v=35';
+import { statusPill } from './overview.js?v=35';
+import { estimateScore, estText, toggleCalculator } from './calculator.js?v=35';
+import { modelsFor } from './score-models.js?v=35';
+import { formMatches, parseAnalysis } from './analysis-import.js?v=35';
 
 export function renderTests() {
   const eb = $('edit-tests');
@@ -168,6 +169,7 @@ export function openForm(f) {
   const planField = planIn && h('div', { class: 'field' }, h('label', { for: 'ed-plan', text: 'Planned for' }), planIn);
   const picker = isCms ? null : weakPicker(() => cur().weak, (weak) => patch({ weak }), { kind: 'count', get: () => cur().weakN || {}, set: (weakN) => patch({ weakN }) });
   const weakBox = picker && picker.box, drawWeak = () => picker && picker.draw();
+  const imp = isCms ? null : analysisImport(f, cur, patch, pctKey);
   const clearBtn = h('button', { class: 'btn ghost danger', onclick: () => {
     const undo = snapshot();
     delete state.items[f.id]; save(); closeSheet();
@@ -186,7 +188,7 @@ export function openForm(f) {
     scaled ? h('div', { class: 'two' }, dateField, planField) : planField ? h('div', { class: 'two' }, planField, h('div')) : null,
     conv, estLine,
     reBox,
-    weakBox ? h('div', { class: 'field' }, h('span', { class: 'lab', text: 'Weak systems in this form' }), weakBox,
+    weakBox ? h('div', { class: 'field' }, h('div', { class: 'lab-row' }, h('span', { class: 'lab', text: 'Weak systems in this form' }), imp.btn), imp.box, weakBox,
       h('p', { class: 'hint', text: 'Tap the systems you missed most. Systems that keep coming up across forms show on the overview.' })) : null,
     h('div', { class: 'field' }, h('label', { for: 'ed-notes', text: 'Notes' }), notesIn),
     h('div', { class: 'actions' }, h('button', { class: 'btn primary', onclick: closeSheet }, 'Done'), clearBtn, rmBtn),
@@ -210,3 +212,56 @@ export function openForm(f) {
 }
 $('calc-btn').addEventListener('click', () => toggleCalculator());
 $('edit-tests').addEventListener('click', () => { ui.editTests = !ui.editTests; ui.addingFor = null; render(); });
+
+// "Import .md": a ThunderNBME analysis feed file (ThunderTracker_<form>.md), chosen or pasted, sets this
+// form's weak systems and their wrong/unstable counts (parsing in analysis-import.js). A file for another
+// form asks first; an empty % correct is offered from the file's `correct:` line.
+function analysisImport(f, cur, patch, pctKey) {
+  const box = h('div', { class: 'md-imp', id: 'md-imp', hidden: true });
+  const btn = h('button', { class: 'linkish md-imp-btn', 'aria-expanded': 'false', 'aria-controls': 'md-imp', onclick: () => {
+    box.hidden = !box.hidden; btn.setAttribute('aria-expanded', box.hidden ? 'false' : 'true');
+    if (!box.hidden) setTimeout(() => pick.focus(), 0);
+  } }, 'Import .md');
+  const msg = h('div', { class: 'md-msg', role: 'status' });
+  const say = (cls, ...kids) => { msg.className = 'md-msg ' + cls; msg.replaceChildren(...kids); };
+  const file = h('input', { type: 'file', accept: '.md,.markdown,.txt,text/markdown,text/plain', hidden: true, 'data-md-file': '' });
+  const pick = h('button', { class: 'btn', onclick: () => file.click() }, 'Choose file…');
+  const paste = h('textarea', { class: 'md-paste', rows: '2', placeholder: 'Paste the .md text', 'aria-label': 'Paste a ThunderNBME analysis file' });
+  const pasteBtn = h('button', { class: 'btn ghost', onclick: () => run(paste.value) }, 'Import pasted text');
+  const apply = (r) => {
+    const undo = snapshot();
+    patch({ weak: r.weak, weakN: r.weakN });
+    refreshSheet();
+    paste.value = '';
+    const names = r.weak.map((id) => shortSys(allSystems().find((x) => x.id === id).name)).join(', ');
+    const offer = r.pct && String(cur()[pctKey]).trim() === '' ? h('button', { class: 'btn primary md-pct', onclick: () => {
+      const p = { [pctKey]: r.pct };
+      if (!(cur().status > 0)) { p.status = 1; if (!cur().date) p.date = r.date || today(); }
+      patch(p); refreshSheet();
+      say('ok', 'Imported. % correct set to ' + fmtPct(Number(r.pct)) + '.');
+    } }, 'Use ' + fmtPct(Number(r.pct)) + ' correct') : null;
+    say('ok', h('span', { text: r.weak.length ? r.weak.length + ' weak: ' + names + '.' : 'No weak systems in the file.' }), offer);
+    toast(f.full + ': weak systems imported', undo);
+  };
+  function run(text) {
+    if (!text.trim()) { say('bad', 'Paste the file’s text first.'); return; }
+    const r = parseAnalysis(text, allSystems().map((x) => x.id));
+    if (!r.ok) { say('bad', r.error); return; }
+    if (!formMatches(r.form, f.full)) {
+      say('warn', h('span', { text: 'This file is for ' + r.form + ', not ' + f.full + '.' }),
+        h('button', { class: 'btn ghost md-anyway', onclick: () => apply(r) }, 'Import anyway'));
+      return;
+    }
+    apply(r);
+  }
+  file.addEventListener('change', () => {
+    const fl = file.files && file.files[0];
+    file.value = '';
+    if (!fl) return;
+    if (fl.size > 200000) { say('bad', 'That file is too large for an analysis file.'); return; }
+    fl.text().then(run, () => say('bad', 'Couldn’t read that file.'));
+  });
+  box.append(h('p', { class: 'hint', text: 'ThunderNBME’s ThunderTracker_<form>.md: weak systems with wrong / unstable counts. Replaces what’s ticked (Undo in the toast).' }),
+    h('div', { class: 'md-row' }, pick, file, h('span', { class: 'hint', text: 'or paste it:' })), paste, h('div', { class: 'md-row' }, pasteBtn), msg);
+  return { btn, box };
+}

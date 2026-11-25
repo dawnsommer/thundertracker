@@ -4,13 +4,13 @@
 // exam type; or a straight line fitted to your own forms that have both a score and a % correct.
 // A score you type in is never changed; the estimate is shown next to it.
 
-import { $, avg, fmtPct, h, num } from './util.js?v=34';
-import { GROUPS } from './catalog.js?v=34';
-import { normConversion } from './model.js?v=34';
-import { save, snapshot, state, toast, ui } from './store.js?v=34';
-import { band, pctOf, scaledOf, taken, testForms } from './data.js?v=34';
-import { render } from './shell.js?v=34';
-import { describeModel, modelsFor, runModel, SCORE_MODELS, wrongAt } from './score-models.js?v=34';
+import { $, avg, fmtPct, h, num } from './util.js?v=35';
+import { GROUPS } from './catalog.js?v=35';
+import { normConversion } from './model.js?v=35';
+import { save, snapshot, state, toast, ui } from './store.js?v=35';
+import { band, pctOf, scaledOf, taken, testForms } from './data.js?v=35';
+import { render } from './shell.js?v=35';
+import { describeModel, modelsFor, runModel, SCORE_MODELS, wrongAt } from './score-models.js?v=35';
 
 export function fitLine(points) {
   const n = points.length;

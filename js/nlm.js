@@ -4,11 +4,11 @@
 // page: fetch(no-cache), at most every 5 minutes while the shelf is on screen, plus Refresh; kept in memory only.
 // Listening is 5 boxes per volume in `state.passive` (key volKey), synced like DIP episodes.
 
-import { h } from './util.js?v=34';
-import { state, toast, ui } from './store.js?v=34';
-import { render } from './shell.js?v=34';
-import { boxes, pvItem, tapPass } from './passive.js?v=34';
-import { NL_ST, filterRows, heard, normFeed, shelfRows, shelfStats, upNext, volKey } from './nlm-data.js?v=34';
+import { h } from './util.js?v=35';
+import { state, toast, ui } from './store.js?v=35';
+import { render } from './shell.js?v=35';
+import { boxes, pvItem, tapPass } from './passive.js?v=35';
+import { NL_ST, filterRows, heard, normFeed, shelfRows, shelfStats, upNext, volKey } from './nlm-data.js?v=35';
 
 export const NLM_URL = () => new URL('../amboss-tracker/nlm.json', location.href).href;
 const STALE = 5 * 60e3;

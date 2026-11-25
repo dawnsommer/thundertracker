@@ -534,6 +534,15 @@ button.wm-row:hover{background:color-mix(in srgb,var(--hl-soft) 40%,transparent)
 .wm-cell.on.qb.sh3{background:color-mix(in srgb,var(--act-sys) 78%,#000)}
 .wm-legend .wm-cell + .wm-cell{margin-left:-2px}
 .weak-pcts{margin-top:8px}
+.lab-row{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.md-imp{display:flex;flex-direction:column;gap:8px;padding:10px 12px;border:1px dashed var(--line);border-radius:10px;background:var(--bg)}
+.md-imp[hidden]{display:none}
+.md-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.field textarea.md-paste{min-height:52px;font-family:var(--f-mono);font-size:.74rem}
+.md-msg{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:.78rem}
+.md-msg:empty{display:none}
+.md-msg.ok{color:var(--good)}.md-msg.bad{color:var(--bad)}.md-msg.warn{color:var(--warn)}
+.md-msg .btn{font-size:.78rem;padding:4px 10px}
 .weak-pct-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px 10px;margin-top:6px}
 .weak-pct{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:.8rem}
 .weak-pct input{width:4.5rem;border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:4px 6px}
